@@ -1,0 +1,65 @@
+{
+  "manifest_version": 3,
+  "name": "Cadence \u2014 AI Planner for Canvas",
+  "version": "0.1.0",
+  "description": "Pulls your Canvas assignments, estimates how long each will take, and builds a realistic day-by-day plan around your calendar.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "*://*.instructure.com/*",
+    "*://*.canvaslms.com/*",
+    "https://api.anthropic.com/*"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.instructure.com/*",
+        "*://*.canvaslms.com/*"
+      ],
+      "js": [
+        "src/content/content.js"
+      ],
+      "css": [
+        "src/content/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/panel/*",
+        "src/lib/*"
+      ],
+      "matches": [
+        "*://*.instructure.com/*",
+        "*://*.canvaslms.com/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_title": "Open Cadence",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

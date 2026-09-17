@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence — demo</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f7f8fb; --fg:#131824; --muted:#667089; --line:#e3e7f0; --card:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1219; --fg:#e8ecf5; --muted:#99a3ba; --line:#2a3040; --card:#171b25; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); display:flex; min-height:100vh;
+    font:15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .pitch { flex:1; padding:48px 40px; max-width:640px; }
+  h1 { font-size:32px; letter-spacing:-.02em; margin:0 0 6px; }
+  h2 { font-size:15px; margin:28px 0 8px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); }
+  p { color:var(--muted); margin:0 0 12px; }
+  ol, ul { color:var(--muted); padding-left:20px; margin:0 0 12px; }
+  li { margin-bottom:6px; }
+  code { background:var(--card); border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:13px; }
+  .frame { width:456px; flex:none; padding:24px 24px 24px 0; position:sticky; top:0; height:100vh; }
+  iframe { width:100%; height:100%; border:1px solid var(--line); border-radius:16px; background:var(--card);
+    box-shadow:0 20px 50px rgba(15,23,42,.16); }
+  @media (max-width: 1000px) { body { flex-direction:column; } .frame { width:100%; height:80vh; padding:0 24px 32px; position:static; } }
+</style>
+</head>
+<body>
+  <div class="pitch">
+    <h1>Cadence</h1>
+    <p>An AI planner that lives inside Canvas. It reads what's assigned, works out how long each thing
+       will actually take <em>you</em>, and lays it across the free time you actually have.</p>
+
+    <h2>The demo on the right</h2>
+    <p>A real junior-year week for Fiona: eight assignments, soccer Tuesday and Thursday, piano on
+       Monday, volunteering Saturday morning. Nothing is hardcoded — the plan is computed live.</p>
+    <ul>
+      <li><b>Setup</b> — a one-minute walkthrough instead of a settings page.</li>
+      <li><b>Today</b> — the one block to start now, with a focus timer and one-tap check-ins.</li>
+      <li><b>Assignments</b> — ranked by when you have to <em>start</em>, with the reasoning shown.</li>
+      <li><b>Week</b> — homework blocks side by side with practices and appointments.</li>
+      <li><b>You</b> — a visual week, activities, pace, and what Cadence has learned.</li>
+    </ul>
+
+    <h2>Try these</h2>
+    <ol>
+      <li>Assignments → type <code>history essay due in 3 days, 1000 words</code> and press Add.</li>
+      <li>Today → tap the circle next to a block, then <b>Longer</b>. Check <b>You</b> afterwards.</li>
+      <li>You → tap <b>Tue</b> on the week chart and change the times.</li>
+      <li>You → <b>Teacher tools</b> to dictate an assignment.</li>
+    </ol>
+
+    <h2>Install the real extension</h2>
+    <ol>
+      <li>Chrome → <code>chrome://extensions</code> → turn on Developer mode.</li>
+      <li>Load unpacked → pick the <code>cadence</code> folder.</li>
+      <li>Open Canvas. The button is bottom-right.</li>
+    </ol>
+    <p><small>The demo saves to browser storage. You → Start over resets it.</small></p>
+  </div>
+  <div class="frame">
+    <iframe src="../src/panel/panel.html?standalone=1&demo=1" title="Cadence panel"></iframe>
+  </div>
+</body>
+</html>
