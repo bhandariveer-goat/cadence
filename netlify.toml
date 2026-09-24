@@ -1,0 +1,17 @@
+# Cadence is plain HTML/CSS/JS with no build step, so Netlify just serves the
+# repo root. index.html is the marketing homepage; the app lives at
+# /src/panel/panel.html?standalone=1 (also the PWA start_url).
+
+[build]
+  publish = "."
+  command = ""
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
