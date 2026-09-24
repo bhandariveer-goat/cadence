@@ -104,4 +104,21 @@ export function sourceAssignments(state) {
   return out;
 }
 
+/**
+ * Mirror opted-in Cadence blocks onto Google Calendar.
+ *
+ * Needs the write scope, which is requested only when the student turns this
+ * on. Returns what changed so callers can report it; throws only when the
+ * whole run fails (auth), never for a single event.
+ */
+export async function pushGoogle(state, deps = {}, { daysAhead = 21 } = {}) {
+  const g = state.sources?.google;
+  if (!g?.enabled || !g.push) return null;
+  const { pushableBlocks } = await import('../replanner.js');
+  const token = await google.freshToken(g, { save: deps.saveGoogle || (() => {}), scopes: [google.SCOPES.read, google.SCOPES.write] });
+  const desired = pushableBlocks(state, { daysAhead });
+  const result = await google.reconcileBlocks(token, g.pushCalendarId || 'primary', desired, { daysAhead });
+  return { ...result, desired: desired.length };
+}
+
 export { canvasFeed, google };

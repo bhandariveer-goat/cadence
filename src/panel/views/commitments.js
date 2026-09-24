@@ -169,6 +169,9 @@ export async function commitmentEditor(existing = null, { kind = null, afterSave
     ${app.sync?.available ? `<label class="toggle" style="margin-bottom:6px"><input type="checkbox" name="share" ${draft.share ? 'checked' : ''}><i></i>
       <span>Share check-ins with my crew<small>Partners and clubs see that you showed up</small></span></label>` : ''}
 
+    ${app.S.sources?.google?.push ? `<label class="toggle" style="margin-bottom:6px"><input type="checkbox" name="pushToGoogle" ${draft.pushToGoogle ? 'checked' : ''}><i></i>
+      <span>Add to Google Calendar<small>Its scheduled blocks appear on your real calendar</small></span></label>` : ''}
+
     <div class="actions">
       ${existing ? '<button class="btn soft danger" name="op" value="archive" formnovalidate>Remove</button>' : '<button class="btn ghost" value="cancel" formnovalidate>Cancel</button>'}
       <button class="btn primary" name="op" value="save">Save</button>
@@ -233,6 +236,7 @@ export async function commitmentEditor(existing = null, { kind = null, afterSave
   const eventLabel = String(res.get('eventLabel') || '').trim(), eventDate = String(res.get('eventDate') || '');
   draft.event = eventLabel || eventDate ? { label: eventLabel || 'Big day', date: eventDate } : null;
   if (form.share) draft.share = form.share.checked;
+  if (form.pushToGoogle) draft.pushToGoogle = form.pushToGoogle.checked;
   if (isFixed(draft)) {
     draft.schedule.start = String(res.get('start') || draft.schedule.start);
     draft.schedule.end = String(res.get('end') || draft.schedule.end);
@@ -245,6 +249,10 @@ export async function commitmentEditor(existing = null, { kind = null, afterSave
     const i = st.commitments.findIndex((x) => x.id === draft.id);
     if (i >= 0) st.commitments[i] = draft; else st.commitments.push(draft);
   });
+  if (app.S.sources?.google?.push) {
+    const { pushGoogleBlocks } = await import('../core.js');
+    pushGoogleBlocks({ quiet: true });
+  }
   toast(existing ? 'Saved' : `${draft.title} added — it's on your plan`);
   afterSave?.(draft);
   return draft;

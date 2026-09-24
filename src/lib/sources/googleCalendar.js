@@ -108,7 +108,8 @@ export async function listCalendars(token) {
   const data = await api('/users/me/calendarList', token, { query: { maxResults: 50, minAccessRole: 'reader' } });
   return (data.items || []).map((c) => ({
     id: c.id, name: c.summaryOverride || c.summary, primary: !!c.primary,
-    color: c.backgroundColor || null, selected: c.selected !== false
+    color: c.backgroundColor || null, selected: c.selected !== false,
+    canWrite: ['owner', 'writer'].includes(c.accessRole)
   }));
 }
 
@@ -174,7 +175,11 @@ export async function fetchEvents(token, { calendarIds = ['primary'], daysBack =
   return { events: out, errors };
 }
 
-// ------------------------------------------------------- write (phase 2)
+// ------------------------------------------------------------------ write
+//
+// Cadence only ever touches events it created. Every write carries a private
+// extended property (cadenceBlock=v1) plus a stable key, so a resync can match
+// what it wrote last time even though re-planning gives blocks new ids.
 
 export async function insertBlock(token, calendarId, block) {
   return api(`/calendars/${encodeURIComponent(calendarId)}/events`, token, { method: 'POST', body: toGoogleEvent(block) });
@@ -188,7 +193,6 @@ export async function deleteBlock(token, calendarId, googleId) {
   return api(`/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(googleId)}`, token, { method: 'DELETE' });
 }
 
-/** Everything Cadence writes carries its tag, so cleanup never touches other events. */
 export function toGoogleEvent(block) {
   return {
     summary: block.title,
@@ -196,19 +200,91 @@ export function toGoogleEvent(block) {
     start: { dateTime: new Date(block.start).toISOString() },
     end: { dateTime: new Date(block.end).toISOString() },
     reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 5 }] },
-    extendedProperties: { private: { [CADENCE_TAG.key]: CADENCE_TAG.value, cadenceId: block.id || '' } }
+    extendedProperties: {
+      private: { [CADENCE_TAG.key]: CADENCE_TAG.value, cadenceKey: block.key || '', cadenceItem: block.itemId || '' }
+    }
   };
 }
 
-/** Cadence-created events only — used to update or clean up after a re-plan. */
-export async function listOwnBlocks(token, calendarId, { daysAhead = 30 } = {}) {
-  const data = await api(`/calendars/${encodeURIComponent(calendarId)}/events`, token, {
-    query: {
-      timeMin: new Date().toISOString(),
-      timeMax: new Date(Date.now() + daysAhead * 864e5).toISOString(),
-      singleEvents: 'true', maxResults: 250,
-      privateExtendedProperty: `${CADENCE_TAG.key}=${CADENCE_TAG.value}`
+/** Only events Cadence wrote, found by its private tag. */
+export async function listOwnBlocks(token, calendarId, { daysAhead = 21, daysBack = 1 } = {}) {
+  const out = [];
+  let pageToken;
+  do {
+    const data = await api(`/calendars/${encodeURIComponent(calendarId)}/events`, token, {
+      query: {
+        timeMin: new Date(Date.now() - daysBack * 864e5).toISOString(),
+        timeMax: new Date(Date.now() + daysAhead * 864e5).toISOString(),
+        singleEvents: 'true', maxResults: 250, pageToken,
+        privateExtendedProperty: `${CADENCE_TAG.key}=${CADENCE_TAG.value}`
+      }
+    });
+    for (const ev of data.items || []) {
+      if (ev.status === 'cancelled') continue;
+      out.push({
+        googleId: ev.id,
+        key: ev.extendedProperties?.private?.cadenceKey || '',
+        itemId: ev.extendedProperties?.private?.cadenceItem || '',
+        title: ev.summary || '',
+        start: ev.start?.dateTime || ev.start?.date || null,
+        end: ev.end?.dateTime || ev.end?.date || null
+      });
     }
-  });
-  return (data.items || []).map((ev) => ({ googleId: ev.id, cadenceId: ev.extendedProperties?.private?.cadenceId || '', start: ev.start?.dateTime, title: ev.summary }));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return out;
+}
+
+const sameTime = (a, b) => Math.abs(+new Date(a) - +new Date(b)) < 60000;
+
+/**
+ * Make the calendar match `desired`: add what's missing, move what shifted,
+ * remove what Cadence no longer plans. Untagged events are never read or
+ * touched here — the query itself only returns Cadence's own.
+ * @param {{key, itemId, title, start, end, description}[]} desired
+ */
+export async function reconcileBlocks(token, calendarId, desired, { daysAhead = 21 } = {}) {
+  const existing = await listOwnBlocks(token, calendarId, { daysAhead });
+  const byKey = new Map();
+  const orphans = [];
+  for (const e of existing) (e.key && !byKey.has(e.key) ? byKey.set(e.key, e) : orphans.push(e));
+
+  const wanted = new Map(desired.map((b) => [b.key, b]));
+  const result = { created: 0, updated: 0, deleted: 0, map: {}, errors: [] };
+
+  for (const [key, block] of wanted) {
+    const prev = byKey.get(key);
+    try {
+      if (!prev) {
+        const ev = await insertBlock(token, calendarId, block);
+        result.created++;
+        result.map[key] = ev.id;
+      } else {
+        result.map[key] = prev.googleId;
+        if (!sameTime(prev.start, block.start) || !sameTime(prev.end, block.end) || prev.title !== block.title) {
+          await updateBlock(token, calendarId, prev.googleId, block);
+          result.updated++;
+        }
+      }
+    } catch (e) {
+      if (e.code === 401) throw e;
+      result.errors.push(`${block.title}: ${e.message}`);
+    }
+  }
+
+  for (const e of [...byKey.values(), ...orphans]) {
+    if (wanted.has(e.key)) continue;
+    try { await deleteBlock(token, calendarId, e.googleId); result.deleted++; } catch { /* already gone */ }
+  }
+  return result;
+}
+
+/** Take every Cadence event back off the calendar, leaving everything else alone. */
+export async function removeAllBlocks(token, calendarId, { daysAhead = 400 } = {}) {
+  const mine = await listOwnBlocks(token, calendarId, { daysAhead, daysBack: 400 });
+  let removed = 0;
+  for (const e of mine) {
+    try { await deleteBlock(token, calendarId, e.googleId); removed++; } catch { /* already gone */ }
+  }
+  return removed;
 }

@@ -5,7 +5,7 @@
 
 import { loadState, saveState, update } from '../lib/store.js';
 import { MIN } from '../lib/util.js';
-import { runAll, applyResults } from '../lib/sources/sources.js';
+import { runAll, applyResults, pushGoogle } from '../lib/sources/sources.js';
 import { recomputeState } from '../lib/replanner.js';
 
 const PREFIX = 'cadence:session:';
@@ -45,6 +45,21 @@ async function autoSync() {
     fresh.autoSync.lastRun = new Date().toISOString();
     recomputeState(fresh);
     await saveState(fresh);
+
+    // Mirror opted-in blocks, if the student turned that on.
+    if (fresh.sources?.google?.push) {
+      try {
+        const push = await pushGoogle(fresh, { saveGoogle: (t) => update((st) => { Object.assign(st.sources.google, t); return st; }) });
+        if (push) await update((st) => {
+          st.sources.google.pushed = push.map;
+          st.sources.google.lastPush = new Date().toISOString();
+          st.sources.google.pushError = push.errors[0] || null;
+          return st;
+        });
+      } catch (e) {
+        await update((st) => { st.sources.google.pushError = String(e.message || e); return st; });
+      }
+    }
   } catch (e) {
     // Never let a sync failure take down the worker; the panel shows the error.
     await update((st) => { st.autoSync.lastError = String(e.message || e); return st; });

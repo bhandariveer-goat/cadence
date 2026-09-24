@@ -110,10 +110,10 @@ Google requires an OAuth client, and only you can create it:
    your email, developer email. Add yourself under **Test users** — while the app
    is unverified only test users can sign in (up to 100), which is fine for you
    and your classmates.
-4. **Scopes**: add `.../auth/calendar.readonly` for reading. Add
-   `.../auth/calendar.events` only when you turn on pushing blocks back.
-   Both are *sensitive* scopes: fine in testing mode, but publishing to everyone
-   would need Google's verification review.
+4. **Scopes**: add `.../auth/calendar.readonly` for reading, and
+   `.../auth/calendar.events` if you want Cadence to add its blocks to your
+   calendar. Both are *sensitive* scopes: fine in testing mode, but publishing
+   to everyone would need Google's verification review.
 5. **Credentials → Create credentials → OAuth client ID → Web application**.
    Under **Authorized redirect URIs** paste the URI Cadence shows you in
    Calendars → Google → Connect. It looks like:
@@ -130,6 +130,32 @@ Two limits worth knowing:
   works there. Same for the Canvas feed fetch.
 - **Tokens last about an hour.** Cadence renews silently in the background and
   only asks you to sign in again if that fails.
+
+### Adding Cadence's blocks to Google Calendar
+
+Off by default, and opt-in per item even when it's on — nothing appears on a
+real calendar unless it's asked for.
+
+1. Calendars → Google → **Add Cadence blocks to Google Calendar**. Google asks
+   again, this time for `calendar.events` (incremental auth: the read grant is
+   kept).
+2. Pick which calendar to write to. A separate calendar is worth considering —
+   it makes Cadence's blocks easy to hide or delete in bulk.
+3. Turn it on per item: the **Add to Google Calendar** toggle in a commitment's
+   editor, or the button on an assignment's guide. The Calendars screen lists
+   everything currently syncing, with a **Stop** next to each.
+
+Every event Cadence writes carries a private extended property
+(`cadenceBlock=v1`) plus a stable key of `itemId|startTime`. Resync queries
+Google for *only* events with that property, so:
+
+- blocks that moved in a re-plan get patched to the new time,
+- blocks Cadence no longer plans get deleted,
+- everything else on the calendar is never read or touched,
+- and running it twice changes nothing the second time.
+
+**Remove Cadence events** takes every one of them back off, leaving the rest
+alone. Turning the toggle off asks whether to remove or keep what's there.
 
 ### Autosync
 
@@ -183,9 +209,6 @@ supabase/schema.sql                        crew database + security policies
 
 ## Not built yet
 
-- Pushing Cadence's blocks back to Google Calendar is written but not wired to a
-  toggle yet (`googleCalendar.insertBlock/updateBlock/deleteBlock`, tagged with
-  the `cadenceBlock` extended property so resync only ever touches its own events).
 - Gmail import — see the notes below on why the Apps Script route beats the API.
 
 - Live Supabase sync is written against the documented REST API but hasn't been

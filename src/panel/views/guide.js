@@ -148,6 +148,9 @@ export function viewGuide() {
       ${isDone ? `<button class="btn soft" data-act="reopen" data-id="${t.id}">Mark not done</button>`
         : `<button class="btn primary" data-act="complete" data-id="${t.id}">${svg(I.check, 15)} Mark done</button>`}
     </div>
+    ${isDone || !app.S.sources?.google?.push ? '' : `<div class="row" style="margin-top:10px">
+      <button class="btn small ${t.pushToGoogle ? 'soft' : 'ghost'} block" data-act="push-item-toggle" data-id="${t.id}" data-kind="assignment">
+        ${svg(I.cal, 14)} ${t.pushToGoogle ? 'On your Google Calendar' : 'Add its blocks to Google Calendar'}</button></div>`}
     ${isDone ? '' : `<div class="row wrap" style="justify-content:center;gap:4px;margin-top:8px">
       <button class="btn small ghost" data-act="edit" data-id="${t.id}">Change time</button>
       <button class="btn small ghost" data-act="pin" data-id="${t.id}">${t.pinned ? 'Unpin' : 'Do this first'}</button>
@@ -168,6 +171,17 @@ function openMaterial(taskId, mid) {
 }
 
 export const actions = {
+  'push-item-toggle': async (el) => {
+    const { persist, pushGoogleBlocks } = await import('../core.js');
+    const { id, kind } = el.dataset;
+    let on = false;
+    await persist((st) => {
+      if (kind === 'commitment') { const c = st.commitments.find((x) => x.id === id); if (c) { c.pushToGoogle = !c.pushToGoogle; on = c.pushToGoogle; } }
+      else if (st.tasks[id]) { st.tasks[id].pushToGoogle = !st.tasks[id].pushToGoogle; on = st.tasks[id].pushToGoogle; }
+    }, { recalc: false });
+    toast(on ? 'Adding its blocks to Google Calendar…' : 'Removing its blocks from Google Calendar…');
+    pushGoogleBlocks({ quiet: true });
+  },
   'open-guide': (el) => {
     if (!app.S.tasks[el.dataset.id]) return;
     push('guide', { guideId: el.dataset.id });

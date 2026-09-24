@@ -1,7 +1,8 @@
 // Connect and manage calendar sources: the Canvas feed, Google Calendar, and
 // how often Cadence checks them.
 
-import { app, persist, refreshSources, back, insideCanvas } from '../core.js';
+import { app, persist, refreshSources, pushGoogleBlocks, back, insideCanvas } from '../core.js';
+import { pushedItems } from '../../lib/replanner.js';
 import { SOURCE_META, canvasFeed, google } from '../../lib/sources/sources.js';
 import { fmtMinutes } from '../../lib/util.js';
 import { svg, I, esc, sheet, toast, ago, plural } from '../ui.js';
@@ -41,6 +42,8 @@ export function viewCalendars() {
       <b>Google sync needs the Chrome extension.</b> On the website the browser blocks these requests. Your plan, commitments and manual <code>.ics</code> imports all still work here.
     </div>` : ''}
 
+    ${g.enabled ? pushCard(g) : ''}
+
     <div class="section-head" style="margin-top:20px"><h2>Keeping up to date</h2></div>
     <div class="card flush">
       <label class="integration toggle" style="cursor:pointer">
@@ -65,6 +68,43 @@ export function viewCalendars() {
     <div class="card soft small" style="margin-top:16px">
       <b>What leaves your device:</b> nothing. Cadence reads these calendars straight from your browser and keeps the results here. Your Canvas feed link and Google token are stored in the extension's own storage.
     </div>`;
+}
+
+/** Writing back to Google — off by default, and opt-in per item even then. */
+function pushCard(g) {
+  const items = pushedItems(app.S);
+  const target = (g.calendars || []).find((c) => c.id === (g.pushCalendarId || 'primary'));
+  return `<div class="card" style="--c:#3b82f6">
+    <label class="toggle" style="align-items:flex-start">
+      <input type="checkbox" data-act="google-push-toggle" ${g.push ? 'checked' : ''}><i></i>
+      <span class="grow"><span class="card-title" style="display:block">Add Cadence blocks to Google Calendar</span>
+        <small>Off by default. Even with this on, only the commitments and assignments you pick get added — everything else stays inside Cadence.</small></span>
+    </label>
+
+    ${g.push ? `
+      <div class="integration" style="padding:12px 0 0">
+        <span class="ic">${svg(I.cal, 18)}</span>
+        <div class="grow"><div class="t">Writes to</div><div class="m">${esc(target?.name || 'Your main calendar')}</div></div>
+        <button class="btn small soft" data-act="google-push-calendar">Change</button>
+      </div>
+
+      <div class="section-head" style="margin:14px 0 8px"><h2 style="font-size:14px">Syncing ${items.length ? `(${items.length})` : ''}</h2></div>
+      ${items.length ? `<div class="card flush" style="margin:0;box-shadow:none;border-color:var(--line)">
+          ${items.map((i) => `<div class="item"><span class="dot" style="--c:${i.color || 'var(--accent)'}"></span>
+            <div class="grow"><div class="t">${esc(i.title)}</div><div class="m">${i.kind === 'commitment' ? 'Commitment' : 'Assignment'}</div></div>
+            <button class="btn small ghost" data-act="push-item-off" data-id="${i.id}" data-kind="${i.kind}">Stop</button></div>`).join('')}
+        </div>`
+        : `<div class="card soft small" style="margin:0">Nothing opted in yet. Open a commitment or an assignment and turn on <b>Add to Google Calendar</b>.</div>`}
+
+      ${g.pushError ? `<div class="card warm small" style="margin:12px 0 0">${esc(g.pushError)}</div>` : ''}
+      <div class="row" style="margin-top:12px;gap:8px">
+        <button class="btn small soft" data-act="google-push-now">${svg(I.repeat, 14)} Sync now</button>
+        <span class="grow"></span>
+        <button class="btn small ghost danger" data-act="google-remove-blocks">Remove Cadence events</button>
+      </div>
+      ${g.lastPush ? `<p class="hint">Last updated ${ago(g.lastPush)}. Cadence only ever edits events it created.</p>` : ''}`
+    : ''}
+  </div>`;
 }
 
 function sourceCard({ id, icon, color, cfg, title, sub, primary, action }) {
@@ -182,7 +222,72 @@ async function googleCalendarsSheet() {
   await refreshSources({ only: 'google' });
 }
 
+async function enablePush() {
+  const g = app.S.sources.google;
+  try {
+    // Incremental auth: ask for the write scope on top of what's already granted.
+    const token = await google.authorize(g.clientId, { scopes: [google.SCOPES.read, google.SCOPES.write], interactive: true, loginHint: g.email });
+    const calendars = await google.listCalendars(token.accessToken);
+    await persist((st) => {
+      Object.assign(st.sources.google, token, { calendars, push: true, pushError: null });
+      if (!st.sources.google.pushCalendarId) st.sources.google.pushCalendarId = (calendars.find((c) => c.primary) || {}).id || 'primary';
+    }, { recalc: false });
+    toast('Cadence can now add blocks. Pick which ones on a commitment or assignment.');
+    pushGoogleBlocks({ quiet: true });
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function disablePush() {
+  const res = await sheet(`<h2>Stop adding blocks?</h2>
+    <p class="lead">Cadence will stop writing to Google Calendar. Blocks it already added can stay or go.</p>
+    <div class="actions"><button class="btn soft" name="op" value="keep">Leave them</button>
+      <button class="btn primary" name="op" value="remove">Remove them</button></div>`);
+  if (!res) return;
+  const g = app.S.sources.google;
+  if (res.get('op') === 'remove') await removeBlocks({ quiet: true });
+  await persist((st) => { st.sources.google.push = false; }, { recalc: false });
+  toast('Stopped');
+}
+
+async function removeBlocks({ quiet = false } = {}) {
+  const g = app.S.sources.google;
+  try {
+    const token = await google.freshToken(g, {
+      save: (t) => persist((st) => { Object.assign(st.sources.google, t); }, { recalc: false }),
+      scopes: [google.SCOPES.read, google.SCOPES.write]
+    });
+    const n = await google.removeAllBlocks(token, g.pushCalendarId || 'primary');
+    await persist((st) => { st.sources.google.pushed = {}; }, { recalc: false });
+    if (!quiet) toast(n ? `Removed ${n} Cadence event${n === 1 ? '' : 's'}` : 'Nothing of Cadence\u2019s was on the calendar');
+  } catch (e) {
+    if (!quiet) toast(e.message);
+  }
+}
+
+async function pickPushCalendar() {
+  const g = app.S.sources.google;
+  const writable = (g.calendars || []).filter((c) => c.canWrite !== false);
+  const res = await sheet(`<h2>Where should blocks go?</h2>
+    <p class="lead">A separate calendar keeps Cadence's blocks easy to hide or delete in bulk.</p>
+    <div class="choices stacked">${writable.map((c) => `<button class="choice" name="id" value="${esc(c.id)}"
+      aria-pressed="${(g.pushCalendarId || 'primary') === c.id}">${esc(c.name)}${c.primary ? '<small>Your main calendar</small>' : ''}</button>`).join('')}</div>
+    <div class="actions"><button class="btn ghost" value="cancel">Cancel</button></div>`);
+  if (!res?.get('id')) return;
+  await persist((st) => { st.sources.google.pushCalendarId = String(res.get('id')); }, { recalc: false });
+  pushGoogleBlocks();
+}
+
 export const actions = {
+  'google-push-now': () => pushGoogleBlocks(),
+  'google-push-calendar': () => pickPushCalendar(),
+  'google-remove-blocks': () => removeBlocks(),
+  'push-item-off': (el) => persist((st) => {
+    const { id, kind } = el.dataset;
+    if (kind === 'commitment') { const c = st.commitments.find((x) => x.id === id); if (c) c.pushToGoogle = false; }
+    else if (st.tasks[id]) st.tasks[id].pushToGoogle = false;
+  }, { recalc: false }).then(() => pushGoogleBlocks({ quiet: true })),
   'open-calendars': async () => { const { push } = await import('../core.js'); push('calendars'); },
   'canvas-feed-sheet': () => canvasFeedSheet(),
   'google-connect': () => googleConnect(),
@@ -205,6 +310,7 @@ export const actions = {
 };
 
 export const changeActions = {
+  'google-push-toggle': (el) => (el.checked ? enablePush() : disablePush()),
   'autosync-toggle': (el) => persist((st) => { st.autoSync.enabled = el.checked; }, { recalc: false })
     .then(() => chrome?.runtime?.sendMessage?.({ type: 'cadence:arm-autosync' }))
 };

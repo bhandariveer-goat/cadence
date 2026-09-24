@@ -6,7 +6,7 @@ import { loadState, saveState, update } from '../lib/store.js';
 import { learn } from '../lib/estimator.js';
 import { isStale } from '../lib/priority.js';
 import { recomputeState, allBusy as busyFromState, plannable as taskPlannable } from '../lib/replanner.js';
-import { runAll, applyResults, SOURCE_META, sourceEvents } from '../lib/sources/sources.js';
+import { runAll, applyResults, pushGoogle, SOURCE_META, sourceEvents } from '../lib/sources/sources.js';
 import * as canvas from '../lib/canvas.js';
 import * as ai from '../lib/ai.js';
 import { createSync } from '../lib/sync.js';
@@ -387,6 +387,8 @@ export async function refreshSources({ only = null, quiet = false } = {}) {
       st.autoSync.lastRun = new Date().toISOString();
     });
 
+    if (app.S.sources?.google?.push) await pushGoogleBlocks({ quiet: true });
+
     const failed = Object.entries(results).filter(([, r]) => !r.ok);
     const good = Object.entries(results).filter(([, r]) => r.ok);
     if (!quiet) {
@@ -401,6 +403,38 @@ export async function refreshSources({ only = null, quiet = false } = {}) {
   } finally {
     app.sourcesSyncing = false;
     render();
+  }
+}
+
+/**
+ * Push opted-in blocks to Google Calendar. Safe to call often: it reconciles
+ * against what Cadence wrote before rather than creating duplicates.
+ */
+export async function pushGoogleBlocks({ quiet = false } = {}) {
+  const g = app.S.sources?.google;
+  if (!g?.enabled || !g.push) return null;
+  const { toast } = await import('./ui.js');
+  try {
+    const res = await pushGoogle(app.S, {
+      saveGoogle: (t) => persist((st) => { Object.assign(st.sources.google, t); }, { recalc: false })
+    });
+    if (!res) return null;
+    await persist((st) => {
+      st.sources.google.pushed = res.map;
+      st.sources.google.lastPush = new Date().toISOString();
+      st.sources.google.pushError = res.errors[0] || null;
+    }, { recalc: false });
+    if (!quiet) {
+      const changed = res.created + res.updated + res.deleted;
+      toast(changed
+        ? `Google Calendar updated — ${[res.created && `${res.created} added`, res.updated && `${res.updated} moved`, res.deleted && `${res.deleted} removed`].filter(Boolean).join(', ')}`
+        : 'Google Calendar already matches your plan');
+    }
+    return res;
+  } catch (e) {
+    await persist((st) => { st.sources.google.pushError = e.message; }, { recalc: false });
+    if (!quiet) toast(`Couldn't update Google Calendar: ${e.message}`);
+    return null;
   }
 }
 

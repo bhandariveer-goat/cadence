@@ -84,3 +84,49 @@ export function recomputeState(st) {
   st.plan = replan(st, ranked, busy);
   return st;
 }
+
+/**
+ * Blocks the student has opted in to mirror on Google Calendar.
+ *
+ * Opt-in is per item — a commitment or an assignment — not a blanket setting,
+ * so nothing appears on someone's real calendar without them asking for it.
+ * The key is stable across re-plans (item + start time), which is what lets a
+ * resync recognise an event it wrote earlier.
+ */
+export function pushableBlocks(st, { daysAhead = 21 } = {}) {
+  const until = Date.now() + daysAhead * DAY;
+  const from = Date.now() - 60 * 60 * 1000;
+  const out = [];
+
+  for (const s of st.plan?.sessions || []) {
+    if (s.done) continue;
+    const at = +new Date(s.start);
+    if (at < from || at > until) continue;
+
+    const commitment = s.commitmentId ? (st.commitments || []).find((c) => c.id === s.commitmentId) : null;
+    const task = s.taskId ? st.tasks[s.taskId] : null;
+    const item = commitment || task;
+    if (!item?.pushToGoogle) continue;
+
+    const itemId = commitment ? commitment.id : task.id;
+    out.push({
+      key: `${itemId}|${new Date(s.start).toISOString()}`,
+      itemId,
+      title: commitment ? `${s.title} (Cadence)` : `${s.title}${s.parts > 1 ? ` · part ${s.part}/${s.parts}` : ''}`,
+      start: s.start,
+      end: s.end,
+      description: commitment
+        ? `${commitment.why ? `${commitment.why}\n\n` : ''}Scheduled by Cadence.`
+        : `${task?.courseName ? `${task.courseName}. ` : ''}Scheduled by Cadence.${task?.url ? `\n${task.url}` : ''}`
+    });
+  }
+  return out;
+}
+
+/** Items currently opted in, for the settings screen. */
+export function pushedItems(st) {
+  return [
+    ...(st.commitments || []).filter((c) => c.pushToGoogle && !c.archived).map((c) => ({ id: c.id, title: c.title, kind: 'commitment', color: c.color })),
+    ...Object.values(st.tasks || {}).filter((t) => t.pushToGoogle && t.status !== 'done').map((t) => ({ id: t.id, title: t.title, kind: 'assignment', color: null }))
+  ];
+}
