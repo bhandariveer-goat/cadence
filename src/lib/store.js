@@ -22,6 +22,18 @@ export const DEFAULT_STATE = {
   streak: { freezes: 1, frozenDays: [], best: 0, lastAward: null },
   sync: { mode: 'local', url: '', anonKey: '', session: null },
   lastReviewWeek: null,
+
+  // Connected calendars. Each keeps its own cache so one failing source never
+  // blanks the others; see lib/sources/sources.js.
+  sources: {
+    canvasFeed: { enabled: false, url: '', events: [], assignments: [], lastSync: null, lastTry: null, error: null },
+    google: {
+      enabled: false, clientId: '', email: '', accessToken: null, expiresAt: 0, scopes: [],
+      calendars: [], selected: [], push: false, pushCalendarId: 'primary', pushed: {},
+      events: [], assignments: [], lastSync: null, lastTry: null, error: null
+    }
+  },
+  autoSync: { enabled: true, everyMinutes: 20, lastRun: null },
   dismissed: {},                  // taskId -> true when she says "not doing this"
 
   settings: {

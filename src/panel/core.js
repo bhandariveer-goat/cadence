@@ -3,16 +3,14 @@
 // and navigation. Views read `app` and call these; app.js wires up rendering.
 
 import { loadState, saveState, update } from '../lib/store.js';
-import { estimate, learn, classify } from '../lib/estimator.js';
-import { prioritize, isStale } from '../lib/priority.js';
-import { replan } from '../lib/scheduler.js';
-import { expandActivities } from '../lib/calendar.js';
+import { learn } from '../lib/estimator.js';
+import { isStale } from '../lib/priority.js';
+import { recomputeState, allBusy as busyFromState, plannable as taskPlannable } from '../lib/replanner.js';
+import { runAll, applyResults, SOURCE_META, sourceEvents } from '../lib/sources/sources.js';
 import * as canvas from '../lib/canvas.js';
 import * as ai from '../lib/ai.js';
 import { createSync } from '../lib/sync.js';
-import {
-  commitmentTasks, fixedActivities, weekProgress, settleStreak, showUpStreak, sessionMinutes, isFixed, weekStart
-} from '../lib/habits.js';
+import { weekProgress, settleStreak, showUpStreak, sessionMinutes, isFixed, weekStart } from '../lib/habits.js';
 import { dateKey, addDays, startOfDay, atTime, uid, MIN, DAY } from '../lib/util.js';
 
 export const params = new URLSearchParams(location.search);
@@ -117,6 +115,7 @@ export async function boot() {
   }
   if (insideCanvas && !app.S.profile.name) fetchName();
   if (insideCanvas && app.S.profile.onboarded && shouldAutoSync()) syncCanvas({ quiet: true });
+  if (app.S.profile.onboarded && sourcesStale()) refreshSources({ quiet: true });
   if (app.sync.available && app.S.profile.onboarded) loadCrew();
 }
 
@@ -166,50 +165,12 @@ function updateBadge() {
 
 // ----------------------------------------------------------- computation
 
-export function allBusy(st = app.S) {
-  const days = (st.settings.lookaheadDays ?? 14) + 2;
-  return [
-    ...(st.busy || []),
-    ...expandActivities(fixedActivities(st), new Date(), days),
-    ...expandActivities(st.activities || [], new Date(), days)
-  ];
-}
+export const allBusy = (st = app.S) => busyFromState(st);
+export const plannable = (t, st = app.S) => taskPlannable(t, st);
 
-export function plannable(t, st = app.S) {
-  if (t.status === 'done' || st.dismissed?.[t.id] || isStale(t)) return false;
-  return !!(t.due || t.source === 'manual' || t.pinned);
-}
-
-function prune(st) {
-  const monthAgo = Date.now() - 30 * DAY;
-  for (const [id, t] of Object.entries(st.tasks)) {
-    const oldDone = t.status === 'done' && t.completedAt && +new Date(t.completedAt) < monthAgo;
-    if ((t.status !== 'done' && isStale(t)) || oldDone) delete st.tasks[id];
-  }
-  const yesterday = +addDays(startOfDay(new Date()), -1);
-  st.busy = (st.busy || []).filter((b) => b.source === 'ics' || +new Date(b.end) > yesterday);
-}
-
-/** Estimates, ranking and the plan — homework and commitments in one schedule. */
+/** Estimates, ranking and the plan — homework, commitments and every calendar. */
 export function recompute(st = app.S) {
-  prune(st);
-  for (const t of Object.values(st.tasks)) {
-    if (!t.category) t.category = classify(t);
-    if (!t.userEstimateMin && !t.aiEstimateMin) {
-      const e = estimate(t, st.model);
-      t.heuristicMin = e.minutes;
-      t.estimateWhy = e.rationale;
-    }
-    t.baseEstimateMin = t.userEstimateMin || t.aiEstimateMin || t.heuristicMin || 30;
-    t.estimateMin = t.baseEstimateMin + (t.estimateBoost || 0);
-  }
-  const busy = allBusy(st);
-  const homework = Object.values(st.tasks).filter((t) => plannable(t, st));
-  const practice = commitmentTasks(st, new Date(), (st.settings.lookaheadDays ?? 14) - 1);
-  const ranked = prioritize([...homework, ...practice], { availability: st.availability, busy, settings: st.settings });
-  st.ranked = ranked.filter((t) => t.source !== 'commitment').map((t) => ({ id: t.id, priority: t.priority }));
-  st.plan = replan(st, ranked, busy);
-  return st;
+  return recomputeState(st);
 }
 
 export function rankedTasks() {
@@ -267,8 +228,12 @@ export function dayAgenda(k) {
       checkin: (S.checkins || []).find((x) => x.commitmentId === c.id && x.date === k) || null
     });
   }
-  for (const b of (S.busy || []).filter((x) => x.source !== 'skip' && new Date(x.start) < end && new Date(x.end) > day)) {
-    items.push({ type: 'busy', at: +new Date(b.start), end: +new Date(b.end), title: b.title });
+  const external = [...(S.busy || []), ...sourceEvents(S)];
+  for (const b of external.filter((x) => x.source !== 'skip' && new Date(x.start) < end && new Date(x.end) > day)) {
+    items.push({
+      type: 'busy', at: +new Date(b.start), end: +new Date(b.end), title: b.title,
+      source: b.source, allDay: !!b.allDay, url: b.url || null, calendarName: b.calendarName || ''
+    });
   }
   for (const ci of (S.checkins || []).filter((x) => x.date === k)) {
     const c = commitmentById(ci.commitmentId);
@@ -397,3 +362,50 @@ export function learnedNotes() {
     .map(([k, v]) => `${k.split('::')[1]}: takes ${Math.round(v.factor * 100)}% of a typical estimate`)
     .join('; ');
 }
+
+// ------------------------------------------------------- calendar sources
+
+/**
+ * Pull every connected calendar, cache what came back, and re-plan around it.
+ * Failures are per-source: a dead Canvas feed never stops Google from syncing,
+ * and the last good data stays on screen either way.
+ */
+export async function refreshSources({ only = null, quiet = false } = {}) {
+  const enabled = Object.entries(app.S.sources || {}).filter(([id, s]) => s.enabled || id === only);
+  if (!enabled.length) return null;
+
+  app.sourcesSyncing = true;
+  render();
+  const { toast } = await import('./ui.js');
+  try {
+    const results = await runAll(app.S, {
+      saveGoogle: (t) => persist((st) => { Object.assign(st.sources.google, t); }, { recalc: false })
+    }, { only });
+
+    await persist((st) => {
+      applyResults(st, results);
+      st.autoSync.lastRun = new Date().toISOString();
+    });
+
+    const failed = Object.entries(results).filter(([, r]) => !r.ok);
+    const good = Object.entries(results).filter(([, r]) => r.ok);
+    if (!quiet) {
+      if (failed.length && !good.length) toast(`${SOURCE_META[failed[0][0]]?.short || 'Sync'}: ${failed[0][1].error}`);
+      else if (failed.length) toast(`Synced, but ${SOURCE_META[failed[0][0]]?.short} failed — ${failed[0][1].error}`);
+      else {
+        const n = good.reduce((a, [, r]) => a + (r.events?.length || 0) + (r.assignments?.length || 0), 0);
+        toast(n ? `Calendars up to date — ${n} items` : 'Calendars up to date');
+      }
+    }
+    return results;
+  } finally {
+    app.sourcesSyncing = false;
+    render();
+  }
+}
+
+export const sourcesStale = () => {
+  const { enabled, everyMinutes, lastRun } = app.S.autoSync || {};
+  if (!enabled) return false;
+  return !lastRun || Date.now() - +new Date(lastRun) > (everyMinutes || 20) * MIN;
+};

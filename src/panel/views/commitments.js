@@ -304,3 +304,19 @@ export const actions = {
     if (s?.commitmentId) checkinFlow(s.commitmentId, { sessionId: s.id });
   }
 };
+
+/** "C" and the palette both need a quick "which one?" list. */
+export async function checkinPicker() {
+  const list = (app.S.commitments || []).filter((c) => !c.archived);
+  if (!list.length) return commitmentEditor(null, { kind: 'practice' });
+  if (list.length === 1) return checkinFlow(list[0].id);
+  const res = await sheet(`<h2>Check in</h2><p class="lead">What did you just do?</p>
+    <div class="choices stacked">${list.map((c) => {
+      const p = weekProgress(c, app.S.checkins);
+      return `<button class="choice" name="id" value="${c.id}" style="display:flex;align-items:center;gap:12px">
+        <span class="kind-ic" style="--c:${c.color};width:34px;height:34px">${svg(KIND_ICON[c.kind] || I.star, 17)}</span>
+        <span style="flex:1">${esc(c.title)}<small>${p.label} this week</small></span></button>`;
+    }).join('')}</div>
+    <div class="actions"><button class="btn ghost" value="cancel">Cancel</button></div>`);
+  if (res?.get('id')) checkinFlow(String(res.get('id')));
+}

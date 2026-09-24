@@ -7,7 +7,7 @@ import {
 import { weekProgress, pendingCheckins, showUpStreak, sessionMinutes, weekStart } from '../../lib/habits.js';
 import { dateKey, fmtTime, fmtMinutes, fmtDay, addDays } from '../../lib/util.js';
 import { ringsDeck, timeline, ART, commitmentIcon } from './parts.js';
-import { svg, I, esc, greeting, avatar, ago, colorFor, mmss, plural, KIND_ICON, dueLabel } from '../ui.js';
+import { svg, I, esc, greeting, avatar, ago, colorFor, mmss, plural, KIND_ICON, dueLabel, isWide } from '../ui.js';
 import { composeGuide } from './guide.js';
 import { stepsForSession, describeSteps } from '../../lib/guide.js';
 
@@ -39,8 +39,7 @@ export function viewToday() {
     </div>
 
     ${unplaced.length ? roomCard(unplaced) : ''}
-    ${reviewCard()}
-    ${crewPeek()}
+    ${isWide() ? '' : `${reviewCard()}${crewPeek()}`}
   `;
 }
 
@@ -213,3 +212,34 @@ export const actions = {
   },
   'skip-fixed': (el) => persist((st) => { (st.skipped ||= {})[`${el.dataset.id}|${dateKey(new Date())}`] = true; }, { recalc: false })
 };
+
+/** Right pane on wide screens: streak, what's coming, and the crew. */
+export function side() {
+  const S = app.S;
+  const streak = showUpStreak(S);
+  const k = dateKey(new Date());
+  const upcoming = (S.plan?.days || []).filter((d) => d.date > k && d.sessions.some((s) => !s.done)).slice(0, 3);
+
+  return `
+    <div class="card" style="text-align:center">
+      <div style="color:var(--amber)">${svg(I.flame, 30)}</div>
+      <div style="font-size:34px;font-weight:850;letter-spacing:-.03em;line-height:1.1">${streak.days}</div>
+      <div class="small muted">day streak${streak.best > streak.days ? ` · best ${streak.best}` : ''}</div>
+      <div class="small" style="margin-top:8px;color:${streak.todayDone ? 'var(--green)' : 'var(--text-2)'}">
+        ${streak.todayDone ? 'Today is counted' : 'Check in once today to keep it'}</div>
+      ${streak.freezes ? `<div class="pill" style="margin-top:10px">${svg(I.snow, 12)} ${plural(streak.freezes, 'freeze')} ready</div>` : ''}
+    </div>
+
+    ${reviewCard()}
+
+    ${upcoming.length ? `<div class="section-head"><h2>Coming up</h2></div>
+      <div class="card flush">${upcoming.map((d) => {
+        const titles = [...new Set(d.sessions.filter((s) => !s.done).map((s) => s.title))];
+        return `<div class="item tap" data-act="open-day" data-day="${d.date}" role="button" tabindex="0">
+          <div class="grow"><div class="t">${esc(fmtDay(`${d.date}T12:00:00`))}</div>
+            <div class="m">${esc(titles.slice(0, 2).join(', '))}${titles.length > 2 ? ` +${titles.length - 2}` : ''}</div></div>
+          <span class="side">${fmtMinutes(d.minutes)}</span></div>`;
+      }).join('')}</div>` : ''}
+
+    ${crewPeek()}`;
+}

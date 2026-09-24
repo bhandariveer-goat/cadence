@@ -12,15 +12,19 @@ import {
   svg, I, esc, sheet, toast, colorFor, dueLabel, longDay, timeSelect, toMin, shift, listJoin, plural, DOW_SHORT, toLocalInput
 } from '../ui.js';
 import { timeline, ART } from './parts.js';
+import { weekGrid } from './week.js';
+import { isDesktop } from '../ui.js';
 import { applyRoutine } from './you.js';
 
 export function viewPlan() {
-  const mode = app.planMode === 'school' ? 'school' : 'week';
+  // The merged week grid moved to its own Calendar tab; School stays the
+  // assignment list, with the week one tap away.
+  const mode = app.planMode === 'week' ? 'week' : 'school';
   return `
     <section class="hello" style="padding-bottom:12px"><h1>${mode === 'school' ? 'School' : 'Your week'}</h1><p>${mode === 'school' ? schoolSubtitle() : weekSubtitle()}</p></section>
     <div class="seg" role="tablist">
-      <button data-act="plan-mode" data-mode="week" aria-pressed="${mode === 'week'}">Week</button>
-      <button data-act="plan-mode" data-mode="school" aria-pressed="${mode === 'school'}">School</button>
+      <button data-act="plan-mode" data-mode="school" aria-pressed="${mode === 'school'}">Assignments</button>
+      <button data-act="go" data-tab="calendar" aria-pressed="false">Calendar</button>
     </div>
     ${mode === 'school' ? schoolList() : weekView()}`;
 }
@@ -42,6 +46,19 @@ function weekView() {
   const keys = days.map(dateKey);
   if (!keys.includes(app.planDay)) app.planDay = keys[0];
   const today = dateKey(new Date());
+
+  if (isDesktop()) {
+    return `
+      <div class="row between" style="margin:-4px 0 12px">
+        <span class="small muted" style="font-weight:700">${app.weekOffset ? 'Next week' : 'This week'} · ${esc(longDay(keys[0]))} – ${esc(longDay(keys[6]))}</span>
+        <span class="row" style="gap:6px">
+          <button class="btn small soft" data-act="block-time" data-day="${app.planDay}">${svg(I.plus, 14)} Block off time</button>
+          <button class="icon-btn" data-act="week-shift" data-dir="-1" ${app.weekOffset ? '' : 'disabled style="opacity:.3"'} aria-label="Previous week">${svg(I.left, 18)}</button>
+          <button class="icon-btn" data-act="week-shift" data-dir="1" ${app.weekOffset ? 'disabled style="opacity:.3"' : ''} aria-label="Next week">${svg(I.right, 18)}</button>
+        </span>
+      </div>
+      ${weekGrid()}`;
+  }
 
   return `
     <div class="row between" style="margin:-4px 0 8px">
@@ -373,3 +390,41 @@ export const actions = {
 export const submitActions = {
   'quick-add': (form, fd) => quickAdd(form, String(fd.get('text') || '').trim())
 };
+
+/** Right pane on wide screens: what needs attention, and the week's shape. */
+export function side() {
+  if (app.planMode === 'school') {
+    const open = Object.values(app.S.tasks).filter((t) => plannable(t));
+    const soon = rankedTasks().filter((t) => plannable(t)).slice(0, 5);
+    return `<div class="section-head"><h2>Start these first</h2></div>
+      <div class="card flush">${soon.map((t) => `<div class="item tap" data-act="open-guide" data-id="${t.id}" style="--c:${colorFor(t)}" role="button" tabindex="0">
+        <div class="bar"></div><div class="grow"><div class="t">${esc(t.title)}</div>
+        <div class="m">${esc(dueLabel(t.due))} · ~${fmtMinutes(t.estimateMin || 0)}</div></div></div>`).join('')
+        || '<div class="item"><div class="grow small muted">Nothing open.</div></div>'}</div>
+      <p class="hint">${open.length} open · ${fmtMinutes(open.reduce((a, t) => a + (t.estimateMin || 0), 0))} of work</p>`;
+  }
+
+  const days = (app.S.plan?.days || []).filter((d) => d.date >= dateKey(new Date())).slice(0, 7);
+  const busiest = days.slice().sort((a, b) => b.minutes - a.minutes)[0];
+  const cap = app.S.settings.dailyCapacityMin || 150;
+  const stretch = new Set(app.S.plan?.stretchDays || []);
+  const unplaced = app.S.plan?.unplaced || [];
+
+  return `
+    ${unplaced.length ? `<div class="card warm">
+      <div class="card-title">Needs a little more room</div>
+      <div class="card-sub">${unplaced.slice(0, 3).map((u) => esc(u.title)).join(', ')}${unplaced.length > 3 ? ` +${unplaced.length - 3}` : ''}</div>
+      <button class="btn small primary" style="margin-top:10px" data-act="make-room">Find time for me</button>
+    </div>` : `<div class="card good"><div class="card-title">Everything fits</div>
+      <div class="card-sub">Nothing is squeezed out this week.</div></div>`}
+
+    <div class="section-head"><h2>Daily load</h2></div>
+    <div class="card flush">
+      ${days.map((d) => `<div class="item" style="--c:${stretch.has(d.date) ? 'var(--amber)' : 'var(--accent)'}">
+        <div class="grow"><div class="t" style="font-weight:650">${esc(fmtDay(`${d.date}T12:00:00`))}</div>
+          <div class="capacity" style="margin:6px 0 0;height:5px;border-radius:3px;background:var(--surface-2);overflow:hidden">
+            <i style="display:block;height:100%;width:${Math.min(100, Math.round((d.minutes / cap) * 100))}%;background:var(--c)"></i></div></div>
+        <span class="side">${fmtMinutes(d.minutes)}</span></div>`).join('')}
+    </div>
+    ${busiest?.minutes ? `<p class="hint">Busiest: ${esc(fmtDay(`${busiest.date}T12:00:00`))} at ${fmtMinutes(busiest.minutes)}. Anything over your ${fmtMinutes(cap)} limit is Cadence making room for a deadline.</p>` : ''}`;
+}

@@ -5,19 +5,25 @@ import {
   app, boot, setRender, go, back, activeTab, runningSession, findSession, syncCanvas, insideCanvas, STANDALONE
 } from './core.js';
 import { showUpStreak } from '../lib/habits.js';
-import { svg, I, mmss, toast, $ } from './ui.js';
+import { svg, I, mmss, toast, $, isWide, isDesktop } from './ui.js';
 
 import * as today from './views/today.js';
 import * as plan from './views/plan.js';
 import * as crew from './views/crew.js';
 import * as you from './views/you.js';
+import * as calendar from './views/calendar.js';
+import * as calendars from './views/calendars.js';
 import * as commitments from './views/commitments.js';
 import * as guide from './views/guide.js';
 import * as create from './views/create.js';
 import * as onboarding from './views/onboarding.js';
+import { openPalette, installShortcuts, shortcutsSheet } from './views/palette.js';
+import { checkinPicker } from './views/commitments.js';
 
 const VIEWS = {
   today: today.viewToday,
+  calendar: calendar.viewCalendar,
+  calendars: calendars.viewCalendars,
   plan: plan.viewPlan,
   crew: crew.viewCrew,
   club: crew.viewClub,
@@ -30,16 +36,18 @@ const VIEWS = {
 };
 
 const TABS = {
-  student: [['today', 'Today', I.sun], ['plan', 'Plan', I.cal], ['crew', 'Crew', I.users], ['you', 'You', I.you]],
-  teacher: [['create', 'Create', I.mic], ['crew', 'Clubs', I.users], ['you', 'You', I.you]]
+  student: [['today', 'Today', I.sun], ['calendar', 'Calendar', I.cal], ['plan', 'School', I.list], ['crew', 'Crew', I.users], ['you', 'You', I.you]],
+  teacher: [['create', 'Create', I.mic], ['calendar', 'Calendar', I.cal], ['crew', 'Clubs', I.users], ['you', 'You', I.you]]
 };
 
 const ACTIONS = {
-  ...today.actions, ...plan.actions, ...crew.actions, ...you.actions,
+  ...today.actions, ...plan.actions, ...crew.actions, ...you.actions, ...calendar.actions, ...calendars.actions,
   ...commitments.actions, ...guide.actions, ...create.actions, ...onboarding.actions,
   go: (el) => { if (el.dataset.mode) app.planMode = el.dataset.mode; go(el.dataset.tab); },
   tab: (el) => { if (el.dataset.tab === activeTab() && app.stack.length === 0) { $('#view').scrollTop = 0; return; } go(el.dataset.tab); },
   back: () => back(),
+  palette: () => openPalette(),
+  shortcuts: () => shortcutsSheet(),
   streak: () => {
     const s = showUpStreak(app.S);
     toast(s.days
@@ -47,7 +55,7 @@ const ACTIONS = {
       : 'Check in on anything today to start a streak.');
   }
 };
-const CHANGE = { ...you.changeActions };
+const CHANGE = { ...you.changeActions, ...calendars.changeActions };
 const SUBMIT = { ...plan.submitActions, ...create.submitActions };
 
 // ------------------------------------------------------------------ render
@@ -74,7 +82,7 @@ function renderApp() {
       return;
     }
 
-    const allowed = teacher ? ['create', 'crew', 'club', 'you', 'guide'] : Object.keys(VIEWS).filter((v) => v !== 'create');
+    const allowed = teacher ? ['create', 'calendar', 'calendars', 'crew', 'club', 'you', 'guide'] : Object.keys(VIEWS).filter((v) => v !== 'create');
     if (!VIEWS[app.view] || !allowed.includes(app.view)) { app.view = teacher ? 'create' : 'today'; app.stack = []; }
 
     const tabs = TABS[teacher ? 'teacher' : 'student'];
@@ -84,6 +92,16 @@ function renderApp() {
       ${svg(ic)}<span>${label}</span>${id === 'crew' && unseen ? '<i class="dot-badge"></i>' : ''}</button>`).join('');
 
     $('#view').innerHTML = VIEWS[app.view]();
+    // The week grid covers the whole day; open it where the day actually starts.
+    const grid = $('.wg-body');
+    if (grid) {
+      const first = grid.querySelector('.wg-block');
+      const now = grid.querySelector('.wg-now');
+      const anchor = now || first;
+      if (anchor) grid.scrollTop = Math.max(0, parseFloat(anchor.style.top || 0) - 70);
+    }
+    renderSide();
+    $('#btn-cmd').hidden = !isDesktop();
     restartTimer();
   } finally {
     rendering = false;
@@ -99,6 +117,17 @@ function renderStreak(hide) {
   chip.classList.toggle('lit', s.todayDone);
   chip.setAttribute('aria-label', `${s.days}-day streak${s.freezes ? `, ${s.freezes} freezes` : ''}`);
   chip.innerHTML = `${svg(I.flame, 17)}<span>${s.days}</span>${s.freezes ? `<span class="freeze">${svg(I.snow, 12)}${s.freezes}</span>` : ''}`;
+}
+
+const SIDES = { today: today.side, plan: plan.side, calendar: plan.side };
+
+/** The right pane only exists on wide screens; views opt in by exporting side(). */
+function renderSide() {
+  const el = $('#side');
+  const fn = SIDES[app.view];
+  const html = isWide() && fn ? fn() : '';
+  el.innerHTML = html;
+  el.hidden = !html;
 }
 
 let tick = null;
@@ -159,5 +188,19 @@ document.addEventListener('submit', (ev) => {
 $('#btn-sync').addEventListener('click', () => syncCanvas());
 $('#btn-close').addEventListener('click', () => window.parent.postMessage({ type: 'cadence:close' }, '*'));
 $('#sheet').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+
+// Crossing a layout breakpoint changes which views render what.
+for (const q of ['(min-width: 768px)', '(min-width: 1180px)']) {
+  matchMedia(q).addEventListener('change', () => renderApp());
+}
+
+installShortcuts({ checkinPicker });
+
+// The palette runs actions by name rather than reaching into every module.
+document.addEventListener('cadence:act', (e) => {
+  const { act, id } = e.detail || {};
+  const fn = ACTIONS[act];
+  if (fn) fn({ dataset: { id, act } });
+});
 
 boot();

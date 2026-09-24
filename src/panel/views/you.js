@@ -72,6 +72,17 @@ export function viewYou() {
   `;
 }
 
+/** One line summarising which calendars are connected. */
+function calendarsSummary() {
+  const src = app.S.sources || {};
+  const on = Object.entries(src).filter(([, s]) => s.enabled);
+  if (!on.length) return 'Connect Canvas and Google Calendar';
+  const broken = on.find(([, s]) => s.error);
+  if (broken) return 'One calendar needs attention';
+  const last = on.map(([, s]) => s.lastSync).filter(Boolean).sort().at(-1);
+  return `${on.length === 1 ? '1 calendar' : `${on.length} calendars`} connected${last ? ` · synced ${ago(last)}` : ''}`;
+}
+
 function settingsList() {
   const S = app.S;
   const teacher = S.settings.role === 'teacher';
@@ -88,7 +99,8 @@ function settingsList() {
     <div class="card flush">
       ${teacher ? '' : row('open-availability', I.clock, "When you're free", 'Homework and practice only land in these times', undefined, 'var(--accent)')}
       ${teacher ? '' : row('open-pace', I.target, 'Your pace', `${fmtMinutes(S.settings.dailyCapacityMin)} of focused time a day`, undefined, '#8b5cf6')}
-      ${teacher ? '' : row('ics-sheet', I.cal, 'Calendar', icsCount ? `${icsCount} events kept clear` : 'Import from Google or Apple Calendar', undefined, '#3b82f6')}
+      ${row('open-calendars', I.cal, 'Calendars', calendarsSummary(), undefined, '#3b82f6')}
+      ${teacher ? '' : row('ics-sheet', I.file, 'Import a calendar file', icsCount ? `${icsCount} events from a file` : 'One-off .ics import', undefined, 'var(--muted)')}
       ${row('crew-account', I.users, 'Crew account', 'Partners, clubs and kudos', crew, '#1c9d68')}
       ${row('ai-sheet', I.sparkle, 'Cadence Intelligence', 'Assignment guides and estimates, powered by Claude', aiAvailable(S.settings) ? '<span class="status">On</span>' : svg(I.right, 16), 'var(--accent)')}
       <div class="integration"><span class="ic" style="color:#e8664f">${svg(I.canvas, 19)}</span>

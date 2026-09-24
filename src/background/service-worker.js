@@ -3,17 +3,53 @@
 // The panel owns all the planning logic; this file only makes sure a plan that
 // was made yesterday still pokes her at 4:15pm today, even with Canvas closed.
 
-import { loadState, update } from '../lib/store.js';
+import { loadState, saveState, update } from '../lib/store.js';
 import { MIN } from '../lib/util.js';
+import { runAll, applyResults } from '../lib/sources/sources.js';
+import { recomputeState } from '../lib/replanner.js';
 
 const PREFIX = 'cadence:session:';
 const DAILY = 'cadence:daily';
+const SYNC = 'cadence:autosync';
 
 chrome.runtime.onInstalled.addListener(async () => {
   chrome.alarms.create(DAILY, { periodInMinutes: 60 * 24, when: nextAt(7, 30) });
+  await armAutoSync();
   await syncReminders();
 });
-chrome.runtime.onStartup.addListener(syncReminders);
+chrome.runtime.onStartup.addListener(async () => { await armAutoSync(); await syncReminders(); });
+
+/** Polling, not webhooks: there's no server to receive a push. */
+async function armAutoSync() {
+  const state = await loadState();
+  const every = Math.max(15, state.autoSync?.everyMinutes ?? 20);
+  if (state.autoSync?.enabled === false) return chrome.alarms.clear(SYNC);
+  chrome.alarms.create(SYNC, { periodInMinutes: every, delayInMinutes: 1 });
+}
+
+/**
+ * Fetch every connected calendar and re-plan around whatever came back.
+ * Runs headless, so it uses the shared replanner rather than the panel.
+ */
+async function autoSync() {
+  const state = await loadState();
+  if (!state.profile?.onboarded) return;
+  const enabled = Object.values(state.sources || {}).some((s) => s?.enabled);
+  if (!enabled) return;
+  try {
+    const results = await runAll(state, {
+      saveGoogle: (t) => update((st) => { Object.assign(st.sources.google, t); return st; })
+    });
+    const fresh = await loadState();
+    applyResults(fresh, results);
+    fresh.autoSync.lastRun = new Date().toISOString();
+    recomputeState(fresh);
+    await saveState(fresh);
+  } catch (e) {
+    // Never let a sync failure take down the worker; the panel shows the error.
+    await update((st) => { st.autoSync.lastError = String(e.message || e); return st; });
+  }
+}
 
 function nextAt(hour, minute) {
   const d = new Date();
@@ -38,6 +74,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
     syncReminders().then(() => respond({ ok: true }));
     return true;                                  // async response
   }
+  if (msg?.type === 'cadence:autosync') {
+    autoSync().then(() => respond({ ok: true }));
+    return true;
+  }
+  if (msg?.type === 'cadence:arm-autosync') {
+    armAutoSync().then(() => respond({ ok: true }));
+    return true;
+  }
   return false;
 });
 
@@ -60,6 +104,7 @@ export async function syncReminders() {
 }
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === SYNC) return autoSync();
   if (alarm.name === DAILY) return dailyNudge();
   if (!alarm.name.startsWith(PREFIX)) return;
 

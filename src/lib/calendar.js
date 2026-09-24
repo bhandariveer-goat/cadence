@@ -107,6 +107,10 @@ export function parseICS(text, { horizonDays = 60 } = {}) {
     else if (key === 'SUMMARY') cur.title = value.replace(/\\,/g, ',').replace(/\\n/gi, ' ');
     else if (key === 'RRULE') cur.rrule = value;
     else if (key === 'UID') cur.uid = value;
+    else if (key === 'URL') cur.url = value.replace(/\\/g, '');
+    else if (key === 'LOCATION') cur.location = value.replace(/\\,/g, ',');
+    else if (key === 'DESCRIPTION') cur.description = value.replace(/\\,/g, ',').replace(/\\n/gi, '\n');
+    else if (key === 'TRANSP') cur.transparent = value.toUpperCase() === 'TRANSPARENT';
   }
   return events;
 }
@@ -115,7 +119,11 @@ function expand(ev, horizon) {
   const base = {
     title: ev.title || 'Busy',
     source: 'ics',
-    allDay: !!ev.allDay
+    allDay: !!ev.allDay,
+    uid: ev.uid || '',
+    url: ev.url || '',
+    description: ev.description || '',
+    transparent: !!ev.transparent
   };
   const dur = ev.end - ev.start;
   const out = [];

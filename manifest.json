@@ -6,12 +6,15 @@
   "permissions": [
     "storage",
     "alarms",
-    "notifications"
+    "notifications",
+    "identity"
   ],
   "host_permissions": [
     "*://*.instructure.com/*",
     "*://*.canvaslms.com/*",
-    "https://api.anthropic.com/*"
+    "https://api.anthropic.com/*",
+    "https://www.googleapis.com/*",
+    "https://oauth2.googleapis.com/*"
   ],
   "optional_host_permissions": [
     "*://*/*"

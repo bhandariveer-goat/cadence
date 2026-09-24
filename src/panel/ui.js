@@ -4,6 +4,10 @@
 import { fmtTime, fmtDay, startOfDay, atTime, clamp, escapeHtml, DAY, MIN } from '../lib/util.js';
 
 export const esc = escapeHtml;
+
+/** Layout tiers: phone/extension panel < 768 <= desktop < 1180 <= wide (side pane). */
+export const isDesktop = () => matchMedia('(min-width: 768px)').matches;
+export const isWide = () => matchMedia('(min-width: 1180px)').matches;
 export const $ = (sel, root = document) => root.querySelector(sel);
 
 // ------------------------------------------------------------------ icons

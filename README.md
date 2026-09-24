@@ -7,10 +7,18 @@ Canvas automatically), keeps a daily streak, brings in friends and clubs for
 accountability, and turns every check-in into an activities record for
 college applications.
 
-Runs two ways, from the same code:
+Runs three ways, from the same code:
 
-- **Web app** (installable on a phone — check-ins happen right after practice)
+- **Website** — a marketing homepage at `index.html` explaining the product
+- **Web app** — installable on a phone, and a full desktop layout on a laptop
 - **Chrome extension** inside Canvas (homework syncs in, plus a launcher button)
+
+The app adapts by width rather than shipping two codebases: below 768px (phone
+and the 440px extension panel) it's one column with a bottom tab bar; from
+768px it becomes a 240px nav rail beside a wide canvas; from 1180px a right
+pane appears; the Plan tab switches from a day timeline to a full week grid.
+That split follows the desktop conventions the big planners share — see
+`reports/` if you kept the research report.
 
 ---
 
@@ -45,6 +53,11 @@ cross-country?" once they're over.
 extends the daily streak, and adds to the record. Miss a day and a streak freeze
 covers it; every 7 days earns another (max 2) — forgiveness, not shame.
 
+**Desktop** — nav rail, week grid with every block in place, a right pane
+(streak, what's coming, crew), a ⌘K command palette that searches assignments
+and commitments, and keyboard shortcuts (`Q` add homework, `C` check in,
+`T`/`P`/`R`/`Y` to move around, `?` for the list).
+
 **Plan** — the week as day chips and timelines; *School* is every assignment
 grouped by when to start it, each with a guide: what you're doing, what to turn
 in, the steps tied to planned blocks, and where the course materials are.
@@ -71,6 +84,61 @@ assignments across days, and bends its own limits one at a time before
 declaring anything won't fit. Assignments more than a month past due are
 dropped automatically.
 
+## Connecting calendars (Canvas feed + Google Calendar)
+
+Cadence's **Calendar** tab is the merged view: its own blocks, Canvas due
+dates, and any calendar you connect. Whatever it can see, it plans around —
+`lib/replanner.js` folds every source into the busy list the scheduler uses.
+
+### Canvas calendar feed (no setup needed)
+
+1. Canvas → **Calendar** → **Calendar Feed** (bottom right) → copy the link.
+2. Cadence → **Calendar → Connect**, or You → Settings → Calendars → **Add feed link**.
+
+That link is a credential — anyone holding it can read your Canvas calendar, so
+Cadence stores it in extension storage and only ever shows it masked. Inside
+Canvas the existing session-based sync still runs and adds what the feed can't
+carry: submission status, points, instructions and rubrics.
+
+### Google Calendar — what you must do in Google Cloud Console
+
+Google requires an OAuth client, and only you can create it:
+
+1. **console.cloud.google.com** → create a project (e.g. "Cadence").
+2. **APIs & Services → Library** → enable **Google Calendar API**.
+3. **APIs & Services → OAuth consent screen** → **External** → fill in app name,
+   your email, developer email. Add yourself under **Test users** — while the app
+   is unverified only test users can sign in (up to 100), which is fine for you
+   and your classmates.
+4. **Scopes**: add `.../auth/calendar.readonly` for reading. Add
+   `.../auth/calendar.events` only when you turn on pushing blocks back.
+   Both are *sensitive* scopes: fine in testing mode, but publishing to everyone
+   would need Google's verification review.
+5. **Credentials → Create credentials → OAuth client ID → Web application**.
+   Under **Authorized redirect URIs** paste the URI Cadence shows you in
+   Calendars → Google → Connect. It looks like:
+   `https://<extension-id>.chromiumapp.org/google`
+6. Copy the **Client ID** and paste it into Cadence when it asks.
+
+Then Cadence → Calendars → **Connect**, approve the consent screen, and pick
+which calendars count as busy.
+
+Two limits worth knowing:
+
+- **Google sync only works in the Chrome extension.** On the hosted website the
+  browser blocks these cross-origin requests; the manual `.ics` import still
+  works there. Same for the Canvas feed fetch.
+- **Tokens last about an hour.** Cadence renews silently in the background and
+  only asks you to sign in again if that fails.
+
+### Autosync
+
+A background alarm re-fetches every connected source (default every 20 minutes,
+adjustable 15–60) and re-plans around the result. Each source is independent:
+an expired Google token or an unreachable Canvas feed shows an error on that
+one card while the others keep working, and the last good data stays on screen.
+There's a **Refresh now** button for when you can't wait.
+
 ## Crew backend
 
 Everything works on-device with no account. Partners, clubs, kudos and
@@ -94,20 +162,31 @@ drafts. Model: `claude-opus-5`.
 ## Files
 
 ```
-index.html, manifest.webmanifest, sw.js   web app entry + offline shell
+index.html                                 marketing homepage
+manifest.webmanifest, sw.js                installable web app + offline shell
 manifest.json, src/content, src/background Chrome extension
 src/panel/app.js                           shell: routing, tabs, events
 src/panel/core.js                          state, merged plan, Canvas, crew, check-ins
 src/panel/ui.js                            icons, rings, sheets, formatting
-src/panel/views/                           today, plan, crew, you, commitments,
-                                           guide, create, onboarding, parts
+src/panel/views/                           today, plan, week (desktop grid),
+                                           crew, you, commitments, guide,
+                                           palette, create, onboarding, parts
 src/lib/habits.js                          commitments, streaks, record, review
 src/lib/sync.js                            crew adapters (local / demo / Supabase)
+src/lib/sources/canvasFeed.js              Canvas ICS feed → assignments + events
+src/lib/sources/googleCalendar.js          OAuth, events.list, and tagged writes
+src/lib/sources/sources.js                 sync runner: per-source cache + errors
+src/lib/replanner.js                       DOM-free merge + re-plan pipeline
 src/lib/scheduler.js, priority.js, …       planning engine
 supabase/schema.sql                        crew database + security policies
 ```
 
 ## Not built yet
+
+- Pushing Cadence's blocks back to Google Calendar is written but not wired to a
+  toggle yet (`googleCalendar.insertBlock/updateBlock/deleteBlock`, tagged with
+  the `cadenceBlock` extended property so resync only ever touches its own events).
+- Gmail import — see the notes below on why the Apps Script route beats the API.
 
 - Live Supabase sync is written against the documented REST API but hasn't been
   run against a real project.
