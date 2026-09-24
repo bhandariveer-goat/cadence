@@ -19,6 +19,11 @@ export function emptySource() {
 
 const ok = (state, id) => !!state.sources?.[id]?.enabled;
 
+// A source that can't fetch on its own — a Canvas feed that came from an
+// uploaded file rather than a link — stays enabled but sits out automatic
+// runs, so autosync never marks it failed.
+const runnable = (state, id) => (id === 'canvasFeed' ? !!state.sources?.canvasFeed?.url : true);
+
 /**
  * Run one source. Throws on failure; the caller records the error so the
  * cached data from the last good run stays on screen.
@@ -52,7 +57,7 @@ export async function runSource(id, state, deps = {}) {
  * @returns {{[id]: {ok, events, assignments, error, at, calendars?, warning?}}}
  */
 export async function runAll(state, deps = {}, { only = null } = {}) {
-  const ids = (only ? [only] : Object.keys(SOURCE_META)).filter((id) => only === id || ok(state, id));
+  const ids = only ? [only] : Object.keys(SOURCE_META).filter((id) => ok(state, id) && runnable(state, id));
   const results = {};
   await Promise.all(ids.map(async (id) => {
     try {
@@ -81,6 +86,20 @@ export function applyResults(state, results) {
       ...(r.calendars ? { calendars: r.calendars } : {})
     };
   }
+  return state;
+}
+
+/**
+ * Fold a file the student uploaded into a source, the same shape a fetch
+ * produces. Used for Canvas exports, where the browser can't fetch the feed.
+ */
+export function applyImported(state, id, { assignments = [], events = [] }) {
+  state.sources ||= {};
+  const prev = state.sources[id] || emptySource();
+  state.sources[id] = {
+    ...prev, enabled: true, fromFile: true, syncing: false, error: null,
+    assignments, events, lastSync: new Date().toISOString(), lastTry: new Date().toISOString()
+  };
   return state;
 }
 

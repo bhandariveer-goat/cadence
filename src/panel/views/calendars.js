@@ -23,11 +23,15 @@ export function viewCalendars() {
     ${sourceCard({
       id: 'canvasFeed', icon: I.canvas, color: '#e8664f', cfg: cf,
       title: 'Canvas calendar feed',
-      sub: cf.enabled ? `${plural((cf.assignments || []).length, 'assignment')} · ${plural((cf.events || []).length, 'event')}`
+      sub: cf.enabled ? `${plural((cf.assignments || []).length, 'assignment')} · ${plural((cf.events || []).length, 'event')}${cf.fromFile && !cf.url ? ' · from a file' : ''}`
         : 'Assignment due dates and class events, without signing in again',
       primary: cf.enabled ? 'Change link' : 'Add feed link',
       action: 'canvas-feed-sheet'
     })}
+
+    ${cf.fromFile && !cf.url ? `<div class="card soft small">
+      <b>Imported from a file.</b> These stay put, but they won't update on their own — add the feed link, or import a fresh export when your assignments change.
+    </div>` : ''}
 
     ${sourceCard({
       id: 'google', icon: I.cal, color: '#3b82f6', cfg: g,
@@ -143,6 +147,7 @@ async function canvasFeedSheet() {
     <label class="field"><span>Feed link</span>
       <input type="text" name="url" value="${esc(cfg.url || '')}" placeholder="https://school.instructure.com/feeds/calendars/user_….ics" autocomplete="off" spellcheck="false"></label>
     <p class="hint" style="margin-top:-8px">Treat this like a password — anyone with the link can read your Canvas calendar.</p>
+    <p class="hint">Can't reach the link? Download the calendar and use <b>You → Import a calendar file</b> instead.</p>
     <div class="actions">
       ${cfg.url ? '<button class="btn soft danger" name="op" value="remove">Remove</button>' : '<button class="btn ghost" value="cancel">Cancel</button>'}
       <button class="btn primary" name="op" value="save">Save &amp; sync</button>

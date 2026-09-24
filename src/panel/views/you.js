@@ -7,6 +7,8 @@ import {
 } from '../../lib/habits.js';
 import { resetState } from '../../lib/store.js';
 import { parseICS, freeMinutesBetween } from '../../lib/calendar.js';
+import { parseCanvasFeed, looksLikeCanvasIcs } from '../../lib/sources/canvasFeed.js';
+import { applyImported } from '../../lib/sources/sources.js';
 import { aiAvailable } from '../../lib/ai.js';
 import { createSync } from '../../lib/sync.js';
 import { fmtMinutes, dateKey, addDays, uid, atTime } from '../../lib/util.js';
@@ -86,7 +88,6 @@ function calendarsSummary() {
 function settingsList() {
   const S = app.S;
   const teacher = S.settings.role === 'teacher';
-  const icsCount = (S.busy || []).filter((b) => b.source === 'ics').length;
   const crew = app.sync?.mode === 'demo' ? '<span class="muted small">Demo</span>'
     : app.sync?.mode === 'supabase' ? '<span class="status">Connected</span>' : '<span class="muted small">Not connected</span>';
   const row = (act, icon, title, sub, right = svg(I.right, 16), color = 'var(--text-2)') => `
@@ -100,7 +101,7 @@ function settingsList() {
       ${teacher ? '' : row('open-availability', I.clock, "When you're free", 'Homework and practice only land in these times', undefined, 'var(--accent)')}
       ${teacher ? '' : row('open-pace', I.target, 'Your pace', `${fmtMinutes(S.settings.dailyCapacityMin)} of focused time a day`, undefined, '#8b5cf6')}
       ${row('open-calendars', I.cal, 'Calendars', calendarsSummary(), undefined, '#3b82f6')}
-      ${teacher ? '' : row('ics-sheet', I.file, 'Import a calendar file', icsCount ? `${icsCount} events from a file` : 'One-off .ics import', undefined, 'var(--muted)')}
+      ${teacher ? '' : row('ics-sheet', I.file, 'Import a calendar file', importSummary(S), undefined, 'var(--muted)')}
       ${row('crew-account', I.users, 'Crew account', 'Partners, clubs and kudos', crew, '#1c9d68')}
       ${row('ai-sheet', I.sparkle, 'Cadence Intelligence', 'Assignment guides and estimates, powered by Claude', aiAvailable(S.settings) ? '<span class="status">On</span>' : svg(I.right, 16), 'var(--accent)')}
       <div class="integration"><span class="ic" style="color:#e8664f">${svg(I.canvas, 19)}</span>
@@ -390,17 +391,29 @@ async function paceSheet() {
   toast('Pace updated — your plan adjusted');
 }
 
+/** What the settings row says under "Import a calendar file". */
+function importSummary(S) {
+  const events = (S.busy || []).filter((b) => b.source === 'ics').length;
+  const cf = S.sources?.canvasFeed;
+  const canvas = cf?.fromFile ? (cf.assignments?.length || 0) : 0;
+  if (canvas) return `${plural(canvas, 'Canvas assignment')} from a file${events ? `, ${events} events` : ''}`;
+  if (events) return `${events} events from a file`;
+  return 'Canvas export, or a one-off .ics';
+}
+
 async function icsSheet() {
   const count = (app.S.busy || []).filter((b) => b.source === 'ics').length;
+  const canvasCount = (app.S.sources?.canvasFeed?.fromFile && app.S.sources.canvasFeed.assignments?.length) || 0;
   const res = await sheet(`
     <h2>Import your calendar</h2>
-    <p class="lead">Appointments, games and trips get kept clear, so nothing lands on top of them.</p>
+    <p class="lead">Canvas exports come in as assignments to schedule. Everything else — appointments, games, trips — gets kept clear so nothing lands on top of it.</p>
     <div class="card soft small" style="margin:0">
+      <b>Canvas</b><div class="muted" style="margin-bottom:6px">Calendar → Calendar Feed → open the link, then save the page</div>
       <b>Google Calendar</b><div class="muted" style="margin-bottom:6px">Settings → Import &amp; export → Export, then unzip</div>
       <b>Apple Calendar</b><div class="muted">File → Export → Export…</div></div>
     <label class="btn soft block" style="margin-top:12px">Choose calendar file (.ics)<input type="file" accept=".ics,text/calendar" hidden data-file></label>
     <div class="small muted center" data-filename style="margin-top:6px"></div>
-    <div class="actions">${count ? '<button class="btn soft danger" name="op" value="clear">Remove imported</button>' : '<button class="btn ghost" value="cancel">Cancel</button>'}
+    <div class="actions">${count || canvasCount ? '<button class="btn soft danger" name="op" value="clear">Remove imported</button>' : '<button class="btn ghost" value="cancel">Cancel</button>'}
       <button class="btn primary" name="op" value="import" data-import disabled>Import</button></div>`, {
     onMount(form) {
       form.querySelector('[data-file]').addEventListener('change', async (e) => {
@@ -414,11 +427,30 @@ async function icsSheet() {
   });
   if (!res) return;
   const form = document.getElementById('sheet-form');
-  if (res.get('op') === 'clear') { await persist((st) => { st.busy = st.busy.filter((b) => b.source !== 'ics'); }); return toast('Imported events removed'); }
+  if (res.get('op') === 'clear') {
+    await persist((st) => {
+      st.busy = st.busy.filter((b) => b.source !== 'ics');
+      if (st.sources?.canvasFeed?.fromFile && !st.sources.canvasFeed.url) st.sources.canvasFeed.enabled = false;
+    });
+    return toast('Imported events removed');
+  }
   const text = form.dataset.ics || '';
   delete form.dataset.ics;
   if (!text.includes('BEGIN:VEVENT')) return toast("That file doesn't look like a calendar");
-  const events = parseICS(text, { horizonDays: (app.S.settings.lookaheadDays ?? 14) + 30 });
+  const horizonDays = (app.S.settings.lookaheadDays ?? 14) + 30;
+
+  // A Canvas export needs the Canvas parser: its assignments are zero-length
+  // events at the due time, which the generic parser would file as busy time.
+  if (looksLikeCanvasIcs(text)) {
+    const { assignments, events } = parseCanvasFeed(text, { horizonDays: Math.max(horizonDays, 120) });
+    if (!assignments.length && !events.length) return toast('No upcoming Canvas items in that file');
+    await persist((st) => applyImported(st, 'canvasFeed', { assignments, events }));
+    return toast(assignments.length
+      ? `${plural(assignments.length, 'assignment')} imported — scheduling them now`
+      : `${plural(events.length, 'Canvas event')} imported`);
+  }
+
+  const events = parseICS(text, { horizonDays });
   if (!events.length) return toast('No upcoming events in that file');
   await persist((st) => { const seen = new Set(st.busy.map((b) => b.id)); for (const e of events) if (!seen.has(e.id)) st.busy.push(e); });
   toast(`${events.length} events imported`);

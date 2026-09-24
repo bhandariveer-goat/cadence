@@ -105,3 +105,15 @@ export async function fetchCanvasFeed(url, { horizonDays = 120, fetchImpl = fetc
   if (!text.includes('BEGIN:VCALENDAR')) throw new Error("That URL didn't return a calendar");
   return parseCanvasFeed(text, { horizonDays });
 }
+
+/**
+ * Does this .ics text come from Canvas? A downloaded Canvas feed has to go
+ * through parseCanvasFeed instead of the generic parser, or every assignment
+ * lands as busy time rather than as work to schedule.
+ */
+export function looksLikeCanvasIcs(text) {
+  const s = String(text || '');
+  return /PRODID:[^\n]*(instructure|canvas)/i.test(s)
+    || /UID:[^\n]*event-assignment[-_]/i.test(s)
+    || /\/feeds\/calendars\//i.test(s);
+}
