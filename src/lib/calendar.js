@@ -17,7 +17,9 @@ export function freeSlots(from, to, availability, busy = [], opts = {}) {
     .sort((a, b) => a.start - b.start);
 
   for (let day = startOfDay(from); day <= to; day = addDays(day, 1)) {
-    const windows = availability?.[day.getDay()] || [];
+    // A date key ('2026-09-28') overrides that weekday for one day only —
+    // what the agent writes for "tonight I can stay up till midnight".
+    const windows = availability?.[dateKey(day)] || availability?.[day.getDay()] || [];
     for (const w of windows) {
       let start = atTime(day, w.start);
       let end = atTime(day, w.end);

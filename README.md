@@ -179,6 +179,32 @@ cross-device sync need a shared database:
 Students only ever see check-ins from their partners and clubs, and only for
 commitments they chose to share.
 
+## The assistant (website)
+
+On the website, **Ask Cadence** opens an assistant panel. Type the way you'd
+text a friend and it writes the week for you:
+
+| You say | What it does |
+| --- | --- |
+| `dinner at 6` | blocks 6–7pm today so homework lands around it |
+| `practice Tue and Thu 4-6` | a repeating block for the next 8 weeks |
+| `I can stay up till midnight` | extends tonight's free time only, not every night |
+| `free after 4 today` | moves tonight's start, same one-day scope |
+| `bio test Friday, takes 2 hours` | homework with a due date and an estimate |
+| `I want to run 4 times a week for 45 minutes` | a commitment with a weekly ring |
+| `I can only do an hour of homework tonight` | lowers the daily cap |
+
+Every change is listed with an **Undo** that restores the previous state exactly.
+
+It reads sentences offline — `src/lib/agent.js` handles times, ranges, weekday
+lists, recurrence and day parts with no network call, so it works without a key.
+With a Cadence Intelligence key configured it asks Claude first (better with odd
+phrasing) and falls back to the offline reading if that call fails.
+
+One-off changes are stored against the date, not the weekday: "tonight I can
+stay up till midnight" writes `availability['2026-09-28']`, which `freeSlots()`
+prefers over the weekly window and `pruneTasks()` deletes once the date passes.
+
 ## Cadence Intelligence (optional)
 
 With a Claude API key (You → Settings), assignment guides are written from the
@@ -194,9 +220,12 @@ manifest.json, src/content, src/background Chrome extension
 src/panel/app.js                           shell: routing, tabs, events
 src/panel/core.js                          state, merged plan, Canvas, crew, check-ins
 src/panel/ui.js                            icons, rings, sheets, formatting
+src/panel/web.css                          website skin: white, top tabs, assistant
 src/panel/views/                           today, plan, week (desktop grid),
+                                           calendar, agent (assistant panel),
                                            crew, you, commitments, guide,
                                            palette, create, onboarding, parts
+src/lib/agent.js                           sentences -> scheduling ops, offline
 src/lib/habits.js                          commitments, streaks, record, review
 src/lib/sync.js                            crew adapters (local / demo / Supabase)
 src/lib/sources/canvasFeed.js              Canvas ICS feed → assignments + events

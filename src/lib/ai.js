@@ -241,3 +241,78 @@ export async function reviewPlan(settings, summary) {
     effort: 'low'
   });
 }
+
+// ------------------------------------------------------- the agent's ear
+//
+// The website's agent panel: a sentence about someone's week, turned into the
+// same ops lib/agent.js produces offline. Claude is better at odd phrasing
+// ("gotta bounce by 7-ish, practice ran long"); agent.js is the fallback and
+// the only path for students without a key.
+
+const PLAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items', 'note'],
+  properties: {
+    note: { type: 'string', description: 'One short sentence back to the student. No emoji.' },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type', 'title'],
+        properties: {
+          type: { type: 'string', enum: ['event', 'window', 'task', 'commitment', 'capacity'] },
+          title: { type: 'string', description: 'Short label, e.g. "Dinner", "Swim practice"' },
+          date: { type: 'string', description: 'YYYY-MM-DD when it is one specific day, else empty' },
+          weekdays: { type: 'array', description: 'When it repeats weekly: 0=Sunday .. 6=Saturday', items: { type: 'integer' } },
+          start: { type: 'string', description: '24h HH:MM, or empty' },
+          end: { type: 'string', description: '24h HH:MM, or empty' },
+          due: { type: 'string', description: 'For a task: YYYY-MM-DDTHH:MM local' },
+          minutes: { type: 'integer', description: 'Effort or session length in minutes' },
+          sessionsPerWeek: { type: 'integer', description: 'For a commitment: times a week' }
+        }
+      }
+    }
+  }
+};
+
+const PLAN_SYSTEM = `You turn a student's message into scheduling changes for their planner.
+
+Types:
+- event: something that occupies real time (dinner, practice, a shift, an appointment). Give start and end.
+- window: when the student is free to work that day ("I can stay up till midnight", "free after 4"). Give start and/or end.
+- task: schoolwork with a deadline. Give due, and minutes if they said how long.
+- commitment: a recurring personal goal with no fixed time ("practice piano 5x a week").
+- capacity: a cap on daily homework minutes ("I can only do an hour tonight").
+
+Rules: use the student's local dates. One item per real thing. If the message says
+nothing schedulable, return an empty items list and say so in note. Never invent
+times the student did not give — leave a field empty instead.`;
+
+export async function planFromMessage(settings, text, { now = new Date(), context = '' } = {}) {
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const dow = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+  const data = await callClaude(settings, {
+    system: PLAN_SYSTEM,
+    user: `Today is ${dow} ${today}, local time ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}.
+${context ? `${context}\n` : ''}
+Student says: "${str(text, 1200)}"`,
+    schema: PLAN_SCHEMA,
+    maxTokens: 1200
+  });
+  return {
+    note: str(data?.note, 200),
+    items: (data?.items || []).slice(0, 12).map((i) => ({
+      type: String(i.type || 'event'),
+      title: str(i.title, 60),
+      date: str(i.date, 10),
+      weekdays: (i.weekdays || []).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6),
+      start: str(i.start, 5),
+      end: str(i.end, 5),
+      due: str(i.due, 16),
+      minutes: clampInt(i.minutes, 5, 600, null),
+      sessionsPerWeek: clampInt(i.sessionsPerWeek, 1, 21, null)
+    }))
+  };
+}

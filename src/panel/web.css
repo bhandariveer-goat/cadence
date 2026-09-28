@@ -1,0 +1,176 @@
+/* Cadence on the web.
+   The extension is a panel: warm, rounded, thumb-sized, one column at a time.
+   The website is a workspace: white paper, labelled tabs across the top, a
+   wider canvas, and the assistant docked on the right. Same product, and
+   deliberately not the same room. Everything here is scoped to body.web,
+   which app.js sets only when Cadence is running as its own page. */
+
+body.web {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f7f7f9;
+  --surface-3: #ededf2;
+  --line: #e5e5ec;
+  --text: #16161a;
+  --text-2: #4d4d58;
+  --muted: #8b8b98;
+  /* The website is light whatever the OS prefers, so every themed token has
+     to be restated here — otherwise the dark values leak in. */
+  --accent: #f0712b;
+  --accent-2: #ffae4a;
+  --accent-soft: #fff1e6;
+  --accent-ink: #b24a12;
+  --green: #1c9d68;
+  --green-soft: #e3f6ed;
+  --amber: #b5760a;
+  --amber-soft: #fdf1d6;
+  --blue: #3b82f6;
+  --ring-track: rgba(22, 22, 26, .08);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(16, 16, 24, .04), 0 1px 0 rgba(16, 16, 24, .02);
+  --shadow-lg: 0 24px 48px -24px rgba(16, 16, 24, .28);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --gutter: max(24px, calc((100% - 1180px) / 2));
+  color-scheme: light;
+  background: var(--bg);
+  background-image: none;
+}
+
+body.web .card,
+body.web .item,
+body.web .weekgrid { box-shadow: var(--shadow); }
+body.web .hello h1 { letter-spacing: -.02em; }
+
+/* ------------------------------------------------------------- the shell */
+
+@media (min-width: 768px) {
+  body.web .app { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%; }
+
+  body.web .top {
+    grid-row: 1; height: 62px; padding: 0 var(--gutter); display: flex; align-items: center;
+    background: rgba(255, 255, 255, .88); backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  body.web .brand { font-size: 17px; letter-spacing: -.01em; }
+  body.web .brand-mark { border-radius: 9px; }
+
+  /* Tabs across the top, each with a line about what lives there. */
+  body.web .body { display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) auto auto; grid-row: 2 / span 2; min-height: 0; }
+  body.web .tabbar {
+    grid-column: 1 / -1; grid-row: 1; flex-direction: row; align-items: stretch; gap: 0;
+    padding: 0 var(--gutter); background: var(--surface); border-right: 0; border-top: 0;
+    border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none;
+  }
+  body.web .tabbar::-webkit-scrollbar { display: none; }
+  body.web .tab {
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px;
+    align-content: center; justify-items: start; text-align: left;
+    min-height: 66px; padding: 0 18px 0 16px; border-radius: 0; background: none;
+    border-bottom: 2px solid transparent; color: var(--text-2); font-weight: 650; white-space: nowrap;
+  }
+  body.web .tab svg { grid-row: 1; width: 16px; height: 16px; opacity: .75; }
+  body.web .tab .tab-label { grid-row: 1; font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; }
+  body.web .tab .tab-sub { grid-row: 2; grid-column: 1 / -1; font-size: 11.5px; font-weight: 550; color: var(--muted); letter-spacing: 0; }
+  body.web .tab:hover { background: var(--surface-2); color: var(--text); }
+  body.web .tab[aria-current="page"] { background: none; color: var(--text); border-bottom-color: var(--accent); }
+  body.web .tab[aria-current="page"] svg { opacity: 1; color: var(--accent); }
+  body.web .tab .dot-badge { position: absolute; margin: 0; top: 14px; right: 8px; }
+
+  body.web main { grid-column: 1; grid-row: 2; padding: 28px var(--gutter) 90px; overflow-y: auto; }
+  body.web #side { grid-column: 2; grid-row: 2; width: 320px; border-left: 1px solid var(--line); background: var(--surface-2); }
+  body.web .agent { grid-column: 3; grid-row: 2; }
+}
+
+/* Wide screens get the assistant beside the work, not on top of it. */
+@media (min-width: 1180px) {
+  body.web .body { grid-template-columns: minmax(0, 1fr) auto auto; }
+}
+
+/* ---------------------------------------------------------- top actions */
+
+body.web .ask-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; margin-right: 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  font-size: 13.5px; font-weight: 700; color: var(--text);
+}
+body.web .ask-btn svg { color: var(--accent); }
+body.web .ask-btn:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent-soft); }
+body.web .ask-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+body:not(.web) .ask-btn { display: none; }
+
+/* -------------------------------------------------------- the assistant */
+
+.agent {
+  display: flex; flex-direction: column; min-height: 0; width: 384px;
+  background: var(--surface); border-left: 1px solid var(--line);
+}
+.agent[hidden] { display: none; }
+
+.ag-head { display: flex; align-items: center; gap: 10px; padding: 14px 14px 14px 18px; border-bottom: 1px solid var(--line); }
+.ag-title { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.ag-title b { display: block; font-size: 14.5px; letter-spacing: -.01em; }
+.ag-title small { display: block; font-size: 11.5px; color: var(--muted); }
+.ag-mark {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px;
+  background: linear-gradient(140deg, var(--accent), var(--accent-2)); color: #fff; flex: none;
+}
+
+.ag-thread { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.ag-intro p { font-size: 14px; line-height: 1.55; color: var(--text-2); margin-bottom: 14px; }
+.ag-starters { display: flex; flex-direction: column; gap: 8px; }
+.ag-starter {
+  text-align: left; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2);
+  border-radius: 12px; padding: 10px 12px; font-size: 13px; line-height: 1.4; font-weight: 600;
+}
+.ag-starter:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); color: var(--text); background: var(--accent-soft); }
+
+.ag-msg { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
+.ag-msg.you { align-items: flex-end; }
+.ag-bubble {
+  padding: 10px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.5; max-width: 92%;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--line);
+}
+.ag-msg.you .ag-bubble { background: var(--accent); border-color: transparent; color: #fff; font-weight: 600; border-bottom-right-radius: 5px; }
+.ag-msg.from-agent .ag-bubble { border-bottom-left-radius: 5px; }
+
+.ag-changes { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.ag-change { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.ag-change:last-of-type { border-bottom: 0; }
+.ag-change b { display: block; font-size: 13px; font-weight: 700; line-height: 1.35; }
+.ag-change small { font-size: 11px; color: var(--muted); }
+.ag-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex: none; background: var(--accent); }
+.ag-dot.window { background: var(--green); }
+.ag-dot.task { background: var(--blue); }
+.ag-dot.commitment { background: #8b5cf6; }
+.ag-dot.capacity { background: var(--amber); }
+.ag-actions { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--surface-2); }
+
+.ag-thinking { display: flex; gap: 4px; align-items: center; }
+.ag-thinking i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: ag-blink 1.2s infinite; }
+.ag-thinking i:nth-child(2) { animation-delay: .15s; }
+.ag-thinking i:nth-child(3) { animation-delay: .3s; }
+@keyframes ag-blink { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+
+.ag-compose { display: flex; gap: 8px; align-items: flex-end; padding: 12px 14px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+.ag-compose textarea {
+  flex: 1; resize: none; font: inherit; font-size: 13.5px; line-height: 1.45; color: var(--text);
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface-2);
+  max-height: 140px; min-height: 42px;
+}
+.ag-compose textarea:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--surface); }
+.ag-send {
+  flex: none; width: 42px; height: 42px; border-radius: 12px; border: 0; display: grid; place-items: center;
+  background: var(--accent); color: #fff;
+}
+.ag-send:disabled { opacity: .45; }
+
+/* On a phone the assistant is a sheet over the page, not a column. */
+@media (max-width: 767px) {
+  .agent {
+    position: fixed; inset: 0; z-index: 60; width: auto; border-left: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) { .ag-thinking i { animation: none; opacity: .5; } }

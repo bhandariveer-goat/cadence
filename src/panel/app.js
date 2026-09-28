@@ -17,6 +17,7 @@ import * as commitments from './views/commitments.js';
 import * as guide from './views/guide.js';
 import * as create from './views/create.js';
 import * as onboarding from './views/onboarding.js';
+import * as agent from './views/agent.js';
 import { openPalette, installShortcuts, shortcutsSheet } from './views/palette.js';
 import { checkinPicker } from './views/commitments.js';
 
@@ -40,9 +41,19 @@ const TABS = {
   teacher: [['create', 'Create', I.mic], ['calendar', 'Calendar', I.cal], ['crew', 'Clubs', I.users], ['you', 'You', I.you]]
 };
 
+// The website has room to say what each section is for; the panel doesn't.
+const TAB_SUB = {
+  today: 'What to do next',
+  calendar: 'Cadence, Canvas and your own calendar',
+  plan: 'Every assignment and when to start it',
+  crew: 'Partners, clubs and kudos',
+  you: 'Streak, record and settings',
+  create: 'Dictate an assignment'
+};
+
 const ACTIONS = {
   ...today.actions, ...plan.actions, ...crew.actions, ...you.actions, ...calendar.actions, ...calendars.actions,
-  ...commitments.actions, ...guide.actions, ...create.actions, ...onboarding.actions,
+  ...commitments.actions, ...guide.actions, ...create.actions, ...onboarding.actions, ...agent.actions,
   go: (el) => { if (el.dataset.mode) app.planMode = el.dataset.mode; go(el.dataset.tab); },
   tab: (el) => { if (el.dataset.tab === activeTab() && app.stack.length === 0) { $('#view').scrollTop = 0; return; } go(el.dataset.tab); },
   back: () => back(),
@@ -56,7 +67,7 @@ const ACTIONS = {
   }
 };
 const CHANGE = { ...you.changeActions, ...calendars.changeActions };
-const SUBMIT = { ...plan.submitActions, ...create.submitActions };
+const SUBMIT = { ...plan.submitActions, ...create.submitActions, ...agent.submitActions };
 
 // ------------------------------------------------------------------ render
 
@@ -75,6 +86,9 @@ function renderApp() {
     $('#btn-sync').hidden = !insideCanvas || onboardingNow;
     $('#btn-sync').classList.toggle('spin', app.syncing);
     $('#btn-close').hidden = STANDALONE;
+    const ask = $('#btn-agent');
+    ask.hidden = !STANDALONE || onboardingNow || teacher;
+    ask.setAttribute('aria-pressed', String(!!app.agent?.open));
     renderStreak(onboardingNow || teacher);
 
     if (onboardingNow) {
@@ -88,8 +102,9 @@ function renderApp() {
     const tabs = TABS[teacher ? 'teacher' : 'student'];
     const active = activeTab();
     const unseen = (app.crew.nudges || []).some((n) => !n.seen);
+    const webTabs = STANDALONE && isDesktop();
     $('#tabs').innerHTML = tabs.map(([id, label, ic]) => `<button class="tab" data-act="tab" data-tab="${id}" ${active === id ? 'aria-current="page"' : ''}>
-      ${svg(ic)}<span>${label}</span>${id === 'crew' && unseen ? '<i class="dot-badge"></i>' : ''}</button>`).join('');
+      ${svg(ic)}<span class="tab-label">${label}</span>${webTabs ? `<span class="tab-sub">${TAB_SUB[id] || ''}</span>` : ''}${id === 'crew' && unseen ? '<i class="dot-badge"></i>' : ''}</button>`).join('');
 
     $('#view').innerHTML = VIEWS[app.view]();
     // The week grid covers the whole day; open it where the day actually starts.
@@ -102,6 +117,7 @@ function renderApp() {
     }
     renderSide();
     $('#btn-cmd').hidden = !isDesktop();
+    agent.render();
     restartTimer();
   } finally {
     rendering = false;
@@ -143,6 +159,8 @@ function restartTimer() {
     node.textContent = mmss(Math.max(0, s.minutes * 60 - Math.floor((Date.now() - +new Date(s.startedAt)) / 1000)));
   }, 1000);
 }
+
+document.body.classList.toggle('web', STANDALONE);
 
 setRender(renderApp);
 
@@ -195,6 +213,7 @@ for (const q of ['(min-width: 768px)', '(min-width: 1180px)']) {
 }
 
 installShortcuts({ checkinPicker });
+agent.installAgentInput();
 
 // The palette runs actions by name rather than reaching into every module.
 document.addEventListener('cadence:act', (e) => {

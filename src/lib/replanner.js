@@ -9,7 +9,7 @@ import { prioritize, isStale } from './priority.js';
 import { replan } from './scheduler.js';
 import { expandActivities } from './calendar.js';
 import { commitmentTasks, fixedActivities } from './habits.js';
-import { addDays, startOfDay, DAY } from './util.js';
+import { addDays, startOfDay, dateKey, DAY } from './util.js';
 import { sourceEvents, sourceAssignments } from './sources/sources.js';
 
 /** Everything that blocks time: imported events, connected calendars, fixed commitments. */
@@ -36,6 +36,11 @@ export function pruneTasks(st) {
   }
   const yesterday = +addDays(startOfDay(new Date()), -1);
   st.busy = (st.busy || []).filter((b) => b.source === 'ics' || +new Date(b.end) > yesterday);
+
+  // One-off availability the agent wrote ("tonight I can stay up till 12")
+  // applies to a date, so it expires with that date.
+  const today = dateKey(new Date());
+  for (const k of Object.keys(st.availability || {})) if (/^\d{4}-/.test(k) && k < today) delete st.availability[k];
 }
 
 /**
