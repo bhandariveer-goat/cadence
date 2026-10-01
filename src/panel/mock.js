@@ -6,6 +6,8 @@ import { addDays, atTime } from '../lib/util.js';
 const at = (days, hhmm) => atTime(addDays(new Date(), days), hhmm).toISOString();
 
 export function mockTasks() {
+  // Relative to today, and deliberately only one thing overdue: a demo week
+  // that opens with seven late assignments reads as a warning, not a plan.
   const t = [
     {
       title: 'Cell respiration lab report',
@@ -37,7 +39,7 @@ export function mockTasks() {
     },
     {
       title: 'Momentum worksheet',
-      courseName: 'Physics', courseId: '105', points: 10, due: at(0, '23:59'),
+      courseName: 'Physics', courseId: '105', points: 10, due: at(-1, '23:59'),
       description: '8 problems on conservation of momentum.'
     },
     {
@@ -124,10 +126,13 @@ export function mockCheckins() {
     foodbank: ['Sorted 400 lbs of produce', 'Trained two new volunteers', '']
   };
   const minutes = { piano: 30, robotics: 105, xc: 105, essays: 45, foodbank: 180 };
+  const GAP = 9;   // one missed day: the streak reads 8, which is honest and still good
+
   for (let back = 27; back >= 1; back--) {
     const d = addDays(new Date(), -back);
     const dow = d.getDay();
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const date = isoDay(-back);
+    const dayStart = out.length;
     const add = (id, p) => {
       if (rand() > p) return;
       const list = notes[id];
@@ -138,11 +143,15 @@ export function mockCheckins() {
         note: list[Math.floor(rand() * list.length)]
       });
     };
-    if (back !== 9) add('piano', dow === 6 ? 0.3 : 0.8);   // a skipped day covered by a streak freeze
+    if (back !== GAP) add('piano', dow === 6 ? 0.3 : 0.8);
     if (dow === 1 || dow === 3) add('robotics', 0.9);
     if (dow === 2 || dow === 4) add('xc', 0.88);
     if (dow === 0 || dow === 3) add('essays', 0.7);
     if (dow === 6) add('foodbank', 0.85);
+
+    // The daily streak is the headline number on two screens, so every day
+    // but the gap has to carry something. Piano is the one she does daily.
+    if (back !== GAP && out.length === dayStart) add('piano', 1);
   }
   return out;
 }

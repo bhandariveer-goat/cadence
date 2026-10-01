@@ -15,7 +15,10 @@ import { dateKey, addDays, startOfDay, atTime, uid, MIN, DAY } from '../lib/util
 
 export const params = new URLSearchParams(location.search);
 export const STANDALONE = params.get('standalone') === '1' || window.parent === window;
-export const DEMO = params.get('demo') === '1';
+// Demo mode sticks once entered, so a refresh (or a link that lost its query
+// string) still shows the demo instead of an empty, signed-out app. ?demo=0
+// leaves it.
+export let DEMO = params.get('demo') === '1';
 export const insideCanvas = !STANDALONE;
 
 export const app = {
@@ -98,7 +101,9 @@ canvas.setTransport((req) => ask('cadence:canvas', { req }));
 
 export async function boot() {
   app.S = await loadState();
-  if (DEMO && !app.S.commitments.length && !Object.keys(app.S.tasks).length) await seedDemo();
+  DEMO = params.get('demo') === '0' ? false : (DEMO || !!app.S.demo);
+  if (params.get('demo') === '0' && app.S.demo) await update((st) => { st.demo = false; return st; });
+  if (DEMO) await seedDemo({ onlyIfStale: true });
   if (insideCanvas) app.ctx = await ask('cadence:context');
   app.courses = app.S.courses || [];
   app.sync = createSync(app.S, {
@@ -119,17 +124,32 @@ export async function boot() {
   if (app.sync.available && app.S.profile.onboarded) loadCrew();
 }
 
-async function seedDemo() {
+/**
+ * Lay down the demo week. Due dates and check-ins are written relative to
+ * today, so the seed is re-run whenever it was made on an earlier day —
+ * otherwise a demo left open overnight slowly fills with overdue work.
+ */
+async function seedDemo({ onlyIfStale = false } = {}) {
+  const today = dateKey(new Date());
+  const empty = !app.S.commitments.length && !Object.keys(app.S.tasks).length;
+  if (onlyIfStale && !empty && app.S.demoSeed === today) return;
+
   const { mockTasks, mockCommitments, mockCheckins, mockCourses, mockLogs } = await import('./mock.js');
   app.S = await update((st) => {
-    for (const t of mockTasks()) st.tasks[t.id] = t;
+    st.tasks = Object.fromEntries(mockTasks().map((t) => [t.id, t]));
     st.commitments = mockCommitments();
     st.checkins = mockCheckins();
     st.courses = mockCourses;
     st.profile.name = 'Fiona';
+    st.dismissed = {};
     st.streak = { freezes: 1, frozenDays: [], best: 0, lastAward: null };
     for (const l of mockLogs) st.model = learn(st.model, l);
     st.logs = mockLogs.map((l) => ({ ...l, at: new Date().toISOString() }));
+    settleStreak(st, new Date());
+    // A demo that says "0-day streak" under 40 check-ins reads as broken.
+    st.streak.best = Math.max(st.streak.best, showUpStreak(st).days, 18);
+    st.demo = true;
+    st.demoSeed = today;
     return st;
   });
 }

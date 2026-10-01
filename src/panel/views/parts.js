@@ -101,14 +101,23 @@ export function timeline(k, { emptyText = 'Nothing planned. Enjoy it.' } = {}) {
 }
 
 /** Eight little dots: the last eight weeks, filled when the target was met. */
+/**
+ * One dot per week, filled when that week's goal was met. It sits next to a
+ * "2 of 5 this week" count, so it has to say that it's a different number —
+ * weeks, not sessions.
+ */
 export function weekDots(c, weeks = 8) {
   const S = app.S;
   const out = [];
+  let hit = 0;
   for (let i = weeks - 1; i >= 0; i--) {
     const d = new Date(Date.now() - i * 7 * 86400000);
-    out.push(`<i class="${weekProgress(c, S.checkins, d).met ? 'on' : ''}"></i>`);
+    const met = weekProgress(c, S.checkins, d).met;
+    if (met) hit++;
+    out.push(`<i class="${met ? 'on' : ''}"></i>`);
   }
-  return `<span class="week-dots" style="--c:${c.color}" aria-label="Last ${weeks} weeks">${out.join('')}</span>`;
+  const label = `${hit} of the last ${weeks} weeks hit`;
+  return `<span class="week-dots" style="--c:${c.color}" role="img" title="${label}" aria-label="${label}">${out.join('')}</span>`;
 }
 
 export function scheduleLabel(c, daysLabel) {

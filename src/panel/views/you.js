@@ -25,6 +25,9 @@ export function viewYou() {
   const S = app.S;
   const teacher = S.settings.role === 'teacher';
   const streak = showUpStreak(S);
+  // Two hour counts appear on this screen, so they have to mean different
+  // things and say so. A rolling 30 days rather than the calendar month: on
+  // the 1st, "hours this month" reads 0 and looks broken.
   const monthAgo = dateKey(addDays(new Date(), -30));
   const monthHours = Math.round((S.checkins || []).filter((k) => k.date >= monthAgo).reduce((a, k) => a + k.minutes, 0) / 60);
   const active = (S.commitments || []).filter((c) => !c.archived);
@@ -42,7 +45,7 @@ export function viewYou() {
     ${teacher ? '' : `
     <div class="stats">
       <div class="stat"><b style="color:var(--amber)">${svg(I.flame)} ${streak.days}</b><span>day streak${streak.freezes ? ` · ${streak.freezes} ${svg(I.snow)}` : ''}</span></div>
-      <div class="stat"><b>${monthHours}</b><span>hours this month</span></div>
+      <div class="stat"><b>${monthHours}</b><span>hours, last 30 days</span></div>
       <div class="stat"><b>${metThisWeek}/${active.length}</b><span>rings closed</span></div>
     </div>
 
@@ -62,7 +65,7 @@ export function viewYou() {
       <div class="row"><span style="opacity:.8">${svg(I.trophy, 22)}</span><div class="grow">
         <div class="t">Your activities record</div>
         <div class="m">Built from your check-ins — ready when college applications are</div></div>${svg(I.right, 18)}</div>
-      <div class="nums"><div><b>${active.length}</b><span>activities</span></div><div><b>${totalHours}</b><span>hours logged</span></div><div><b>${(S.checkins || []).length}</b><span>check-ins</span></div></div>
+      <div class="nums"><div><b>${active.length}</b><span>activities</span></div><div><b>${totalHours}</b><span>hours all time</span></div><div><b>${(S.checkins || []).length}</b><span>check-ins</span></div></div>
     </button>
 
     <button class="card row" data-act="open-review" style="width:100%;text-align:left;cursor:pointer">
