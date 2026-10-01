@@ -135,7 +135,7 @@ function renderStreak(hide) {
   chip.innerHTML = `${svg(I.flame, 17)}<span>${s.days}</span>${s.freezes ? `<span class="freeze">${svg(I.snow, 12)}${s.freezes}</span>` : ''}`;
 }
 
-const SIDES = { today: today.side, plan: plan.side, calendar: plan.side };
+const SIDES = { today: today.side, plan: plan.side, calendar: () => plan.side('week') };
 
 /** The right pane only exists on wide screens; views opt in by exporting side(). */
 function renderSide() {

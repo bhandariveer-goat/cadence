@@ -392,8 +392,8 @@ export const submitActions = {
 };
 
 /** Right pane on wide screens: what needs attention, and the week's shape. */
-export function side() {
-  if (app.planMode === 'school') {
+export function side(mode = app.planMode) {
+  if (mode === 'school') {
     const open = Object.values(app.S.tasks).filter((t) => plannable(t));
     const soon = rankedTasks().filter((t) => plannable(t)).slice(0, 5);
     return `<div class="section-head"><h2>Start these first</h2></div>
@@ -409,6 +409,7 @@ export function side() {
   const cap = app.S.settings.dailyCapacityMin || 150;
   const stretch = new Set(app.S.plan?.stretchDays || []);
   const unplaced = app.S.plan?.unplaced || [];
+  const overDays = days.filter((d) => d.minutes > cap);
 
   return `
     ${unplaced.length ? `<div class="card warm">
@@ -426,5 +427,9 @@ export function side() {
             <i style="display:block;height:100%;width:${Math.min(100, Math.round((d.minutes / cap) * 100))}%;background:var(--c)"></i></div></div>
         <span class="side">${fmtMinutes(d.minutes)}</span></div>`).join('')}
     </div>
-    ${busiest?.minutes ? `<p class="hint">Busiest: ${esc(fmtDay(`${busiest.date}T12:00:00`))} at ${fmtMinutes(busiest.minutes)}. Anything over your ${fmtMinutes(cap)} limit is Cadence making room for a deadline.</p>` : ''}`;
+    ${overDays.length
+      ? `<p class="hint">${overDays.length === 1
+        ? `${esc(fmtDay(`${overDays[0].date}T12:00:00`))} runs a little over your ${fmtMinutes(cap)} limit`
+        : `${overDays.length} days run a little over your ${fmtMinutes(cap)} limit`} to catch work due in the next few days. Everything else sits at or under it.</p>`
+      : busiest?.minutes ? `<p class="hint">Busiest: ${esc(fmtDay(`${busiest.date}T12:00:00`))} at ${fmtMinutes(busiest.minutes)}, inside your ${fmtMinutes(cap)} limit.</p>` : ''}`;
 }

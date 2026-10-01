@@ -48,11 +48,15 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
         : (t.due ? effectiveDeadline(new Date(t.due), t.estimateMin, { availability, busy, settings, now: from, noBuffer: t.noBuffer }) : horizon);
       const remaining = Math.max(0, (t.estimateMin || 0) - (t.loggedMin || 0));
       const daysLeft = Math.max(1, Math.ceil((+deadline - +from) / DAY));
+      // Overdue work gets a runway to land on (effectiveDeadline), which would
+      // otherwise sort it behind everything due this week. It goes first.
+      const overdue = !!t.due && +new Date(t.due) < +from;
       // Spread anything over ~90 minutes across multiple days.
       const idealDays = clamp(Math.ceil(remaining / 90), 1, Math.min(daysLeft, 5));
       return {
         task: t,
         deadline,
+        overdue,
         remaining,
         perDayCap: Math.max(sessionMin, Math.ceil(remaining / idealDays / 5) * 5)
       };
@@ -72,10 +76,17 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
    * @param {boolean} o.relax drop the "spread it over several days" pacing cap
    * @param {number}  o.cap   daily minutes allowed on this pass
    */
-  function fill({ relax = false, cap = dailyCap } = {}) {
+  // Even when pacing is relaxed, one assignment shouldn't eat a whole evening.
+  const dayLimit = (c, relax) => (relax ? Math.max(c.perDayCap * 2, sessionMax) : c.perDayCap);
+
+  function fill({ relax = false, cap = dailyCap, urgentOnly = false } = {}) {
     for (const piece of pieces) {
       let cursor = new Date(piece.start);
       const slotEnd = piece.end;
+      // Three blocks of the same thing in a row is where a plan starts to feel
+      // like a punishment, so after two we switch if anything else can go here.
+      let runTask = null;
+      let run = 0;
 
       while (slotEnd - cursor >= sessionMin * MIN) {
         const key = dateKey(cursor);
@@ -86,23 +97,24 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
           .filter((c) => c.remaining > 0)
           .filter((c) => +c.deadline > +cursor)
           .filter((c) => !c.task.notBefore || +cursor >= +new Date(c.task.notBefore))
+          .filter((c) => !urgentOnly || (c.task.due && +new Date(c.task.due) - +cursor < 2 * DAY))
           .filter((c) => windowLeft(c.task.window, cursor) >= Math.min(sessionMin, c.remaining))
           .filter((c) => {
-            if (relax) return true;
             const used = taskDayUsed.get(`${c.task.id}|${key}`) || 0;
-            return c.perDayCap - used >= Math.min(sessionMin, c.remaining);
+            return dayLimit(c, relax) - used >= Math.min(sessionMin, c.remaining);
           })
-          // Earliest deadline first keeps the plan feasible; priority score
-          // settles ties (and lifts pinned / at-risk work).
-          .sort((a, b) => (+a.deadline - +b.deadline)
+          // Overdue first, then earliest deadline — that ordering is what keeps
+          // the plan feasible; the priority score settles ties and lifts
+          // pinned / at-risk work.
+          .sort((a, b) => (Number(b.overdue) - Number(a.overdue))
+            || (+a.deadline - +b.deadline)
             || ((b.task.priority?.score ?? 0) - (a.task.priority?.score ?? 0)));
 
-        const pick = candidates[0];
-        if (!pick) break;
+        if (!candidates.length) break;
+        const switched = run >= 2 ? candidates.filter((c) => c.task.id !== runTask) : candidates;
+        const pick = switched[0] || candidates[0];
 
-        const taskLeftToday = relax
-          ? Infinity
-          : pick.perDayCap - (taskDayUsed.get(`${pick.task.id}|${key}`) || 0);
+        const taskLeftToday = dayLimit(pick, relax) - (taskDayUsed.get(`${pick.task.id}|${key}`) || 0);
         const hardMax = Math.floor(Math.min(
           capLeft,
           windowLeft(pick.task.window, cursor),
@@ -141,6 +153,8 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
         dayUsed.set(key, (dayUsed.get(key) || 0) + minutes);
         if (dayUsed.get(key) > dailyCap) stretchDays.add(key);
         taskDayUsed.set(`${pick.task.id}|${key}`, (taskDayUsed.get(`${pick.task.id}|${key}`) || 0) + minutes);
+        run = pick.task.id === runTask ? run + 1 : 1;
+        runTask = pick.task.id;
         cursor = new Date(+end + breakMin * MIN);
       }
       piece.start = cursor;                      // whatever is left of this window
@@ -159,22 +173,43 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
     }
     fill({ relax: true });
   }
-  // Then let busy days run longer — a fuller Thursday beats a missed assignment.
-  if (leftover()) fill({ relax: true, cap: Math.round(dailyCap * 1.5) });
-  if (leftover()) fill({ relax: true, cap: Infinity });
+  // Then let days run a little longer — in small steps, and only as far as it
+  // takes. Jumping straight to 1.5x put every day over the limit at once,
+  // which makes the limit meaningless; filling every day to 10% over before
+  // any day goes to 20% keeps the overflow as small and even as the work
+  // allows, and it stops at 20%.
+  for (const over of [1.1, 1.2]) {
+    if (!leftover()) break;
+    fill({ relax: true, cap: Math.round(dailyCap * over) });
+  }
+  // Past that the honest answer is "this doesn't fit", which the week screen
+  // says once — except for work actually due in the next two days, which gets
+  // crammed in rather than missed.
+  if (leftover()) fill({ relax: true, cap: Infinity, urgentOnly: true });
   sessions.sort((a, b) => new Date(a.start) - new Date(b.start));
 
   numberParts(sessions);
 
-  const unplaced = open
-    .filter((c) => c.remaining > 0)
-    .map((c) => ({
+  // One row per thing, not per session: a commitment with three unplaced
+  // sessions was listing its name three times.
+  const byTask = new Map();
+  for (const c of open) {
+    // Estimates are approximate; a five-minute remainder isn't something to
+    // put a warning card on someone's week for.
+    if (c.remaining < 10) continue;
+    const key = c.task.commitmentId || c.task.id;
+    const prev = byTask.get(key);
+    if (prev) { prev.missingMin += c.remaining; prev.sessions += 1; continue; }
+    byTask.set(key, {
       taskId: c.task.id,
       title: c.task.title,
       courseName: c.task.courseName,
       due: c.task.due,
-      missingMin: c.remaining
-    }));
+      missingMin: c.remaining,
+      sessions: 1
+    });
+  }
+  const unplaced = [...byTask.values()];
 
   return {
     generatedAt: new Date().toISOString(),

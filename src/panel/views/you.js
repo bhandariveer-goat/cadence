@@ -16,7 +16,7 @@ import {
   svg, I, esc, avatar, ring, sheet, toast, KIND_ICON, timeSelect, WEEK_ORDER, DOW_SHORT, DOW_LONG, daysLabel, range,
   toMin, shift, clock, ago, plural, longDay
 } from '../ui.js';
-import { weekDots, scheduleLabel } from './parts.js';
+import { scheduleLabel } from './parts.js';
 import { commitmentEditor } from './commitments.js';
 
 // ---------------------------------------------------------------- main page
@@ -56,7 +56,7 @@ export function viewYou() {
         return `<div class="item tap" data-act="open-commit" data-id="${c.id}" style="--c:${c.color}">
           ${ring({ pct: p.pct, color: c.color, size: 44, stroke: 5, inner: svg(KIND_ICON[c.kind] || I.star), label: c.title })}
           <div class="grow"><div class="t">${esc(c.title)}</div><div class="m">${esc(scheduleLabel(c, daysLabel))}</div></div>
-          ${weekDots(c, 6)}
+          <span class="small muted">${p.label}</span>
         </div>`;
       }).join('') : `<div class="item"><div class="grow small muted">Nothing yet. What do you want to stay consistent with?</div></div>`}
     </div>
