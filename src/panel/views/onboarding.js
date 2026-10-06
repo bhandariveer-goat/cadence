@@ -1,13 +1,16 @@
-// First run: who you are, what you're working toward, your school week, your
-// pace. About a minute, and every answer becomes something real in the plan.
+// First run, after signing in: what do you do outside class, and when is
+// school. Two screens.
+//
+// It used to be five, and two of them asked when you like to work and how much
+// a night. Nobody knows the answer to either, and the answers made every
+// Tuesday identical whether or not Tuesday had a meet. Cadence works both out
+// from the calendar now (lib/daymodel.js), so the questions are gone.
 
-import { app, persist, go, insideCanvas, syncCanvas, loadCrew } from '../core.js';
-import { weekProgress, isFixed } from '../../lib/habits.js';
-import { fmtMinutes, dateKey } from '../../lib/util.js';
-import { svg, I, esc, KIND_ICON, ring, daysLabel } from '../ui.js';
-import { ART, ringsDeck, scheduleLabel } from './parts.js';
-import { presetCommitment, commitmentEditor } from './commitments.js';
-import { routineChoices, applyRoutine, paceControls, applyPace } from './you.js';
+import { app, persist, render, insideCanvas, syncCanvas, loadCrew } from '../core.js';
+import { svg, I, esc, KIND_ICON, daysLabel, range } from '../ui.js';
+import { ART, scheduleLabel } from './parts.js';
+import { presetCommitment } from './commitments.js';
+import { interpret, applyOps } from '../../lib/agent.js';
 
 const TILES = [
   { kind: 'practice', label: 'Music or art', sub: 'Instrument, voice, drawing', title: 'Instrument practice' },
@@ -17,223 +20,109 @@ const TILES = [
   { kind: 'work', label: 'A job', sub: 'Shifts and hours', title: 'Part-time job' },
   { kind: 'study', label: 'College apps', sub: 'Essays, applications', title: 'College essays' },
   { kind: 'project', label: 'A personal project', sub: 'Coding, writing, making', title: 'Personal project' },
-  { kind: 'wellness', label: 'Health & fitness', sub: 'Workouts, running, sleep', title: 'Workout' }
+  { kind: 'wellness', label: 'Health and fitness', sub: 'Workouts, running', title: 'Workout' }
 ];
-const COLOR = { practice: '#8b5cf6', sport: '#10b981', club: '#3b82f6', service: '#ec4899', work: '#d97706', study: '#6366f1', project: '#ef4444', wellness: '#14b8a6' };
 
 function draft() {
-  if (!app.ob) {
-    const S = app.S;
-    app.ob = {
-      step: 0, picks: [], schoolEnd: S.profile.schoolEnd || '15:30', routine: S.profile.routine || 'afternoon-evening',
-      weekend: S.profile.weekend || 'relaxed', cap: S.settings.dailyCapacityMin, style: 'steady'
-    };
-  }
+  app.ob ||= { step: 0, picks: [], said: '' };
   return app.ob;
 }
 
-function progress(n) {
-  return `<div class="row between" style="margin-bottom:14px">
-    <div class="progress grow">${[1, 2, 3, 4].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</div>
-    <button class="link small" data-act="ob-skip" style="margin-left:14px;color:var(--muted)">Skip</button></div>`;
-}
-
-const foot = (next = 'Continue', back = true) => `<div class="foot">
-  ${back ? '<button class="btn ghost" data-act="ob-back">Back</button>' : ''}
+const foot = (next, back) => `<div class="foot">
+  ${back ? '<button class="btn ghost" data-act="ob-back">Go back</button>' : ''}
   <button class="btn primary" data-act="ob-next">${next}</button></div>`;
 
 export function viewOnboarding() {
   const o = draft();
   const S = app.S;
-  const first = String(S.profile.name || '').split(' ')[0];
+  const first = String(S.account?.name || S.profile.name || '').split(' ')[0];
+  const list = (S.commitments || []).filter((c) => !c.archived);
 
   if (o.step === 0) {
     return `<div class="ob">
-      <div class="art">${ART}</div>
-      <h1>${first ? `Hi ${esc(first)}.` : 'Welcome to Cadence.'}<br>Let's build a week you'll actually stick to.</h1>
-      <p class="lead">Homework shows up on its own. Cadence helps you show up for everything else — practice, teams, jobs, goals — and keeps you accountable to it.</p>
-      <div class="rolecards">
-        <button class="rolecard" data-act="ob-role" data-role="student"><span class="kind-ic" style="--c:var(--accent)">${svg(I.star, 24)}</span>
-          <div class="grow"><b>I'm a student</b><span>Plan my week and stay consistent</span></div>${svg(I.right, 18)}</button>
-        <button class="rolecard" data-act="ob-role" data-role="teacher"><span class="kind-ic" style="--c:var(--green)">${svg(I.users, 24)}</span>
-          <div class="grow"><b>I'm a teacher or club leader</b><span>Create assignments, run clubs</span></div>${svg(I.right, 18)}</button>
-      </div>
-      <p class="hint center" style="margin-top:auto;padding-top:20px">About a minute. Everything stays on this device.</p>
-    </div>`;
-  }
-
-  if (o.step === 1) {
-    const existing = (S.commitments || []).filter((c) => !c.archived);
-    return `<div class="ob">
-      ${progress(1)}
-      <h1>What are you working toward outside of class?</h1>
-      <p class="lead">Pick everything that's part of your week. Nothing on Canvas keeps you accountable for these — Cadence will.</p>
-      ${existing.length && !o.picks.length ? `<div class="card good small" style="margin-bottom:12px">You already have ${existing.length} set up — pick more or continue.</div>` : ''}
-      <div class="tiles">${TILES.map((t) => `<button class="tile" data-act="ob-pick" data-kind="${t.kind}" aria-pressed="${o.picks.includes(t.kind)}" style="--c:${COLOR[t.kind]}">
+      <h1>${first ? `Hi ${esc(first)}.` : 'Welcome.'} What do you do outside class?</h1>
+      <p class="lead">Homework has due dates and teachers. These don't, which is why they are the first thing to slip. Pick what is part of your week and Cadence will plan around it and keep count.</p>
+      <div class="tiles">${TILES.map((t) => `<button class="tile k-activity" data-act="ob-pick" data-kind="${t.kind}" aria-pressed="${o.picks.includes(t.kind)}">
         <span class="kind-ic">${svg(KIND_ICON[t.kind])}</span><div><b>${t.label}</b><small>${t.sub}</small></div></button>`).join('')}</div>
-      ${foot(o.picks.length || existing.length ? 'Continue' : 'Just homework for now')}
+      <label class="field mt4"><span>Or say it in your own words</span>
+        <textarea data-ob-said rows="2" placeholder="Robotics Monday and Wednesday 3:45 to 5:30">${esc(o.said)}</textarea></label>
+      ${foot(o.picks.length || o.said.trim() ? 'Add these to my week' : 'Skip for now', false)}
     </div>`;
   }
 
-  if (o.step === 2) {
-    const list = (S.commitments || []).filter((c) => !c.archived);
-    return `<div class="ob">
-      ${progress(2)}
-      <h1>Make each one real</h1>
-      <p class="lead">We guessed the details. Tap one to set the days, times and why it matters.</p>
-      <div class="card flush">
-        ${list.map((c) => `<div class="item tap" data-act="edit-commit" data-id="${c.id}" style="--c:${c.color}" role="button" tabindex="0">
-          <span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
-          <div class="grow"><div class="t">${esc(c.title)}</div><div class="m">${esc(scheduleLabel(c, daysLabel))}${c.why ? ` · ${esc(c.why)}` : ''}</div></div>
-          ${svg(I.edit, 18)}</div>`).join('') || '<div class="item"><div class="grow small muted">Nothing yet — that\'s fine, you can add some later.</div></div>'}
-        <div class="item tap" data-act="add-commit" role="button" tabindex="0"><span class="kind-ic" style="--c:var(--accent)">${svg(I.plus)}</span>
-          <div class="grow"><div class="t" style="color:var(--accent)">Add something else</div></div></div>
-      </div>
-      ${foot()}
-    </div>`;
-  }
-
-  if (o.step === 3) {
-    return `<div class="ob">
-      ${progress(3)}
-      <h1>When do you usually get work done?</h1>
-      <p class="lead">Homework and flexible practice only land in these times. Set commitments like practice are kept clear automatically.</p>
-      <div data-ob-routine>${routineChoices(o)}</div>
-      ${foot()}
-    </div>`;
-  }
-
-  if (o.step === 4) {
-    return `<div class="ob">
-      ${progress(4)}
-      <h1>Find your pace</h1>
-      <p class="lead">A plan you'll believe beats a perfect one you won't follow.</p>
-      <div class="card" data-ob-pace>${paceControls(o)}</div>
-      ${foot('Build my week')}
-    </div>`;
-  }
-
-  // step 5 — all set
-  const count = Object.values(S.tasks).length;
+  const sc = S.school;
   return `<div class="ob">
-    <div class="art">${ART}</div>
-    <h1>You're set${first ? `, ${esc(first)}` : ''}.</h1>
-    <p class="lead">These are your rings. Close them each week — Cadence plans the time, reminds you, and keeps count.</p>
-    ${(S.commitments || []).some((c) => !c.archived) ? ringsDeck({ withAdd: false }) : ''}
+    <h1>${list.length ? 'Check the details' : 'One last thing'}</h1>
+    <p class="lead">${list.length ? 'These are guesses. Tap one to set its days and times.' : 'When is school? Cadence keeps those hours clear and plans work after the last bell.'}</p>
+    ${list.length ? `<div class="card flush">
+      ${list.map((c) => `<div class="item tap k-activity" data-act="edit-commit" data-id="${c.id}" role="button" tabindex="0">
+        <span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
+        <div class="grow"><div class="t">${esc(c.title)}</div><div class="m">${esc(scheduleLabel(c, daysLabel))}</div></div>
+        ${svg(I.edit, 18)}</div>`).join('')}
+      <div class="item tap" data-act="add-commit" role="button" tabindex="0"><span class="kind-ic">${svg(I.plus)}</span>
+        <div class="grow"><div class="t">Add another activity</div></div></div>
+    </div>` : ''}
     <div class="card flush">
-      <div class="integration"><span class="ic" style="color:var(--accent)">${svg(I.flame, 19)}</span>
-        <div class="grow"><div class="t">Check in once a day</div><div class="m">That's a streak. Miss a day and a freeze covers it.</div></div></div>
-      <div class="integration"><span class="ic" style="color:#3b82f6">${svg(I.school, 19)}</span>
-        <div class="grow"><div class="t">${insideCanvas ? 'Homework comes from Canvas' : count ? `${count} assignments ready` : 'Homework from Canvas'}</div>
-          <div class="m">${insideCanvas ? 'Bringing in your assignments now' : 'Connect with the Chrome extension, or add them yourself'}</div></div></div>
-      <div class="integration"><span class="ic" style="color:var(--green)">${svg(I.trophy, 19)}</span>
-        <div class="grow"><div class="t">Your activities record starts today</div><div class="m">Every check-in counts toward it</div></div></div>
+      <div class="item tap" data-act="school-sheet" role="button" tabindex="0">
+        <span class="kind-ic k-school">${svg(I.school)}</span>
+        <div class="grow"><div class="t">School</div><div class="m">${esc(daysLabel(sc.days))}, ${esc(range(sc.start, sc.end))}</div></div>
+        ${svg(I.edit, 18)}</div>
     </div>
-    <div class="foot"><button class="btn primary" data-act="ob-done">Let's go</button></div>
+    <p class="hint">${insideCanvas
+      ? 'Your assignments come in from Canvas on their own.'
+      : 'Assignments come in through the Chrome extension on Canvas, or you can add them yourself.'}</p>
+    ${foot('Show me my week', true)}
   </div>`;
 }
 
 async function finish() {
   app.ob = null;
   app.stack = [];
-  app.view = app.S.settings.role === 'teacher' ? 'create' : 'today';
-  await persist((st) => { st.profile.onboarded = true; });
+  app.view = 'today';
+  await persist((st) => { st.profile.onboarded = true; st.settings.role = st.settings.role || 'student'; });
   if (insideCanvas) syncCanvas({ quiet: true });
   if (app.sync?.available) loadCrew();
 }
 
 async function next() {
   const o = draft();
-  if (o.step === 1 && o.picks.length) {
+  if (o.step === 0) {
+    const said = o.said.trim();
     await persist((st) => {
       for (const kind of o.picks) {
         if (st.commitments.some((c) => c.kind === kind && !c.archived)) continue;
         const tile = TILES.find((t) => t.kind === kind);
-        st.commitments.push(presetCommitment(kind, { title: tile?.title, color: COLOR[kind] }));
+        st.commitments.push(presetCommitment(kind, { title: tile?.title }));
       }
+      if (said) applyOps(st, interpret(said, st, new Date()), new Date());
     });
     o.picks = [];
-    o.step = 2;
-  } else if (o.step === 1) {
-    o.step = (app.S.commitments || []).some((c) => !c.archived) ? 2 : 3;
-  } else if (o.step === 3) {
-    await persist((st) => applyRoutine(st, o));
-    o.step = 4;
-  } else if (o.step === 4) {
-    await persist((st) => { applyPace(st, o); st.settings.role = 'student'; });
-    o.step = 5;
-  } else {
-    o.step += 1;
+    o.said = '';
+    o.step = 1;
+    document.getElementById('view').scrollTop = 0;
+    return render();
   }
-  document.getElementById('view').scrollTop = 0;
-  const { render } = await import('../core.js');
-  render();
+  return finish();
 }
 
 export const actions = {
-  'ob-role': async (el) => {
-    if (el.dataset.role === 'teacher') {
-      app.ob = null;
-      app.view = 'create';
-      return persist((st) => { st.settings.role = 'teacher'; st.profile.onboarded = true; }, { recalc: false });
-    }
-    draft().step = 1;
-    const { render } = await import('../core.js');
-    render();
-  },
-  'ob-pick': async (el) => {
+  'ob-pick': (el) => {
     const o = draft();
     const k = el.dataset.kind;
     o.picks = o.picks.includes(k) ? o.picks.filter((x) => x !== k) : [...o.picks, k];
     el.setAttribute('aria-pressed', String(o.picks.includes(k)));
     const btn = document.querySelector('[data-act="ob-next"]');
-    if (btn) btn.textContent = o.picks.length || app.S.commitments.some((c) => !c.archived) ? 'Continue' : 'Just homework for now';
+    if (btn) btn.textContent = o.picks.length || o.said.trim() ? 'Add these to my week' : 'Skip for now';
   },
   'ob-next': () => next(),
-  'ob-back': async () => {
-    const o = draft();
-    o.step = Math.max(0, o.step - 1);
-    if (o.step === 2 && !(app.S.commitments || []).some((c) => !c.archived)) o.step = 1;
-    const { render } = await import('../core.js');
-    render();
-  },
-  'ob-skip': () => finish(),
-  'ob-done': () => finish()
+  'ob-back': () => { draft().step = 0; render(); }
 };
 
-/** Buttons inside shared controls (routine, pace) don't carry data-act; handle them here. */
-export function handleOnboardingClick(ev) {
-  if (app.S.profile.onboarded || !app.ob) return false;
-  const o = app.ob;
-  const r = ev.target.closest('[data-routine]'), w = ev.target.closest('[data-weekend]'), s = ev.target.closest('[data-style]');
-  if (!r && !w && !s) return false;
-  if (r) o.routine = r.dataset.routine;
-  if (w) o.weekend = w.dataset.weekend;
-  if (s) o.style = s.dataset.style;
-  const host = document.querySelector('[data-ob-routine]');
-  if (host && (r || w)) host.innerHTML = routineChoices(o);
-  const pace = document.querySelector('[data-ob-pace]');
-  if (pace && s) pace.innerHTML = paceControls(o);
-  return true;
-}
-
-export function handleOnboardingChange(ev) {
-  if (app.S.profile.onboarded || !app.ob) return false;
-  if (ev.target.matches('[data-school]')) {
-    app.ob.schoolEnd = ev.target.value;
-    const host = document.querySelector('[data-ob-routine]');
-    if (host) host.innerHTML = routineChoices(app.ob);
-    return true;
-  }
-  return false;
-}
-
+/** The free-text box keeps its value across renders without a round trip. */
 export function handleOnboardingInput(ev) {
-  if (app.S.profile.onboarded || !app.ob || !ev.target.matches('[data-cap]')) return false;
-  const v = Number(ev.target.value);
-  app.ob.cap = v;
-  const root = ev.target.closest('[data-ob-pace]');
-  root.querySelector('[data-cap-label]').textContent = fmtMinutes(v);
-  root.querySelector('[data-cap-word]').textContent = v <= 75 ? 'Light' : v <= 135 ? 'Balanced' : v <= 195 ? 'Focused' : 'Intense';
+  if (app.S.profile.onboarded || !app.ob || !ev.target.matches('[data-ob-said]')) return false;
+  app.ob.said = ev.target.value;
+  const btn = document.querySelector('[data-act="ob-next"]');
+  if (btn) btn.textContent = app.ob.picks.length || app.ob.said.trim() ? 'Add these to my week' : 'Skip for now';
   return true;
 }

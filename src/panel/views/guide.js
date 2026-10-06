@@ -14,7 +14,7 @@ const loading = new Set();
 
 const origin = () => app.S.settings.canvasHost || app.ctx.origin || '';
 
-/** The offline guide, upgraded by Cadence Intelligence when it's on. */
+/** The offline guide, rewritten by Claude when a key is set. */
 export function composeGuide(t) {
   const base = buildGuide(t, t.guideData || {}, { origin: origin() });
   const a = t.guideAI;
@@ -34,6 +34,30 @@ export function composeGuide(t) {
   };
 }
 
+/**
+ * The steps of an assignment, each tied to the block it will happen in.
+ * The School list shows these inline; the full guide shows the same thing.
+ */
+export function stepSchedule(t) {
+  const g = composeGuide(t);
+  const isDone = t.status === 'done';
+  const sessions = (app.S.plan?.sessions || []).filter((s) => s.taskId === t.id).sort((a, b) => new Date(a.start) - new Date(b.start));
+  const doneMin = sessions.filter((s) => s.done).reduce((a, s) => a + s.minutes, 0);
+  let acc = 0;
+  const steps = g.steps.map((st) => {
+    const a = acc, b = acc + st.minutes;
+    acc = b;
+    let offset = 0, when = null;
+    for (const s of sessions) {
+      const s0 = offset, s1 = offset + s.minutes;
+      offset = s1;
+      if (!s.done && s1 > a && s0 < b) { when = s; break; }
+    }
+    return { ...st, done: isDone || doneMin >= b, when };
+  });
+  return { guide: g, steps, sessions, upcoming: sessions.filter((s) => !s.done) };
+}
+
 export async function ensureGuide(id) {
   const t = app.S.tasks[id];
   if (!t || loading.has(id)) return;
@@ -41,7 +65,7 @@ export async function ensureGuide(id) {
   const wantAI = ai.aiAvailable(app.S.settings) && !t.guideAI;
   if (fresh && !wantAI) return;
   loading.add(id);
-  if (app.view === 'guide') render();
+  if (app.view === 'guide' || app.view === 'plan') render();
   try {
     if (!fresh) {
       let data;
@@ -67,36 +91,20 @@ export async function ensureGuide(id) {
   } catch { /* the offline guide is already on screen */ }
   finally {
     loading.delete(id);
-    if (app.view === 'guide' || app.view === 'today') render();
+    if (['guide', 'today', 'plan'].includes(app.view)) render();
   }
 }
 
 export function viewGuide() {
   const t = app.S.tasks[app.guideId];
   if (!t) return `<button class="back" data-act="back">${svg(I.left, 16)} Back</button><div class="card soft">That assignment is gone.</div>`;
-  const g = composeGuide(t);
+  const { guide: g, steps, upcoming } = stepSchedule(t);
   const isLoading = loading.has(t.id);
   const isDone = t.status === 'done';
-  const sessions = (app.S.plan?.sessions || []).filter((s) => s.taskId === t.id).sort((a, b) => new Date(a.start) - new Date(b.start));
-  const doneMin = sessions.filter((s) => s.done).reduce((a, s) => a + s.minutes, 0);
-  const upcoming = sessions.filter((s) => !s.done);
-
-  let acc = 0;
-  const steps = g.steps.map((st) => {
-    const a = acc, b = acc + st.minutes;
-    acc = b;
-    let offset = 0, when = null;
-    for (const s of sessions) {
-      const s0 = offset, s1 = offset + s.minutes;
-      offset = s1;
-      if (!s.done && s1 > a && s0 < b) { when = s; break; }
-    }
-    return { ...st, done: isDone || doneMin >= b, when };
-  });
   const rubricTotal = g.rubric.reduce((x, r) => x + (Number(r.points) || 0), 0);
   const paragraphs = g.instructions.split(/\n+/).map((x) => x.trim()).filter(Boolean);
 
-  return `<div style="--c:${colorFor(t)}">
+  return `<div class="k-work">
     <button class="back" data-act="back">${svg(I.left, 16)} Back</button>
     <header class="guide-head">
       <div class="kicker"><span class="dot"></span>${esc(t.courseName || 'Personal')}${g.moduleName ? ` · ${esc(g.moduleName)}` : ''}</div>
@@ -110,7 +118,6 @@ export function viewGuide() {
       <p class="headline">${esc(g.headline)}</p>
       ${!g.ai && g.teacherSays && g.teacherSays !== g.headline ? `<p class="teacher">Your teacher's words: “${esc(g.teacherSays)}”</p>` : ''}
       ${g.keyIdeas.length ? `<div class="ideas"><span class="muted small">Key ideas</span>${g.keyIdeas.map((k) => `<span class="pill">${esc(k)}</span>`).join('')}</div>` : ''}
-      ${g.ai ? `<div class="ai-note">${svg(I.sparkle, 12)} Explained by Cadence Intelligence</div>` : ''}
     </div>
 
     ${g.deliverables.length ? `<div class="section"><div class="section-head"><h2>What to turn in</h2></div>
@@ -132,7 +139,7 @@ export function viewGuide() {
             <span class="mat-ic big t-${m.type}">${svg(MAT_ICON[m.type] || I.link, 18)}</span>
             <div class="grow"><div class="t">${esc(m.title)}</div><div class="m">${esc(m.why || `${MAT_WORD[m.type] || 'Link'} · ${m.source}`)}</div></div>
             ${m.type === 'textbook' ? '' : `<span class="muted">${svg(I.external, 16)}</span>`}</div>`).join('')
-          : isLoading ? '<div class="item"><div class="grow"><div class="skeleton" style="width:70%"></div><div class="skeleton" style="width:45%;margin-top:8px"></div></div></div>'
+          : isLoading ? '<div class="item"><div class="grow"><div class="skeleton"></div><div class="skeleton mt2"></div></div></div>'
             : '<div class="item"><div class="grow small muted">No linked materials. Your class notes and this unit\'s module in Canvas are the best place to start.</div></div>'}
       </div></div>
 
@@ -140,7 +147,7 @@ export function viewGuide() {
       <div class="card flush">${g.rubric.map((r) => `<div class="item"><div class="grow"><div class="t">${esc(r.title)}</div>${r.detail ? `<div class="m">${esc(r.detail)}</div>` : ''}</div>
         ${r.points != null ? `<span class="side"><b>${r.points}</b> pts</span>` : ''}</div>`).join('')}</div></div>` : ''}
 
-    ${paragraphs.length ? `<details class="card instructions" style="margin-top:14px"><summary><span>Full instructions from your teacher</span>${svg(I.right, 16)}</summary>
+    ${paragraphs.length ? `<details class="card instructions mt4"><summary><span>Full instructions from your teacher</span>${svg(I.right, 16)}</summary>
       <div class="body">${paragraphs.map((x) => `<p>${esc(x)}</p>`).join('')}</div></details>` : ''}
 
     <div class="guide-actions">
@@ -148,10 +155,10 @@ export function viewGuide() {
       ${isDone ? `<button class="btn soft" data-act="reopen" data-id="${t.id}">Mark not done</button>`
         : `<button class="btn primary" data-act="complete" data-id="${t.id}">${svg(I.check, 15)} Mark done</button>`}
     </div>
-    ${isDone || !app.S.sources?.google?.push ? '' : `<div class="row" style="margin-top:10px">
+    ${isDone || !app.S.sources?.google?.push ? '' : `<div class="row mt3">
       <button class="btn small ${t.pushToGoogle ? 'soft' : 'ghost'} block" data-act="push-item-toggle" data-id="${t.id}" data-kind="assignment">
         ${svg(I.cal, 14)} ${t.pushToGoogle ? 'On your Google Calendar' : 'Add its blocks to Google Calendar'}</button></div>`}
-    ${isDone ? '' : `<div class="row wrap" style="justify-content:center;gap:4px;margin-top:8px">
+    ${isDone ? '' : `<div class="row wrap mt2">
       <button class="btn small ghost" data-act="edit" data-id="${t.id}">Change time</button>
       <button class="btn small ghost" data-act="pin" data-id="${t.id}">${t.pinned ? 'Unpin' : 'Do this first'}</button>
       <button class="btn small ghost" data-act="dismiss" data-id="${t.id}">${t.source === 'manual' ? 'Delete' : 'Not doing this'}</button></div>`}
@@ -163,7 +170,7 @@ function openMaterial(taskId, mid) {
   if (!t) return;
   const m = composeGuide(t).materials.find((x) => x.id === mid);
   if (!m) return;
-  if (m.type === 'textbook') return toast(`${m.title} — in your textbook or class notes`);
+  if (m.type === 'textbook') return toast(`${m.title} is in your textbook or class notes`);
   if (!m.url) return toast(DEMO ? `In Canvas, this opens “${m.title}”` : `Find “${m.title}” in your course on Canvas`);
   let url = m.url;
   try { url = new URL(m.url, origin() || undefined).href; } catch { /* already absolute */ }

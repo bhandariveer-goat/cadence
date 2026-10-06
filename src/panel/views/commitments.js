@@ -7,7 +7,7 @@ import {
 } from '../../lib/habits.js';
 import { fmtMinutes, dateKey, uid } from '../../lib/util.js';
 import {
-  sheet, toast, svg, I, esc, KIND_ICON, timeSelect, WEEK_ORDER, DOW_TWO, DOW_SHORT, daysLabel, toMin, celebrate, ago, daysUntil, plural
+  sheet, toast, svg, I, esc, KIND_ICON, timeSelect, WEEK_ORDER, DOW_TWO, DOW_SHORT, daysLabel, toMin, ago, daysUntil, plural
 } from '../ui.js';
 import { weekDots, scheduleLabel } from './parts.js';
 
@@ -30,13 +30,13 @@ export async function checkinFlow(commitmentId, { sessionId = null, day = null }
   const p = weekProgress(c, app.S.checkins, date);
 
   const res = await sheet(`
-    <div class="sheet-hero" style="--c:${c.color}">
+    <div class="sheet-hero k-activity">
       <span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
-      <div class="grow"><h2 style="margin:0">${esc(c.title)}</h2>
-        <div class="muted small">${p.done} of ${p.target} this week${day && day !== dateKey(new Date()) ? ` · ${esc(day)}` : ''}</div></div>
+      <div class="grow"><h2 class="m0">Check in: ${esc(c.title)}</h2>
+        <div class="text-2 small">${p.done} of ${p.target} this week${day && day !== dateKey(new Date()) ? ` · ${esc(day)}` : ''}</div></div>
     </div>
 
-    <div class="q" style="margin-top:0">How did it go?</div>
+    <div class="q mt0">How did it go?</div>
     <div class="feel">${Object.entries(FEELS).map(([id, label]) =>
       `<button type="button" data-feel="${id}" aria-pressed="${id === 'good'}"><span class="face">${svg(FACE[id], 34)}</span>${label}</button>`).join('')}</div>
     <input type="hidden" name="feel" value="good">
@@ -44,13 +44,13 @@ export async function checkinFlow(commitmentId, { sessionId = null, day = null }
     <div class="q">How long?</div>
     <div class="choices" data-mins>${options.map((m) =>
       `<button type="button" class="choice" data-min="${m}" aria-pressed="${m === base}">${fmtMinutes(m)}</button>`).join('')}
-      <input type="number" name="custom" min="5" max="600" step="5" placeholder="Other" style="width:96px" aria-label="Other minutes">
+      <input type="number" class="w-num" name="custom" min="5" max="600" step="5" placeholder="45" inputmode="numeric" aria-label="Another length, in minutes">
     </div>
     <input type="hidden" name="minutes" value="${base}">
 
-    <label class="field" style="margin-top:16px"><span>What did you work on? <span class="muted">(optional)</span></span>
+    <label class="field mt4"><span>What you worked on <i>(optional)</i></span>
       <input type="text" name="note" maxlength="120" placeholder="${esc(notePlaceholder(c))}" autocomplete="off"></label>
-    <p class="hint" style="margin-top:-8px">Notes become highlights in your activities record.</p>
+    <p class="hint up">Notes become highlights in your activities record.</p>
 
     <div class="actions">
       <button class="btn ghost" value="cancel">Cancel</button>
@@ -78,11 +78,8 @@ export async function checkinFlow(commitmentId, { sessionId = null, day = null }
     minutes: Number(res.get('minutes')) || base, feel: String(res.get('feel') || 'good'), note: String(res.get('note') || ''), sessionId, date
   });
   if (!result) return;
-  const snap = null;
-  const tile = document.querySelector(`[data-act="open-commit"][data-id="${c.id}"]`);
   if (result.ringClosed) {
-    celebrate(tile);
-    toast(`${c.title} ring closed — ${result.after.target} for ${result.after.target} this week!`, { label: 'Undo', run: () => undoCheckin(result.checkin.id) });
+    toast(`${c.title} ring closed: ${result.after.target} for ${result.after.target} this week`, { label: 'Undo', run: () => undoCheckin(result.checkin.id) });
   } else {
     const streakBit = result.streak.days >= 2 ? ` · ${result.streak.days}-day streak` : '';
     const froze = result.settle?.usedFreezes?.length ? ' · a freeze saved your streak' : '';
@@ -116,65 +113,65 @@ export async function commitmentEditor(existing = null, { kind = null, afterSave
   const c = existing ? structuredClone(existing) : presetCommitment(kind || 'practice');
   let draft = c;
   const body = () => `
-    <h2>${existing ? 'Edit commitment' : 'New commitment'}</h2>
+    <h2>${existing ? 'Edit activity' : 'New activity'}</h2>
     <p class="lead">${existing ? 'Changes apply from this week on.' : 'Something you want to show up for, week after week.'}</p>
 
-    <label class="field"><span>What is it?</span>
-      <input type="text" name="title" value="${esc(draft.title)}" placeholder="Piano, robotics, running…" autocomplete="off" maxlength="40"></label>
+    <label class="field"><span>Name</span>
+      <input type="text" name="title" value="${esc(draft.title)}" placeholder="Piano" autocomplete="off" maxlength="40"></label>
 
     <div class="field"><span>Type</span>
       <div class="choices">${Object.entries(KINDS).map(([id, k]) =>
-        `<button type="button" class="choice" data-kind="${id}" aria-pressed="${draft.kind === id}" style="padding:8px 12px;min-height:40px">${k.label}</button>`).join('')}</div></div>
+        `<button type="button" class="choice" data-kind="${id}" aria-pressed="${draft.kind === id}">${k.label}</button>`).join('')}</div></div>
 
-    <div class="field"><span>When does it happen?</span>
-      <div class="seg" style="margin-bottom:10px">
+    <div class="field"><span>Schedule</span>
+      <div class="seg mb3">
         <button type="button" data-mode="fixed" aria-pressed="${isFixed(draft)}">At set times</button>
         <button type="button" data-mode="flexible" aria-pressed="${!isFixed(draft)}">Whenever I fit it in</button>
       </div>
       ${isFixed(draft) ? `
-        <div class="days" style="margin-bottom:10px">${WEEK_ORDER.map((d) => `<button type="button" class="day-toggle" data-day="${d}" aria-pressed="${(draft.schedule.days || []).includes(d)}">${DOW_TWO[d]}</button>`).join('')}</div>
+        <div class="days mb3">${WEEK_ORDER.map((d) => `<button type="button" class="day-toggle" data-day="${d}" aria-pressed="${(draft.schedule.days || []).includes(d)}">${DOW_TWO[d]}</button>`).join('')}</div>
         <div class="pair">${timeSelect('start', draft.schedule.start || '16:00')}<span class="to">to</span>${timeSelect('end', draft.schedule.end || '17:30')}</div>
         <p class="hint">Cadence keeps this time clear and asks how it went afterward.</p>`
       : `
-        <div class="row between" style="margin-bottom:10px"><span class="small" style="font-weight:700">Times per week</span>
+        <div class="row between mb3"><span class="small strong">Times per week</span>
           <span class="stepper"><button type="button" data-step="-1" aria-label="Fewer">−</button><b>${draft.target.sessions}</b><button type="button" data-step="1" aria-label="More">+</button></span></div>
-        <div class="choices" style="margin-bottom:10px">${[15, 20, 30, 45, 60, 90].map((m) =>
-          `<button type="button" class="choice" data-mins="${m}" aria-pressed="${draft.target.minutes === m}" style="min-height:40px;padding:8px 12px">${fmtMinutes(m)}</button>`).join('')}</div>
+        <div class="choices mb3">${[15, 20, 30, 45, 60, 90].map((m) =>
+          `<button type="button" class="choice" data-mins="${m}" aria-pressed="${draft.target.minutes === m}">${fmtMinutes(m)}</button>`).join('')}</div>
         <div class="choices">${[['any', 'Any time'], ['morning', 'Mornings'], ['afternoon', 'Afternoons'], ['evening', 'Evenings']].map(([id, l]) =>
-          `<button type="button" class="choice" data-time="${id}" aria-pressed="${draft.time === id}" style="min-height:40px;padding:8px 12px">${l}</button>`).join('')}</div>
+          `<button type="button" class="choice" data-time="${id}" aria-pressed="${draft.time === id}">${l}</button>`).join('')}</div>
         <p class="hint">Cadence spreads these through your week around homework.</p>`}
     </div>
 
-    <label class="field"><span>Why does it matter to you? <span class="muted">(shown when you're tempted to skip)</span></span>
+    <label class="field"><span>Why it matters to you <i>(optional, shown when you are tempted to skip)</i></span>
       <input type="text" name="why" value="${esc(draft.why)}" placeholder="First chair at the spring concert" maxlength="80" autocomplete="off"></label>
 
-    <details class="card soft" style="padding:0 14px;margin-bottom:12px" ${draft.event ? 'open' : ''}>
-      <summary style="min-height:48px;display:flex;align-items:center;font-weight:750">Working toward a date?</summary>
-      <div class="two" style="padding-bottom:12px">
-        <label class="field" style="margin:0"><span>Event</span><input type="text" name="eventLabel" value="${esc(draft.event?.label || '')}" placeholder="Regionals"></label>
-        <label class="field" style="margin:0"><span>Date</span><input type="date" name="eventDate" value="${esc(draft.event?.date || '')}"></label>
+    <details class="disclosure" ${draft.event ? 'open' : ''}>
+      <summary>Working toward a date?</summary>
+      <div class="two">
+        <label class="field m0"><span>Event</span><input type="text" name="eventLabel" value="${esc(draft.event?.label || '')}" placeholder="Regionals"></label>
+        <label class="field m0"><span>Date</span><input type="date" name="eventDate" value="${esc(draft.event?.date || '')}"></label>
       </div>
     </details>
 
-    <details class="card soft" style="padding:0 14px;margin-bottom:12px">
-      <summary style="min-height:48px;display:flex;align-items:center;font-weight:750">For your activities record</summary>
+    <details class="disclosure">
+      <summary>For your activities record</summary>
       <label class="field"><span>Your role</span><input type="text" name="role" value="${esc(draft.role)}" maxlength="50" placeholder="Mechanical sub-team lead"></label>
       <label class="field"><span>Organization</span><input type="text" name="org" value="${esc(draft.org)}" maxlength="100" placeholder="Nueva Robotics"></label>
       <div class="field"><span>Grades</span><div class="days">${[9, 10, 11, 12].map((g) =>
         `<button type="button" class="day-toggle" data-grade="${g}" aria-pressed="${(draft.grades || []).includes(g)}">${g}</button>`).join('')}</div></div>
       <div class="field"><span>When</span><div class="choices">${[['school', 'School year'], ['break', 'School break'], ['all', 'All year']].map(([id, l]) =>
-        `<button type="button" class="choice" data-timing="${id}" aria-pressed="${draft.timing === id}" style="min-height:40px;padding:8px 12px">${l}</button>`).join('')}</div></div>
+        `<button type="button" class="choice" data-timing="${id}" aria-pressed="${draft.timing === id}">${l}</button>`).join('')}</div></div>
     </details>
 
-    ${app.sync?.available ? `<label class="toggle" style="margin-bottom:6px"><input type="checkbox" name="share" ${draft.share ? 'checked' : ''}><i></i>
+    ${app.sync?.available ? `<label class="toggle mb2"><input type="checkbox" name="share" ${draft.share ? 'checked' : ''}><i></i>
       <span>Share check-ins with my crew<small>Partners and clubs see that you showed up</small></span></label>` : ''}
 
-    ${app.S.sources?.google?.push ? `<label class="toggle" style="margin-bottom:6px"><input type="checkbox" name="pushToGoogle" ${draft.pushToGoogle ? 'checked' : ''}><i></i>
+    ${app.S.sources?.google?.push ? `<label class="toggle mb2"><input type="checkbox" name="pushToGoogle" ${draft.pushToGoogle ? 'checked' : ''}><i></i>
       <span>Add to Google Calendar<small>Its scheduled blocks appear on your real calendar</small></span></label>` : ''}
 
     <div class="actions">
-      ${existing ? '<button class="btn soft danger" name="op" value="archive" formnovalidate>Remove</button>' : '<button class="btn ghost" value="cancel" formnovalidate>Cancel</button>'}
-      <button class="btn primary" name="op" value="save">Save</button>
+      ${existing ? '<button class="btn soft danger" name="op" value="archive" formnovalidate>Remove activity</button>' : '<button class="btn ghost" value="cancel" formnovalidate>Cancel</button>'}
+      <button class="btn primary" name="op" value="save">${existing ? 'Save changes' : 'Add activity'}</button>
     </div>`;
 
   const res = await sheet(`<div data-body>${body()}</div>`, {
@@ -253,7 +250,7 @@ export async function commitmentEditor(existing = null, { kind = null, afterSave
     const { pushGoogleBlocks } = await import('../core.js');
     pushGoogleBlocks({ quiet: true });
   }
-  toast(existing ? 'Saved' : `${draft.title} added — it's on your plan`);
+  toast(existing ? 'Saved' : `${draft.title} added. It is on your plan.`);
   afterSave?.(draft);
   return draft;
 }
@@ -272,11 +269,11 @@ export async function commitmentDetail(id) {
   const eventDays = c.event?.date ? daysUntil(c.event.date) : null;
 
   const res = await sheet(`
-    <div class="sheet-hero" style="--c:${c.color}">
-      <span class="kind-ic" style="width:52px;height:52px;border-radius:17px">${svg(KIND_ICON[c.kind] || I.star, 26)}</span>
-      <div class="grow"><h2 style="margin:0">${esc(c.title)}</h2><div class="muted small">${esc(scheduleLabel(c, daysLabel))}</div></div>
+    <div class="sheet-hero k-activity">
+      <span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
+      <div class="grow"><h2 class="m0">${esc(c.title)}</h2><div class="muted small">${esc(scheduleLabel(c, daysLabel))}</div></div>
     </div>
-    ${c.why ? `<div class="card soft small" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">${svg(I.heart, 16)}<span>${esc(c.why)}</span></div>` : ''}
+    ${c.why ? `<div class="card soft small row mb3">${svg(I.heart, 16)}<span>${esc(c.why)}</span></div>` : ''}
 
     <div class="stats">
       <div class="stat"><b>${p.done}/${p.target}</b><span>this week</span></div>
@@ -284,12 +281,12 @@ export async function commitmentDetail(id) {
       <div class="stat"><b>${Math.round(rec.totalHours)}</b><span>hours logged</span></div>
     </div>
 
-    <div class="row between" style="margin:4px 2px 14px"><span class="small muted">Last 8 weeks</span>${weekDots(c)}</div>
-    ${eventDays != null && eventDays >= 0 ? `<div class="card soft row small" style="margin-bottom:12px">${svg(I.flag, 16)}<span class="grow"><b>${esc(c.event.label)}</b> in ${plural(eventDays, 'day')}</span></div>` : ''}
+    <div class="row between mb4"><span class="small text-2">Last 8 weeks</span>${weekDots(c)}</div>
+    ${eventDays != null && eventDays >= 0 ? `<div class="card soft row small mb3">${svg(I.flag, 16)}<span class="grow"><b>${esc(c.event.label)}</b> in ${plural(eventDays, 'day')}</span></div>` : ''}
 
-    ${recent.length ? `<div class="q" style="margin-top:4px">Recent</div>
-      <div class="card flush" style="margin-bottom:0">${recent.map((k) => `<div class="item"><div class="grow">
-        <div class="t" style="font-weight:650">${esc(k.note || FEELS[k.feel] || 'Checked in')}</div>
+    ${recent.length ? `<div class="q mt1">Recent</div>
+      <div class="card flush m0">${recent.map((k) => `<div class="item"><div class="grow">
+        <div class="t">${esc(k.note || FEELS[k.feel] || 'Checked in')}</div>
         <div class="m">${ago(k.at)} · ${fmtMinutes(k.minutes)}</div></div></div>`).join('')}</div>` : ''}
 
     <div class="actions">
@@ -321,9 +318,9 @@ export async function checkinPicker() {
   const res = await sheet(`<h2>Check in</h2><p class="lead">What did you just do?</p>
     <div class="choices stacked">${list.map((c) => {
       const p = weekProgress(c, app.S.checkins);
-      return `<button class="choice" name="id" value="${c.id}" style="display:flex;align-items:center;gap:12px">
-        <span class="kind-ic" style="--c:${c.color};width:34px;height:34px">${svg(KIND_ICON[c.kind] || I.star, 17)}</span>
-        <span style="flex:1">${esc(c.title)}<small>${p.label} this week</small></span></button>`;
+      return `<button class="choice row k-activity" name="id" value="${c.id}">
+        <span class="kind-ic sm">${svg(KIND_ICON[c.kind] || I.star, 16)}</span>
+        <span class="grow">${esc(c.title)}<small>${p.label} this week</small></span></button>`;
     }).join('')}</div>
     <div class="actions"><button class="btn ghost" value="cancel">Cancel</button></div>`);
   if (res?.get('id')) checkinFlow(String(res.get('id')));

@@ -40,8 +40,23 @@ export function fmtMinutes(min) {
   return r ? `${h}h ${r}m` : `${h}h`;
 }
 
+/**
+ * A clock time the way a person says it: "6pm", "6:30pm", "midnight".
+ * One format for the whole product; it used to be "6:30 PM" in some places and
+ * "6:30pm" in others.
+ */
+export function fmtClock(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  if ((h === 23 && m === 59) || (h === 0 && !m) || (h === 24 && !m)) return 'midnight';
+  if (h === 12 && !m) return 'noon';
+  const ap = h >= 12 ? 'pm' : 'am';
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return m ? `${hr}:${String(m).padStart(2, '0')}${ap}` : `${hr}${ap}`;
+}
+
 export function fmtTime(d) {
-  return new Date(d).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const x = new Date(d);
+  return fmtClock(`${x.getHours()}:${x.getMinutes()}`);
 }
 
 export function fmtDay(d) {

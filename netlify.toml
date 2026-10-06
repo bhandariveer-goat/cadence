@@ -1,17 +1,75 @@
-# Cadence is plain HTML/CSS/JS with no build step, so Netlify just serves the
-# repo root. index.html is the marketing homepage; the app lives at
-# /src/panel/panel.html?standalone=1 (also the PWA start_url).
+# Cadence is plain HTML, CSS and JavaScript with no build step, so Netlify
+# serves the repository root as it is:
+#
+#   /            index.html   the homepage
+#   /app         app.html     the planner
+#   /demo        demo.html    the same planner with sample data
+#   /privacy     privacy.html
+#   /terms       terms.html
+#   /api/agent   netlify/functions/agent.mjs   the assistant, server side
+#
+# Secrets (ANTHROPIC_API_KEY and friends) are set in the Netlify UI. They are
+# never written here: functions cannot read variables declared in this file,
+# and this file is public.
 
 [build]
   publish = "."
   command = ""
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Clean addresses for the pages. These are rewrites (status 200), so the
+# address bar keeps /app and the files keep their relative links.
+[[redirects]]
+  from = "/app"
+  to = "/app.html"
+  status = 200
+
+[[redirects]]
+  from = "/demo"
+  to = "/demo.html"
+  status = 200
+
+[[redirects]]
+  from = "/privacy"
+  to = "/privacy.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms"
+  to = "/terms.html"
+  status = 200
+
+# Old links to the app keep working. force = true because the file still
+# exists (the Chrome extension loads it from its own package).
+[[redirects]]
+  from = "/src/panel/panel.html"
+  to = "/app"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/src/panel/panel"
+  to = "/app"
+  status = 301
+  force = true
+
 [[headers]]
-  for = "/sw.js"
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Nothing is cached hard, so a deploy is live on the next load. Cadence used to
+# ship a service worker that got this wrong; sw.js now only removes itself.
+[[headers]]
+  for = "/src/*"
   [headers.values]
     Cache-Control = "no-cache"
 
 [[headers]]
-  for = "/manifest.webmanifest"
+  for = "/sw.js"
   [headers.values]
-    Content-Type = "application/manifest+json"
+    Cache-Control = "no-cache"

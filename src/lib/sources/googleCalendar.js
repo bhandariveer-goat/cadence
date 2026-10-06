@@ -91,7 +91,7 @@ async function api(path, token, { method = 'GET', body, query } = {}) {
     body: body ? JSON.stringify(body) : undefined
   });
   if (res.status === 401) { const e = new Error('Google session expired'); e.code = 401; throw e; }
-  if (res.status === 403) { const e = new Error('Google denied that request — check the scopes you granted'); e.code = 403; throw e; }
+  if (res.status === 403) { const e = new Error('Google denied that request. Check the scopes you granted.'); e.code = 403; throw e; }
   if (!res.ok && res.status !== 204) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error?.message || `Google Calendar error ${res.status}`);

@@ -1,91 +1,98 @@
-// The assistant panel — the website's front door.
+// The assistant panel.
 //
-// A student types the way they'd text a friend ("dinner at 6, practice Tue and
-// Thu, I can stay up till midnight") and Cadence writes it into the week:
-// events that block time, a later cutoff for one night, homework with a due
-// date. Everything it does is listed and undoable in one click, because an
-// agent that edits your calendar without showing its work is not trustworthy.
+// A student says what is going on ("I just got home, I'm tired, I want to eat
+// and do an hour and a half and go to sleep") and the week is rebuilt around
+// it. Every reply shows exactly what changed and what moved because of it, and
+// one tap puts everything back. An assistant that edits a calendar without
+// showing its work is not one to trust with a week.
+//
+// It always works: sentences are read offline (lib/agent.js). When the student
+// has their own Anthropic key, or is signed in on a site that runs the server
+// function, Claude does the reading instead (lib/agentllm.js) and the offline
+// reader is the fallback if that call fails.
 
-import { app, persist, restore, go } from '../core.js';
-import { interpret, applyOps, opsFromSpec, agentEvents } from '../../lib/agent.js';
-import { aiAvailable, planFromMessage } from '../../lib/ai.js';
+import { app, restore, go, DEMO } from '../core.js';
+import { respond } from '../../lib/agent.js';
+import { converse, directTransport, proxyTransport } from '../../lib/agentllm.js';
+import { diffPlans, KIND_LABEL, dayWord } from '../../lib/agentops.js';
+import { aiAvailable } from '../../lib/ai.js';
+import { CONFIG } from '../../config.js';
 import { svg, I, esc, toast, $ } from '../ui.js';
-import { fmtDay, fmtTime } from '../../lib/util.js';
-
-const KIND_LABEL = {
-  event: 'On your calendar',
-  window: 'When you’re free',
-  task: 'Added to your work',
-  commitment: 'New commitment',
-  capacity: 'Daily limit'
-};
-
-const STARTERS = [
-  'Dinner at 6, and I can stay up till midnight',
-  'Practice Tuesday and Thursday 4–6',
-  'Bio test Friday, should take 2 hours to study',
-  'I want to run 4 times a week for 45 minutes'
-];
 
 export function ensureAgent() {
-  app.agent ||= { open: false, thread: [], busy: false, draft: '' };
+  app.agent ||= { open: false, thread: [], busy: false, draft: '', messages: [], listening: false };
   return app.agent;
+}
+
+/** Suggestions that fit the moment: evenings are about tonight, mornings about the week. */
+function starters() {
+  const h = new Date().getHours();
+  if (h >= 15 || h < 4) return ['I am tired tonight', 'What should I do now?', 'I have dinner at 6', 'No school Friday'];
+  return ['How is my week?', 'Robotics Monday and Wednesday 3:45 to 5:30', 'Bio test Friday, takes 2 hours', 'Am I free Thursday evening?'];
+}
+
+/** Which way to reach Claude, if any. */
+function transport() {
+  const S = app.S;
+  if (DEMO) return null;
+  if (aiAvailable(S.settings)) return directTransport(S.settings.apiKey);
+  if (S.account?.mode === 'cloud' && app.cloud?.signedIn) {
+    const endpoint = /^https?:/.test(CONFIG.agentEndpoint) ? CONFIG.agentEndpoint
+      : /^https?:$/.test(location.protocol) ? new URL(CONFIG.agentEndpoint, location.origin).href
+        : CONFIG.site.domain ? `https://${CONFIG.site.domain}${CONFIG.agentEndpoint}` : null;
+    if (endpoint) return proxyTransport(endpoint, () => app.cloud.token());
+  }
+  return null;
 }
 
 // ------------------------------------------------------------------ view
 
 export function agentPanel() {
   const a = ensureAgent();
-  const empty = !a.thread.length;
+  const mic = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   return `
     <div class="ag-head">
-      <div class="ag-title">
-        <span class="ag-mark">${svg(I.sparkle, 16)}</span>
-        <div>
-          <b>Assistant</b>
-          <small>${aiAvailable(app.S.settings) ? 'Powered by Claude' : 'Tell it about your week'}</small>
-        </div>
-      </div>
-      <button class="icon-btn" data-act="agent-close" aria-label="Close assistant">${svg(I.x, 18)}</button>
+      <label class="ag-title" for="ag-input"><b>Ask Cadence</b><small>Say what is going on. The plan changes to match.</small></label>
+      <button class="icon-btn" data-act="agent-close" data-tip="Close assistant" data-kbd="Esc" aria-label="Close assistant">${svg(I.x, 18)}</button>
     </div>
 
-    <div class="ag-thread" id="ag-thread">
-      ${empty ? `
+    <div class="ag-thread" id="ag-thread" aria-live="polite">
+      ${a.thread.length ? a.thread.map(bubble).join('') : `
         <div class="ag-intro">
-          <p>Tell me what's going on this week and I'll put it in — the things that take time, when you're actually free, and what's due.</p>
+          <p>Describe your day or your week in your own words. It goes on the calendar and the plan is rebuilt around it. Every change is listed and can be undone.</p>
           <div class="ag-starters">
-            ${STARTERS.map((s) => `<button class="ag-starter" data-act="agent-starter" data-text="${esc(s)}">${esc(s)}</button>`).join('')}
+            ${starters().map((s) => `<button class="ag-starter" data-act="agent-say" data-text="${esc(s)}">${esc(s)}</button>`).join('')}
           </div>
-        </div>` : a.thread.map(bubble).join('')}
-      ${a.busy ? '<div class="ag-msg from-agent"><div class="ag-bubble ag-thinking"><i></i><i></i><i></i></div></div>' : ''}
+        </div>`}
+      ${a.busy ? '<div class="ag-msg from-agent"><div class="ag-bubble ag-thinking" role="status" aria-label="Working on it…"><i></i><i></i><i></i></div></div>' : ''}
     </div>
 
     <form class="ag-compose" data-form="agent-send" autocomplete="off">
-      <textarea name="text" id="ag-input" rows="1" placeholder="I have dinner at 6&hellip;" ${a.busy ? 'disabled' : ''}>${esc(a.draft || '')}</textarea>
-      <button class="ag-send" type="submit" aria-label="Send" ${a.busy ? 'disabled' : ''}>${svg(I.up, 18)}</button>
+      <textarea name="text" id="ag-input" rows="1" placeholder="${a.listening ? 'Listening…' : 'I just got home and I am tired'}">${esc(a.draft || '')}</textarea>
+      ${mic ? `<button class="ag-mic ${a.listening ? 'on' : ''}" type="button" data-act="agent-mic" data-tip="${a.listening ? 'Stop listening' : 'Speak instead of typing'}" aria-label="${a.listening ? 'Stop listening' : 'Speak instead of typing'}" aria-pressed="${a.listening}">${svg(I.mic, 18)}</button>` : ''}
+      <button class="ag-send" type="submit" data-tip="Send message" data-kbd="Enter" aria-label="Send message" ${a.busy ? 'aria-busy="true"' : ''}>${svg(I.up, 18)}</button>
     </form>`;
 }
 
 function bubble(m, i) {
   if (m.role === 'you') return `<div class="ag-msg you"><div class="ag-bubble">${esc(m.text)}</div></div>`;
+  const last = i === ensureAgent().thread.length - 1;
   return `
     <div class="ag-msg from-agent">
       <div class="ag-bubble">${esc(m.text)}</div>
+      ${m.list?.length ? `<ul class="ag-list">${m.list.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${m.ops?.length ? `<div class="ag-changes">
-        ${m.ops.map(opRow).join('')}
+        ${m.ops.map((op) => `<div class="ag-change"><span class="ag-dot ${esc(op.kind)}"></span>
+          <div><b>${esc(op.summary)}</b><small>${esc(KIND_LABEL[op.kind] || '')}</small></div></div>`).join('')}
+        ${m.moved?.length ? `<div class="ag-moved"><small>Moved because of this</small>${m.moved.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
         <div class="ag-actions">
-          <button class="btn ghost small" data-act="agent-undo" data-i="${i}">Undo</button>
-          <button class="btn soft small" data-act="agent-show">See it on the calendar</button>
+          ${m.undone ? '<span class="muted small">Undone</span>' : `<button class="btn ghost small" data-act="agent-undo" data-i="${i}">Undo this</button>`}
+          <button class="btn soft small" data-act="agent-show">Open calendar</button>
         </div>
       </div>` : ''}
+      ${last && m.chips?.length ? `<div class="ag-chips">${m.chips.map((c) => `<button class="ag-chip" data-act="agent-say" data-text="${esc(c.text)}">${esc(c.label)}</button>`).join('')}</div>` : ''}
     </div>`;
 }
-
-const opRow = (op) => `
-  <div class="ag-change">
-    <span class="ag-dot ${op.kind}"></span>
-    <div><b>${esc(op.summary)}</b><small>${esc(KIND_LABEL[op.kind] || '')}</small></div>
-  </div>`;
 
 // --------------------------------------------------------------- sending
 
@@ -103,51 +110,32 @@ async function send(text) {
   render();
 
   const now = new Date();
-  let ops = [];
-  let note = '';
-  try {
-    if (aiAvailable(app.S.settings)) {
-      const spec = await planFromMessage(app.S.settings, clean, { now, context: contextLine() });
-      ops = opsFromSpec(spec.items, now);
-      note = spec.note;
+  const before = app.S;
+  let result = null;
+
+  const via = transport();
+  if (via) {
+    try {
+      // A long conversation is restarted rather than trimmed.
+      if (a.messages.length > 30) a.messages = [];
+      const r = await converse({ text: clean, state: before, messages: a.messages, send: via, now });
+      const diff = r.next ? diffPlans(before, r.next, now) : null;
+      result = {
+        text: r.text, ops: r.ops, next: r.next, chips: r.chips, list: [],
+        moved: diff ? diff.moved.filter((m) => m.to.length).map((m) => `${m.title}: ${m.to.map((k) => dayWord(k, now)).join(', ')}`) : []
+      };
+    } catch {
+      // No key, a spent limit, a network drop: the sentence still gets read.
+      result = null;
     }
-  } catch {
-    // The key can be missing, rate-limited or offline — the local reading
-    // still works, so the student never hits a dead end.
   }
-  if (!ops.length) ops = interpret(clean, app.S, now);
+  if (!result) result = respond(clean, before, now);
 
-  if (!ops.length) {
-    a.busy = false;
-    a.thread.push({
-      role: 'agent',
-      text: note || "I couldn't find anything to schedule in that. Try naming a time or a day — “dinner at 6”, “practice Tue and Thu 4–6”, “I can stay up till midnight”."
-    });
-    return render();
-  }
-
-  const snapshot = structuredClone(app.S);
-  await persist((st) => { applyOps(st, ops, now); });
+  const snapshot = result.next ? structuredClone(before) : null;
+  if (result.next) await restore(result.next);
   a.busy = false;
-  a.thread.push({ role: 'agent', text: note || confirmation(ops), ops, snapshot });
+  a.thread.push({ role: 'agent', text: result.text, ops: result.ops || [], moved: result.moved || [], list: result.list || [], chips: result.chips || [], snapshot });
   render();
-}
-
-function confirmation(ops) {
-  if (ops.length === 1) return `Done — ${ops[0].summary.toLowerCase()}. I've rebuilt your plan around it.`;
-  return `Done — ${ops.length} changes, and your plan is rebuilt around them.`;
-}
-
-/** A little context makes Claude's dates and wording match what she sees. */
-function contextLine() {
-  const S = app.S;
-  const names = (S.commitments || []).filter((c) => !c.archived).map((c) => c.title).slice(0, 8);
-  const next = (S.plan?.sessions || []).filter((s) => !s.done)[0];
-  return [
-    names.length ? `Existing commitments: ${names.join(', ')}.` : '',
-    next ? `Next planned work: ${next.title} on ${fmtDay(next.start)} at ${fmtTime(next.start)}.` : '',
-    `Homework capacity is ${S.settings.dailyCapacityMin} minutes a day.`
-  ].filter(Boolean).join(' ');
 }
 
 // --------------------------------------------------------------- render
@@ -159,14 +147,25 @@ export function render() {
   const a = ensureAgent();
   el.hidden = !a.open;
   document.body.classList.toggle('agent-open', a.open);
+  // On a narrow screen the assistant covers the page, so the page behind it
+  // is taken out of the tab order and away from screen readers while it is up.
+  const covers = a.open && matchMedia('(max-width: 767.98px)').matches;
+  for (const id of ['top', 'view', 'tabs']) { const node = $(`#${id}`); if (node) node.inert = covers; }
+  const btn = $('#btn-agent');
+  if (btn) btn.setAttribute('aria-pressed', String(a.open));
   if (!a.open) return;
   const input = el.querySelector('#ag-input');
+  const hadFocus = document.activeElement === input;
   if (input) a.draft = input.value;
   el.innerHTML = agentPanel();
   const thread = el.querySelector('#ag-thread');
   if (thread) thread.scrollTop = thread.scrollHeight;
   const box = el.querySelector('#ag-input');
-  if (box && !a.busy) { box.focus(); autosize(box); }
+  if (box) {
+    autosize(box);
+    if (!a.busy && (hadFocus || a.focusNext)) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+  }
+  a.focusNext = false;
 }
 
 function autosize(box) {
@@ -174,27 +173,56 @@ function autosize(box) {
   box.style.height = `${Math.min(140, box.scrollHeight)}px`;
 }
 
+// ----------------------------------------------------------------- voice
+
+let recog = null;
+function toggleMic() {
+  const a = ensureAgent();
+  const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Rec) return;
+  if (recog) { recog.stop(); return; }
+  recog = new Rec();
+  recog.continuous = false;
+  recog.interimResults = true;
+  recog.lang = navigator.language || 'en-US';
+  const base = a.draft ? `${a.draft.trim()} ` : '';
+  recog.onresult = (e) => {
+    let said = '';
+    for (const r of e.results) said += r[0].transcript;
+    const box = $('#ag-input');
+    a.draft = (base + said).trim();
+    if (box) { box.value = a.draft; autosize(box); }
+  };
+  recog.onerror = (e) => { if (e.error === 'not-allowed') toast('Allow the microphone for this site in your browser, then try again.'); };
+  recog.onend = () => { recog = null; a.listening = false; a.focusNext = true; render(); };
+  a.listening = true;
+  render();
+  try { recog.start(); } catch { recog = null; a.listening = false; render(); }
+}
+
 // -------------------------------------------------------------- actions
 
 export const actions = {
-  'agent-open': () => { ensureAgent().open = true; render(); },
-  'agent-close': () => { ensureAgent().open = false; render(); },
-  'agent-toggle': () => { const a = ensureAgent(); a.open = !a.open; render(); },
-  'agent-starter': (el) => send(el.dataset.text),
-  'agent-show': () => { go('calendar'); },
+  'agent-open': (el) => { const a = ensureAgent(); a.open = true; a.focusNext = true; if (el?.dataset?.seed && !a.draft) a.draft = el.dataset.seed; render(); },
+  'agent-close': () => { ensureAgent().open = false; render(); $('#btn-agent')?.focus(); },
+  'agent-toggle': () => { const a = ensureAgent(); a.open = !a.open; a.focusNext = a.open; render(); },
+  'agent-say': (el) => { const a = ensureAgent(); if (!a.open) { a.open = true; } send(el.dataset.text); },
+  'agent-mic': () => toggleMic(),
+  'agent-show': () => { if (matchMedia('(max-width: 767px)').matches) ensureAgent().open = false; go('calendar'); },
   'agent-undo': async (el) => {
     const a = ensureAgent();
     const msg = a.thread[Number(el.dataset.i)];
-    if (!msg?.snapshot) return;
+    if (!msg?.snapshot || msg.undone) return;
     await restore(msg.snapshot);
-    a.thread.push({ role: 'agent', text: 'Undone. Your week is back the way it was.' });
+    msg.undone = true;
+    // Claude is told the plan afresh on every message, so nothing else to rewind.
     render();
-    toast('Changes undone');
+    toast('Undone. Your plan is back the way it was.');
   }
 };
 
 export const submitActions = {
-  'agent-send': (form, data) => { send(data.get('text')); }
+  'agent-send': (form, data) => { ensureAgent().focusNext = true; send(data.get('text')); }
 };
 
 /** Keeps the composer growing with the text, and Enter sends. */
@@ -202,11 +230,17 @@ export function installAgentInput() {
   document.addEventListener('input', (e) => {
     if (e.target.id === 'ag-input') { ensureAgent().draft = e.target.value; autosize(e.target); }
   });
+  // Escape closes the assistant from anywhere inside it, and focus goes back
+  // to the button that opened it.
   document.addEventListener('keydown', (e) => {
-    if (e.target.id !== 'ag-input' || e.key !== 'Enter' || e.shiftKey) return;
+    if (e.key !== 'Escape' || !ensureAgent().open || !e.target.closest?.('#agent')) return;
     e.preventDefault();
+    actions['agent-close']();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.target.id !== 'ag-input' || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    ensureAgent().focusNext = true;
     send(e.target.value);
   });
 }
-
-export { agentEvents };

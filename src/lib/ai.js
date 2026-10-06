@@ -1,4 +1,4 @@
-// Cadence Intelligence — the optional Claude layer.
+// The optional Claude layer for estimates, assignment guides and dictation.
 //
 // Everything in Cadence works without this file: estimator.js, priority.js,
 // guide.js and parse.js carry the whole product offline. With an access key,
@@ -18,7 +18,7 @@
 // and enforced after parsing instead.
 
 const API = 'https://api.anthropic.com/v1/messages';
-export const DEFAULT_MODEL = 'claude-opus-5';
+export const DEFAULT_MODEL = 'claude-opus-5-5';
 
 const CATEGORY_ENUM = ['reading', 'problemset', 'essay', 'lab', 'project', 'quiz', 'discussion', 'presentation', 'worksheet', 'admin'];
 const clampInt = (v, lo, hi, fallback) => (Number.isFinite(Number(v)) ? Math.max(lo, Math.min(hi, Math.round(Number(v)))) : fallback);
@@ -28,13 +28,18 @@ export function aiAvailable(settings) {
   return !!(settings?.useAI && settings?.apiKey);
 }
 
-async function callClaude(settings, { system, user, schema, maxTokens = 2048, effort = 'low' }) {
+async function callClaude(settings, { system, user, schema, effort = 'low' }) {
   const body = {
-    model: settings.model || DEFAULT_MODEL,
-    max_tokens: maxTokens,
+    model: DEFAULT_MODEL,
+    // Thinking is always on for this model and counts toward the limit, so the
+    // ceiling has to leave room for it as well as the answer.
+    max_tokens: 16000,
     system,
     messages: [{ role: 'user', content: user }],
-    output_config: { effort, ...(schema ? { format: { type: 'json_schema', schema } } : {}) }
+    output_config: { effort, ...(schema ? { format: { type: 'json_schema', schema } } : {}) },
+    // If a safety classifier declines the request, retry on a fallback model
+    // instead of failing.
+    fallbacks: 'default'
   };
 
   const res = await fetch(API, {
@@ -43,6 +48,7 @@ async function callClaude(settings, { system, user, schema, maxTokens = 2048, ef
       'content-type': 'application/json',
       'x-api-key': settings.apiKey,
       'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'server-side-fallback-2026-07-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify(body)
@@ -51,6 +57,7 @@ async function callClaude(settings, { system, user, schema, maxTokens = 2048, ef
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.error?.message || `Claude API error ${res.status}`);
   if (data.stop_reason === 'refusal') throw new Error('Request was declined.');
+  if (data.stop_reason === 'max_tokens') throw new Error('The answer was cut off.');
 
   const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
   if (!schema) return text;
@@ -106,7 +113,7 @@ export async function refineEstimates(settings, tasks, history = {}) {
     history.notes ? `What we know about this student: ${history.notes}` : ''
   ].filter(Boolean).join(' ');
 
-  const out = await callClaude(settings, { system, user: JSON.stringify({ assignments: payload }), schema: ESTIMATE_SCHEMA, maxTokens: 4000, effort: 'medium' });
+  const out = await callClaude(settings, { system, user: JSON.stringify({ assignments: payload }), schema: ESTIMATE_SCHEMA, effort: 'medium' });
   const byId = {};
   for (const item of out.items || []) {
     byId[item.id] = {
@@ -166,7 +173,7 @@ export async function guideAssignment(settings, input) {
   const system = [
     'You help a high school student understand an assignment and get started on it.',
     'Write at about a 9th-grade reading level: warm, direct, no jargon unless you explain it.',
-    'Only state requirements that are actually in the instructions or rubric — never invent any.',
+    'Only state requirements that are actually in the instructions or rubric. Never invent any.',
     `The student already has ${input.estimateMin} minutes scheduled for this, so the step minutes must add up to about that.`,
     'Only reference material ids that appear in the provided list.',
     input.notes ? `What we know about how this student works: ${input.notes}` : ''
@@ -176,7 +183,6 @@ export async function guideAssignment(settings, input) {
     system,
     user: JSON.stringify({ ...input, instructions: String(input.instructions || '').slice(0, 5000) }),
     schema: GUIDE_SCHEMA,
-    maxTokens: 4000,
     effort: 'medium'
   });
 
@@ -217,7 +223,7 @@ export async function parseDictation(settings, transcript, { courses = [], now =
     'Write clear, student-facing instructions. Do not invent requirements.'
   ].filter(Boolean).join(' ');
 
-  const out = await callClaude(settings, { system, user: transcript, schema: PARSE_SCHEMA, maxTokens: 1500, effort: 'low' });
+  const out = await callClaude(settings, { system, user: transcript, schema: PARSE_SCHEMA, effort: 'low' });
   return {
     title: str(out.title, 120),
     courseName: str(out.courseName, 80),
@@ -237,82 +243,6 @@ export async function reviewPlan(settings, summary) {
     system: 'You are a calm, concrete academic coach for a high school student. '
       + 'Two sentences at most. Name the specific thing to focus on next and why. No pep-talk filler.',
     user: JSON.stringify(summary),
-    maxTokens: 400,
     effort: 'low'
   });
-}
-
-// ------------------------------------------------------- the agent's ear
-//
-// The website's agent panel: a sentence about someone's week, turned into the
-// same ops lib/agent.js produces offline. Claude is better at odd phrasing
-// ("gotta bounce by 7-ish, practice ran long"); agent.js is the fallback and
-// the only path for students without a key.
-
-const PLAN_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['items', 'note'],
-  properties: {
-    note: { type: 'string', description: 'One short sentence back to the student. No emoji.' },
-    items: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['type', 'title'],
-        properties: {
-          type: { type: 'string', enum: ['event', 'window', 'task', 'commitment', 'capacity'] },
-          title: { type: 'string', description: 'Short label, e.g. "Dinner", "Swim practice"' },
-          date: { type: 'string', description: 'YYYY-MM-DD when it is one specific day, else empty' },
-          weekdays: { type: 'array', description: 'When it repeats weekly: 0=Sunday .. 6=Saturday', items: { type: 'integer' } },
-          start: { type: 'string', description: '24h HH:MM, or empty' },
-          end: { type: 'string', description: '24h HH:MM, or empty' },
-          due: { type: 'string', description: 'For a task: YYYY-MM-DDTHH:MM local' },
-          minutes: { type: 'integer', description: 'Effort or session length in minutes' },
-          sessionsPerWeek: { type: 'integer', description: 'For a commitment: times a week' }
-        }
-      }
-    }
-  }
-};
-
-const PLAN_SYSTEM = `You turn a student's message into scheduling changes for their planner.
-
-Types:
-- event: something that occupies real time (dinner, practice, a shift, an appointment). Give start and end.
-- window: when the student is free to work that day ("I can stay up till midnight", "free after 4"). Give start and/or end.
-- task: schoolwork with a deadline. Give due, and minutes if they said how long.
-- commitment: a recurring personal goal with no fixed time ("practice piano 5x a week").
-- capacity: a cap on daily homework minutes ("I can only do an hour tonight").
-
-Rules: use the student's local dates. One item per real thing. If the message says
-nothing schedulable, return an empty items list and say so in note. Never invent
-times the student did not give — leave a field empty instead.`;
-
-export async function planFromMessage(settings, text, { now = new Date(), context = '' } = {}) {
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const dow = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
-  const data = await callClaude(settings, {
-    system: PLAN_SYSTEM,
-    user: `Today is ${dow} ${today}, local time ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}.
-${context ? `${context}\n` : ''}
-Student says: "${str(text, 1200)}"`,
-    schema: PLAN_SCHEMA,
-    maxTokens: 1200
-  });
-  return {
-    note: str(data?.note, 200),
-    items: (data?.items || []).slice(0, 12).map((i) => ({
-      type: String(i.type || 'event'),
-      title: str(i.title, 60),
-      date: str(i.date, 10),
-      weekdays: (i.weekdays || []).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6),
-      start: str(i.start, 5),
-      end: str(i.end, 5),
-      due: str(i.due, 16),
-      minutes: clampInt(i.minutes, 5, 600, null),
-      sessionsPerWeek: clampInt(i.sessionsPerWeek, 1, 21, null)
-    }))
-  };
 }

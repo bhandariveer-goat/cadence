@@ -1,16 +1,20 @@
-// Cadence — app shell. Views render HTML strings; this file routes between
-// them, keeps the header and tabs in sync, and turns clicks into actions.
+// Cadence: the app shell. Views render HTML strings; this file mounts the
+// frame, routes between views, keeps the header and tabs in sync, and turns
+// clicks into actions.
 
+import { mountShell } from './shell.js';
 import {
-  app, boot, setRender, go, back, activeTab, runningSession, findSession, syncCanvas, insideCanvas, STANDALONE
+  app, boot, setRender, go, back, push, activeTab, runningSession, findSession, syncCanvas, insideCanvas, STANDALONE, DEMO, EMBEDDED, signedIn, planConflict
 } from './core.js';
 import { showUpStreak } from '../lib/habits.js';
-import { svg, I, mmss, toast, $, isWide, isDesktop } from './ui.js';
+import { svg, I, mmss, toast, $, isWide, isDesktop, esc, installTips } from './ui.js';
 
 import * as today from './views/today.js';
 import * as plan from './views/plan.js';
 import * as crew from './views/crew.js';
-import * as you from './views/you.js';
+import * as activities from './views/activities.js';
+import * as account from './views/account.js';
+import * as signin from './views/signin.js';
 import * as calendar from './views/calendar.js';
 import * as calendars from './views/calendars.js';
 import * as commitments from './views/commitments.js';
@@ -21,39 +25,34 @@ import * as agent from './views/agent.js';
 import { openPalette, installShortcuts, shortcutsSheet } from './views/palette.js';
 import { checkinPicker } from './views/commitments.js';
 
+mountShell();
+document.body.classList.toggle('web', STANDALONE);
+document.body.classList.toggle('embedded', EMBEDDED);
+
 const VIEWS = {
   today: today.viewToday,
   calendar: calendar.viewCalendar,
   calendars: calendars.viewCalendars,
   plan: plan.viewPlan,
+  activities: activities.viewActivities,
+  record: activities.viewRecord,
+  review: activities.viewReview,
   crew: crew.viewCrew,
   club: crew.viewClub,
-  you: you.viewYou,
-  record: you.viewRecord,
-  review: you.viewReview,
-  availability: you.viewAvailability,
+  account: account.viewAccount,
   guide: guide.viewGuide,
   create: create.viewCreate
 };
 
 const TABS = {
-  student: [['today', 'Today', I.sun], ['calendar', 'Calendar', I.cal], ['plan', 'School', I.list], ['crew', 'Crew', I.users], ['you', 'You', I.you]],
-  teacher: [['create', 'Create', I.mic], ['calendar', 'Calendar', I.cal], ['crew', 'Clubs', I.users], ['you', 'You', I.you]]
-};
-
-// The website has room to say what each section is for; the panel doesn't.
-const TAB_SUB = {
-  today: 'What to do next',
-  calendar: 'Cadence, Canvas and your own calendar',
-  plan: 'Every assignment and when to start it',
-  crew: 'Partners, clubs and kudos',
-  you: 'Streak, record and settings',
-  create: 'Dictate an assignment'
+  student: [['today', 'Today', I.sun], ['calendar', 'Calendar', I.cal], ['plan', 'School', I.list], ['activities', 'Activities', I.star], ['crew', 'Crew', I.users]],
+  teacher: [['create', 'Create', I.mic], ['calendar', 'Calendar', I.cal], ['crew', 'Clubs', I.users]]
 };
 
 const ACTIONS = {
-  ...today.actions, ...plan.actions, ...crew.actions, ...you.actions, ...calendar.actions, ...calendars.actions,
-  ...commitments.actions, ...guide.actions, ...create.actions, ...onboarding.actions, ...agent.actions,
+  ...today.actions, ...plan.actions, ...crew.actions, ...activities.actions, ...account.actions, ...signin.actions,
+  ...calendar.actions, ...calendars.actions, ...commitments.actions, ...guide.actions, ...create.actions,
+  ...onboarding.actions, ...agent.actions,
   go: (el) => { if (el.dataset.mode) app.planMode = el.dataset.mode; go(el.dataset.tab); },
   tab: (el) => { if (el.dataset.tab === activeTab() && app.stack.length === 0) { $('#view').scrollTop = 0; return; } go(el.dataset.tab); },
   back: () => back(),
@@ -62,12 +61,12 @@ const ACTIONS = {
   streak: () => {
     const s = showUpStreak(app.S);
     toast(s.days
-      ? `${s.days}-day streak${s.todayDone ? '' : ' — check in today to keep it going'}. ${s.freezes ? `${s.freezes} freeze${s.freezes === 1 ? '' : 's'} ready if you miss a day.` : 'Every 7 days earns a freeze.'}`
+      ? `${s.days}-day streak${s.todayDone ? '' : '. Check in today to keep it going'}. ${s.freezes ? `${s.freezes} freeze${s.freezes === 1 ? '' : 's'} ready if you miss a day.` : 'Every 7 days earns a freeze.'}`
       : 'Check in on anything today to start a streak.');
   }
 };
-const CHANGE = { ...you.changeActions, ...calendars.changeActions };
-const SUBMIT = { ...plan.submitActions, ...create.submitActions, ...agent.submitActions };
+const CHANGE = { ...activities.changeActions, ...account.changeActions, ...calendars.changeActions };
+const SUBMIT = { ...plan.submitActions, ...create.submitActions, ...agent.submitActions, ...signin.submitActions, ...calendar.submitActions };
 
 // ------------------------------------------------------------------ render
 
@@ -79,32 +78,41 @@ function renderApp() {
   rendering = true;
   try {
     const S = app.S;
-    const onboardingNow = !S.profile.onboarded;
     const teacher = S.settings.role === 'teacher';
+    // Signed out, or signed in with an unanswered "which plan?": both are the sign-in screen.
+    // Adding an email to an account that already exists on this device shows
+    // the same screen, without signing that account out first.
+    const gate = !signedIn() || planConflict() || app.signin?.upgrading ? 'signin' : (!S.profile.onboarded && !teacher) ? 'onboarding' : null;
 
-    $('#tabs').hidden = onboardingNow;
-    $('#btn-sync').hidden = !insideCanvas || onboardingNow;
+    $('#demo-bar').hidden = !DEMO || EMBEDDED;
+    if (DEMO) $('#demo-exit').href = signin.pageUrl('app.html');
+    $('#tabs').hidden = !!gate;
+    $('#btn-sync').hidden = !insideCanvas || !!gate;
     $('#btn-sync').classList.toggle('spin', app.syncing);
     $('#btn-close').hidden = STANDALONE;
+    $('#btn-cmd').hidden = !isDesktop() || !!gate;
+    renderStreak(!!gate || teacher);
+    renderAccount(!!gate);
     const ask = $('#btn-agent');
-    ask.hidden = !STANDALONE || onboardingNow || teacher;
+    ask.hidden = !!gate || teacher;
     ask.setAttribute('aria-pressed', String(!!app.agent?.open));
-    renderStreak(onboardingNow || teacher);
 
-    if (onboardingNow) {
-      $('#view').innerHTML = onboarding.viewOnboarding();
+    if (gate) {
+      $('#side').hidden = true;
+      $('#agent').hidden = true;
+      document.body.classList.remove('agent-open');
+      $('#view').innerHTML = gate === 'signin' ? signin.viewSignIn() : onboarding.viewOnboarding();
       return;
     }
 
-    const allowed = teacher ? ['create', 'calendar', 'calendars', 'crew', 'club', 'you', 'guide'] : Object.keys(VIEWS).filter((v) => v !== 'create');
+    const allowed = teacher ? ['create', 'calendar', 'calendars', 'crew', 'club', 'account', 'guide'] : Object.keys(VIEWS).filter((v) => v !== 'create');
     if (!VIEWS[app.view] || !allowed.includes(app.view)) { app.view = teacher ? 'create' : 'today'; app.stack = []; }
 
     const tabs = TABS[teacher ? 'teacher' : 'student'];
     const active = activeTab();
     const unseen = (app.crew.nudges || []).some((n) => !n.seen);
-    const webTabs = STANDALONE && isDesktop();
     $('#tabs').innerHTML = tabs.map(([id, label, ic]) => `<button class="tab" data-act="tab" data-tab="${id}" ${active === id ? 'aria-current="page"' : ''}>
-      ${svg(ic)}<span class="tab-label">${label}</span>${webTabs ? `<span class="tab-sub">${TAB_SUB[id] || ''}</span>` : ''}${id === 'crew' && unseen ? '<i class="dot-badge"></i>' : ''}</button>`).join('');
+      ${svg(ic)}<span>${label}</span>${id === 'crew' && unseen ? '<i class="dot-badge" role="img" aria-label="New"></i>' : ''}</button>`).join('');
 
     $('#view').innerHTML = VIEWS[app.view]();
     // The week grid covers the whole day; open it where the day actually starts.
@@ -116,7 +124,6 @@ function renderApp() {
       if (anchor) grid.scrollTop = Math.max(0, parseFloat(anchor.style.top || 0) - 70);
     }
     renderSide();
-    $('#btn-cmd').hidden = !isDesktop();
     agent.render();
     restartTimer();
   } finally {
@@ -127,15 +134,28 @@ function renderApp() {
 
 function renderStreak(hide) {
   const chip = $('#streak');
-  if (hide) { chip.hidden = true; return; }
-  const s = showUpStreak(app.S);
+  const s = hide ? null : showUpStreak(app.S);
+  // An empty streak is not worth a place in the header.
+  if (!s || !s.days) { chip.hidden = true; return; }
   chip.hidden = false;
   chip.classList.toggle('lit', s.todayDone);
   chip.setAttribute('aria-label', `${s.days}-day streak${s.freezes ? `, ${s.freezes} freezes` : ''}`);
-  chip.innerHTML = `${svg(I.flame, 17)}<span>${s.days}</span>${s.freezes ? `<span class="freeze">${svg(I.snow, 12)}${s.freezes}</span>` : ''}`;
+  chip.dataset.tip = `${s.days}-day streak`;
+  chip.innerHTML = `${svg(I.flame, 16)}<span>${s.days}</span>`;
 }
 
-const SIDES = { today: today.side, plan: plan.side, calendar: () => plan.side('week') };
+function renderAccount(hide) {
+  const btn = $('#btn-account');
+  btn.hidden = hide;
+  if (hide) return;
+  const name = app.S.account?.name || app.S.profile.name || '';
+  const initials = name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+  btn.textContent = initials;
+  btn.dataset.tip = 'Account and settings';
+  btn.setAttribute('aria-label', name ? `${name}: account and settings` : 'Account and settings');
+}
+
+const SIDES = { today: today.side, plan: () => plan.side('school'), calendar: () => plan.side('week') };
 
 /** The right pane only exists on wide screens; views opt in by exporting side(). */
 function renderSide() {
@@ -160,19 +180,17 @@ function restartTimer() {
   }, 1000);
 }
 
-document.body.classList.toggle('web', STANDALONE);
-
 setRender(renderApp);
 
 // ------------------------------------------------------------------ events
 
 document.addEventListener('click', (ev) => {
   if (ev.target.closest('dialog')) return;
-  if (onboarding.handleOnboardingClick(ev)) return;
   const el = ev.target.closest('[data-act]');
   if (!el || ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName)) return;
   const fn = ACTIONS[el.dataset.act];
   if (!fn) return;
+  if (el.tagName === 'A') ev.preventDefault();
   if (el.tagName === 'BUTTON' && el.type === 'submit' && !el.closest('form[data-form]')) ev.preventDefault();
   fn(el, ev);
 });
@@ -185,7 +203,6 @@ document.addEventListener('keydown', (ev) => {
 
 document.addEventListener('change', (ev) => {
   if (ev.target.closest('dialog')) return;
-  if (onboarding.handleOnboardingChange(ev)) return;
   const el = ev.target.closest('[data-act]');
   if (el && CHANGE[el.dataset.act]) CHANGE[el.dataset.act](el, ev);
 });
@@ -195,13 +212,57 @@ document.addEventListener('input', (ev) => {
   onboarding.handleOnboardingInput(ev);
 });
 
+// Fields are checked when they are left, never while they are being typed in,
+// and the message goes the moment the field is touched again. Submit is always
+// clickable: with something missing it says what, next to the field, and puts
+// the cursor there. The browser's own bubbles are turned off (novalidate is
+// set as forms appear) so errors have one voice, in one place.
+const fieldMessage = (el) => (el.validity.valid ? '' : (el.dataset.error || (el.validity.valueMissing ? 'Fill this in to go on.' : 'Check this and try again.')));
+function clearFieldError(el) {
+  if (el.getAttribute('aria-invalid') !== 'true') return;
+  el.removeAttribute('aria-invalid');
+  el.removeAttribute('aria-describedby');
+  el.parentElement?.querySelector('.field-error')?.remove();
+}
+function showFieldError(el) {
+  clearFieldError(el);
+  const msg = fieldMessage(el);
+  if (!msg) return false;
+  const p = document.createElement('p');
+  p.className = 'field-error';
+  p.id = `err-${el.name || 'field'}`;
+  p.setAttribute('role', 'alert');
+  p.textContent = msg;
+  el.setAttribute('aria-invalid', 'true');
+  el.setAttribute('aria-describedby', p.id);
+  el.insertAdjacentElement('afterend', p);
+  return true;
+}
+const checked = (el) => el.matches?.('input, select, textarea') && el.willValidate && !!el.closest('form');
+document.addEventListener('focusout', (ev) => { if (checked(ev.target) && ev.target.value !== '') showFieldError(ev.target); });
+document.addEventListener('focusin', (ev) => { if (checked(ev.target)) clearFieldError(ev.target); });
+document.addEventListener('input', (ev) => { if (checked(ev.target)) clearFieldError(ev.target); });
+new MutationObserver(() => { for (const f of document.querySelectorAll('form:not([novalidate])')) f.noValidate = true; })
+  .observe(document.documentElement, { childList: true, subtree: true });
+
+/** True when every field is fine; otherwise marks them and focuses the first. */
+function formIsValid(form) {
+  const bad = [...form.elements].filter((el) => el.willValidate && showFieldError(el));
+  if (bad.length) { bad[0].focus(); bad[0].scrollIntoView({ block: 'center' }); }
+  return !bad.length;
+}
+
 document.addEventListener('submit', (ev) => {
-  const form = ev.target.closest('[data-form]');
+  const form = ev.target.closest('form');
   if (!form) return;
+  // A sheet's Cancel always works, whatever state the fields are in.
+  const leaving = ev.submitter?.value === 'cancel' || ev.submitter?.hasAttribute('formnovalidate');
+  if (!leaving && !formIsValid(form)) { ev.preventDefault(); ev.stopImmediatePropagation(); return; }
+  if (!form.dataset.form) return;
   ev.preventDefault();
   const fn = SUBMIT[form.dataset.form];
   if (fn) fn(form, new FormData(form));
-});
+}, true);
 
 $('#btn-sync').addEventListener('click', () => syncCanvas());
 $('#btn-close').addEventListener('click', () => window.parent.postMessage({ type: 'cadence:close' }, '*'));
@@ -214,12 +275,13 @@ for (const q of ['(min-width: 768px)', '(min-width: 1180px)']) {
 
 installShortcuts({ checkinPicker });
 agent.installAgentInput();
+installTips();
 
 // The palette runs actions by name rather than reaching into every module.
 document.addEventListener('cadence:act', (e) => {
-  const { act, id } = e.detail || {};
+  const { act, ...rest } = e.detail || {};
   const fn = ACTIONS[act];
-  if (fn) fn({ dataset: { id, act } });
+  if (fn) fn({ dataset: { act, ...rest } });
 });
 
 boot();

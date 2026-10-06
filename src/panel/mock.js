@@ -1,5 +1,5 @@
-// Demo data — a realistic junior-year week. Loaded only with ?demo=1 so the
-// panel can be shown (and tested) without a Canvas account.
+// Demo data: a realistic junior-year week. Loaded only by demo.html, into its
+// own storage, so the planner can be shown (and tested) without an account.
 
 import { addDays, atTime } from '../lib/util.js';
 
@@ -11,30 +11,30 @@ export function mockTasks() {
   const t = [
     {
       title: 'Cell respiration lab report',
-      courseName: 'AP Biology', courseId: '101', points: 50, due: at(4, '23:59'),
+      courseName: 'AP Biology', courseId: '101', points: 50, due: at(6, '23:59'),
       description: 'Write a full lab report on the cellular respiration experiment. '
         + 'Include hypothesis, procedure, a data table, two graphs, and a 500 word discussion section. '
         + 'Cite at least 3 sources.'
     },
     {
-      title: 'Problem set 7 — related rates',
-      courseName: 'AP Calculus BC', courseId: '102', points: 20, due: at(1, '08:00'),
+      title: 'Problem set 7: related rates',
+      courseName: 'AP Calculus BC', courseId: '102', points: 20, due: at(2, '08:00'),
       description: 'Complete 14 problems from section 3.9. Show all work.'
     },
     {
-      title: 'The Great Gatsby — chapters 4-6',
-      courseName: 'American Literature', courseId: '103', points: 15, due: at(2, '23:59'),
+      title: 'The Great Gatsby, chapters 4 to 6',
+      courseName: 'American Literature', courseId: '103', points: 15, due: at(3, '23:59'),
       description: 'Read 3 chapters and annotate for symbolism. Post one discussion response.'
     },
     {
-      title: 'Research paper — first draft',
-      courseName: 'American Literature', courseId: '103', points: 100, due: at(9, '23:59'),
-      description: 'Submit a complete first draft of your research paper, 8 pages, '
+      title: 'Research paper, first draft',
+      courseName: 'American Literature', courseId: '103', points: 100, due: at(13, '23:59'),
+      description: 'Submit a complete first draft of your research paper, 5 pages, '
         + 'with a works cited page. Draft should include your full argument.'
     },
     {
-      title: 'Vocab quiz — unit 4',
-      courseName: 'Spanish 3', courseId: '104', points: 25, due: at(3, '10:30'),
+      title: 'Vocab quiz, unit 4',
+      courseName: 'Spanish 3', courseId: '104', points: 25, due: at(4, '10:30'),
       description: 'Quiz covers 60 vocabulary terms and the imperfect subjunctive.'
     },
     {
@@ -44,7 +44,7 @@ export function mockTasks() {
     },
     {
       title: 'User interview writeup',
-      courseName: 'Design & Engineering', courseId: '106', points: 30, due: at(5, '15:00'),
+      courseName: 'Design & Engineering', courseId: '106', points: 30, due: at(8, '15:00'),
       description: 'Summarize your two user interviews and identify three insights. About 400 words.'
     },
     {
@@ -65,7 +65,7 @@ export function mockTasks() {
 }
 
 /**
- * Fiona's commitments — the part of her week Canvas can't see.
+ * Fiona's activities: the part of her week Canvas can't see.
  * Robotics, cross-country and volunteering happen at fixed times; piano and
  * college essays are flexible targets Cadence schedules around homework.
  */
@@ -119,7 +119,7 @@ export function mockCheckins() {
   const rand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
   const out = [];
   const notes = {
-    piano: ['Chopin nocturne bars 1–32 memorized', 'Slow practice on the left hand run', '', 'Played it through for Mom', '', 'Metronome at 72 now'],
+    piano: ['Chopin nocturne bars 1 to 32 memorized', 'Slow practice on the left hand run', '', 'Played it through for Mom', '', 'Metronome at 72 now'],
     robotics: ['Intake arm CAD done', 'Cut the aluminum for the arm', '', 'Arm lifts the game piece!', ''],
     xc: ['5 mile tempo', 'Hill repeats x6', '', 'Ran 22:40 at the invitational', ''],
     essays: ['Brainstormed 3 topics', 'Drafted opening paragraph', 'Rewrote the ending', ''],
@@ -154,6 +154,16 @@ export function mockCheckins() {
     if (back !== GAP && out.length === dayStart) add('piano', 1);
   }
   return out;
+}
+
+/** A couple of ordinary calendar events, so the calendar shows more than school. */
+export function mockEvents() {
+  const ev = (days, start, end, title) => ({
+    id: `demo_ev_${days}_${start}`, title, source: 'manual',
+    start: atTime(addDays(new Date(), days), start).toISOString(),
+    end: atTime(addDays(new Date(), days), end).toISOString()
+  });
+  return [ev(2, '18:30', '19:45', 'Family dinner'), ev(5, '14:00', '15:00', 'Dentist')];
 }
 
 export const mockCourses = [
@@ -197,7 +207,7 @@ const MOCK_GUIDES = {
     module: {
       name: 'Unit 3 · Cellular Respiration',
       items: [
-        { title: 'Cellular respiration — lecture slides', kind: 'file' },
+        { title: 'Cellular respiration lecture slides', kind: 'file' },
         { title: 'Glycolysis & the Krebs cycle (12 min video)', kind: 'link', external: 'https://youtube.com' },
         { title: 'Lab 3 procedure', kind: 'page' },
         { title: 'Example of a strong lab report', kind: 'file' },
@@ -206,22 +216,22 @@ const MOCK_GUIDES = {
     }
   },
   demo_1: {
-    description: `<p>Complete 14 problems from section 3.9 (related rates). Show all your work — answers without work get half credit.</p>
+    description: `<p>Complete 14 problems from section 3.9 (related rates). Show all your work. Answers without work get half credit.</p>
       <p>Problems: #3, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41. Upload a photo or scan of your work.</p>
       <p>Stuck? Watch a <a href="https://www.youtube.com/results?search_query=related+rates+calculus">related rates walkthrough</a>.</p>`,
     submission: { types: ['online_upload'], exts: ['pdf', 'jpg', 'png'] },
     module: {
       name: 'Unit 3 · Applications of Derivatives',
       items: [
-        { title: '3.9 Related rates — class notes', kind: 'file' },
+        { title: '3.9 Related rates class notes', kind: 'file' },
         { title: '3.9 Worked examples (the ladder and the cone)', kind: 'file' },
         { title: 'Derivative rules formula sheet', kind: 'file' },
-        { title: 'Quiz 3.8–3.9 review', kind: 'page' }
+        { title: 'Quiz 3.8 and 3.9 review', kind: 'page' }
       ]
     }
   },
   demo_2: {
-    description: `<p>Read chapters 4–6 of <em>The Great Gatsby</em> and annotate for symbolism (colors, the green light, weather).</p>
+    description: `<p>Read chapters 4 to 6 of <em>The Great Gatsby</em> and annotate for symbolism (colors, the green light, weather).</p>
       <p>Then post one discussion response (150+ words) answering: <strong>What does Gatsby want, and what does it cost him?</strong> Reply to two classmates.</p>
       <p>Use the <a href="/courses/103/files/701">symbolism annotation guide</a>.</p>`,
     submission: { types: ['discussion_topic'], exts: [] },
@@ -229,20 +239,20 @@ const MOCK_GUIDES = {
       name: 'The Great Gatsby',
       items: [
         { title: 'Gatsby reading schedule', kind: 'page' },
-        { title: 'Chapters 4–6 audiobook', kind: 'link', external: 'https://youtube.com' },
+        { title: 'Chapters 4 to 6 audiobook', kind: 'link', external: 'https://youtube.com' },
         { title: 'Discussion: What does Gatsby want?', kind: 'discussion' }
       ]
     }
   },
   demo_3: {
-    description: `<p>Submit a complete first draft of your research paper: 8 pages, double-spaced, MLA format, with a works cited page.</p>
+    description: `<p>Submit a complete first draft of your research paper: 5 pages, double-spaced, MLA format, with a works cited page.</p>
       <p>Your draft should include a clear thesis in the first paragraph, at least 5 credible sources, and your full argument. It doesn't need to be polished yet.</p>
       <p>See the <a href="/courses/103/files/702">research paper assignment sheet</a> and the <a href="/courses/103/pages/mla-guide">MLA guide</a>.
       Library databases: <a href="https://www.jstor.org">JSTOR</a>.</p>`,
     submission: { types: ['online_upload'], exts: ['docx', 'pdf'] },
     rubric: [
       { title: 'Thesis & argument', detail: 'Arguable thesis, developed throughout', points: 30 },
-      { title: 'Use of sources', detail: 'Credible sources, integrated and analyzed — not just quoted', points: 25 },
+      { title: 'Use of sources', detail: 'Credible sources, integrated and analyzed, not just quoted', points: 25 },
       { title: 'Organization', detail: '', points: 20 },
       { title: 'MLA & works cited', detail: '', points: 15 },
       { title: 'Conventions', detail: '', points: 10 }

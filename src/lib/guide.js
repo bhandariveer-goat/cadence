@@ -3,7 +3,7 @@
 //
 // Works entirely offline from the assignment's own instructions plus whatever
 // Canvas can tell us (rubric, submission type, the module it lives in). The
-// optional Cadence Intelligence layer rewrites the summary and steps, but this
+// optional Claude layer (lib/ai.js) rewrites the summary and steps, but this
 // file is what makes a guide appear for every student.
 
 import { classify } from './estimator.js';
@@ -178,7 +178,7 @@ function headlineFor(task, sig, data) {
     case 'lab':
       return `Write up your lab${on}: what you tested, what your data shows, and what it means.`;
     case 'quiz':
-      return `Get ready for ${topic ? `a quiz on ${topic}` : task.courseName ? `your ${task.courseName} quiz` : 'a quiz'}${data?.quiz?.questions ? ` — ${data.quiz.questions} questions` : ''}${data?.quiz?.timeLimit ? ` in ${data.quiz.timeLimit} minutes` : ''}.`;
+      return `Get ready for ${topic ? `a quiz on ${topic}` : task.courseName ? `your ${task.courseName} quiz` : 'a quiz'}${data?.quiz?.questions ? `, ${data.quiz.questions} questions` : ''}${data?.quiz?.timeLimit ? ` in ${data.quiz.timeLimit} minutes` : ''}.`;
     case 'discussion':
       return `Share your thinking${on} in the class discussion${sig.reply ? ', then respond to classmates' : ''}.`;
     case 'presentation':
@@ -186,7 +186,7 @@ function headlineFor(task, sig, data) {
     case 'project':
       return `Make real progress on your project${on}${sig.group ? ' with your group' : ''}.`;
     case 'admin':
-      return `A quick one — ${task.title.charAt(0).toLowerCase()}${task.title.slice(1)}.`;
+      return `A quick one: ${task.title.charAt(0).toLowerCase()}${task.title.slice(1)}.`;
     default:
       return `Complete the ${topic ? `${topic} ` : ''}worksheet${sig.problems ? ` (${sig.problems} problems)` : ''}${sig.showWork ? ', showing your work' : ''}.`;
   }
@@ -255,7 +255,7 @@ function stepsFor(task, sig, hasRubric) {
       p(`Re-read the prompt${hasRubric ? ' and rubric' : ''}`, 0.6, 'Underline exactly what it asks you to do');
       p(sig.sources ? `Find ${sig.sources} sources and pull quotes` : sig.citations ? 'Find sources and pull quotes' : 'Brainstorm and gather evidence', 2);
       p(sig.thesis ? 'Write your thesis and outline' : 'Outline your main points', 1.4, 'One sentence per paragraph is enough');
-      p(`Write the draft${sig.words ? ` (~${sig.words} words)` : sig.pages ? ` (${sig.pages} pages)` : ''}`, 4.5, "Don't edit while drafting — get it all down first");
+      p(`Write the draft${sig.words ? ` (~${sig.words} words)` : sig.pages ? ` (${sig.pages} pages)` : ''}`, 4.5, "Don't edit while drafting. Get it all down first.");
       p(sig.citations ? 'Revise and add citations' : 'Revise', 1.5);
       p('Proofread and submit', 0.5);
       break;

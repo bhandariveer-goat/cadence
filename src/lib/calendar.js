@@ -17,9 +17,11 @@ export function freeSlots(from, to, availability, busy = [], opts = {}) {
     .sort((a, b) => a.start - b.start);
 
   for (let day = startOfDay(from); day <= to; day = addDays(day, 1)) {
-    // A date key ('2026-09-28') overrides that weekday for one day only —
-    // what the agent writes for "tonight I can stay up till midnight".
-    const windows = availability?.[dateKey(day)] || availability?.[day.getDay()] || [];
+    // Availability is a function of the date (lib/daymodel.js). A plain
+    // weekly map is still accepted, which keeps this usable on its own.
+    const windows = typeof availability === 'function'
+      ? availability(day)
+      : (availability?.[dateKey(day)] || availability?.[day.getDay()] || []);
     for (const w of windows) {
       let start = atTime(day, w.start);
       let end = atTime(day, w.end);
@@ -50,6 +52,7 @@ export function freeSlots(from, to, availability, busy = [], opts = {}) {
 export function freeMinutesBetween(from, to, availability, busy, opts) {
   if (to <= from) return 0;
   const cap = (opts?.dailyCapacityMin ?? 180);
+  const capFor = typeof opts?.capFor === 'function' ? opts.capFor : () => cap;
   const byDay = new Map();
   for (const s of freeSlots(from, to, availability, busy, opts)) {
     const k = dateKey(s.start);
@@ -57,7 +60,7 @@ export function freeMinutesBetween(from, to, availability, busy, opts) {
   }
   // Free time on the calendar isn't the same as homework capacity.
   let total = 0;
-  for (const mins of byDay.values()) total += Math.min(mins, cap);
+  for (const [k, mins] of byDay) total += Math.min(mins, capFor(new Date(`${k}T12:00:00`)));
   return total;
 }
 
@@ -174,6 +177,7 @@ export function expandActivities(activities = [], from = new Date(), days = 21) 
     const day = addDays(startOfDay(from), i);
     for (const a of activities) {
       if (!a.days?.includes(day.getDay())) continue;
+      if (a.skip?.[dateKey(day)]) continue;                // "practice is cancelled today"
       const start = atTime(day, a.start);
       let end = atTime(day, a.end);
       if (end <= start) end = addDays(end, 1);

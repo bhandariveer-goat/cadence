@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy · Cadence</title>
+<meta name="description" content="What Cadence stores, where it is kept, and who else sees any of it.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon32.png">
+<link rel="apple-touch-icon" href="icons/icon192.png">
+<meta name="theme-color" content="#ffffff">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<header class="nav"><div class="wrap">
+  <a class="brand" href="./"><span class="mark"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.1 5.9"/><path d="M12 8a4 4 0 1 1-3.8 2.8"/></svg></span>Cadence</a>
+  <span class="spacer"></span>
+  <div class="actions">
+    <a class="btn plain small" href="demo.html">Try the demo</a>
+    <a class="btn primary small" href="app.html">Open Cadence</a>
+  </div>
+</div></header>
+<main class="doc" id="main">
+  <h1>Privacy policy</h1>
+  <p class="updated">Last updated October 5, 2026</p>
+
+  <div class="summary">
+    <p><b>The short version.</b> Cadence is a planner. Your plan is stored in your browser. If you sign in with an email, a copy is also saved to your account so your other devices can load it. Cadence does not show ads, does not use analytics or tracking, and does not sell or rent anything about you. A few features send data to other companies to work, and each one is listed below with exactly what is sent.</p>
+  </div>
+
+  <h2>Who runs Cadence</h2>
+  <p>Cadence is run by <span data-site="operator"></span>. Questions about this policy, or requests about your data, go to <span data-site="contact"></span>.</p>
+
+  <h2>What Cadence stores</h2>
+  <h3>In your browser</h3>
+  <p>Everything in your plan is kept in your browser's storage (in the Chrome extension, the extension's own storage):</p>
+  <ul>
+    <li>The name you gave Cadence.</li>
+    <li>Your assignments: titles, courses, due dates, instructions, points, and whether they are done.</li>
+    <li>Your activities, their schedules, and your check-ins, including any notes you write on them.</li>
+    <li>Calendar events you add, your school hours, roughly when you sleep, and any one-day changes you make.</li>
+    <li>Your settings.</li>
+    <li>If you add them: an Anthropic API key, a Google Calendar access token, and your Canvas calendar feed link. These three never leave your device except to reach the service they belong to.</li>
+  </ul>
+  <p>If you use Cadence without an email, this is the only place your data exists. Clearing your browser's site data, or choosing Delete my data in your account, erases it.</p>
+
+  <h3>In your account, if you sign in with an email</h3>
+  <p>Signing in with an email is optional. If you do, Cadence stores with its database provider, Supabase:</p>
+  <ul>
+    <li>Your email address and the name you chose.</li>
+    <li>A copy of your plan, as described above. The copy leaves out your Anthropic API key, your Google Calendar connection and its events, and your Canvas calendar feed link. Those stay on the device where you set them up.</li>
+    <li>If you use Crew: check-ins for the activities you chose to share, kudos, nudges, and which partners and clubs you are connected to.</li>
+    <li>A count of how many assistant requests your account made today, used only to enforce a daily limit. It is stored against an account ID, not your name or email, and is removed the following day.</li>
+  </ul>
+  <p>Each plan is stored in a row that only its owner can read or change. Sign-in is a six-digit code sent to your email. Cadence never has a password for you.</p>
+
+  <h2>What Cadence reads from other services</h2>
+  <h3>Canvas</h3>
+  <p>The Chrome extension reads Canvas using the Canvas login you already have in that browser. It reads your name, your courses, and your assignments (title, due date, instructions, rubric, points, submission status, and the items in the assignment's module). This is read by your own browser and saved into your plan. Cadence does not receive your Canvas password, does not create an API token, and cannot see anything in Canvas that you cannot see yourself. If you paste a Canvas calendar feed link, your browser fetches that feed directly.</p>
+
+  <h3>Google Calendar</h3>
+  <p>Connecting Google Calendar is optional. If you connect it, Cadence reads events from the calendars you pick so it can plan around them. Those events are kept on your device and are not copied to your account. Only if you separately turn it on, Cadence adds its own planned blocks to a calendar you choose, marks them as Cadence's, and never edits or deletes any event it did not create.</p>
+  <p>Cadence's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements. Google Calendar data is used only to show your calendar and plan around it. It is not used for advertising, not sold, and not used to train AI models. When the assistant uses Claude, events that came from Google Calendar are passed on as a time with no title.</p>
+
+  <h2>The assistant, and AI</h2>
+  <p>The assistant understands simple sentences on your own device, with nothing sent anywhere. That is the only mode available if you have no Anthropic key and no email account.</p>
+  <p>If you add your own Anthropic key, or you are signed in with an email on a copy of Cadence that offers it, the assistant uses Claude, an AI model made by Anthropic. Each time you send it a message, the following is sent to Anthropic to produce the reply:</p>
+  <ul>
+    <li>The message you typed.</li>
+    <li>A summary of your week: the current date and time, your school hours and days off, your sleep times, any one-day changes you have made (such as a shorter evening), your open assignments (title, course, due date, time estimate), your activities with their schedules and how many times you have done each this week, your calendar events for the next seven days (title and time, or time only for events from Google Calendar), the work blocks already planned, and anything that does not fit.</li>
+    <li>Earlier messages in the same conversation.</li>
+  </ul>
+  <p>With your own key, this goes straight from your browser to Anthropic under your Anthropic account. With an email account, it goes through Cadence's server, which adds Cadence's key and passes it on. Cadence's server does not store your messages or the replies.</p>
+  <p>With your own key, Cadence also sends the instructions of an assignment to Anthropic when it writes that assignment's summary, steps and time estimate, and, in the teacher tools, the text of an assignment you dictate.</p>
+  <p>How Anthropic handles what it receives is described in <a href="https://www.anthropic.com/legal/privacy" rel="noopener">Anthropic's privacy policy</a>.</p>
+  <p>If you use the microphone button, your browser turns your speech into text. In Chrome, that means the audio is sent to Google to be transcribed. Cadence receives only the text.</p>
+
+  <h2>Who else handles your data</h2>
+  <table>
+    <tr><th>Company</th><th>What for</th><th>What it handles</th></tr>
+    <tr><td>Netlify</td><td>Hosts this website and the assistant's server function</td><td>Ordinary web requests, including your IP address, as any web host does</td></tr>
+    <tr><td>Supabase</td><td>Email sign-in and the account database</td><td>Only if you sign in with an email: what is listed under "In your account"</td></tr>
+    <tr><td>Anthropic</td><td>The assistant, when it uses Claude</td><td>What is listed under "The assistant, and AI"</td></tr>
+    <tr><td>Google</td><td>Google Calendar, if you connect it. Speech to text in Chrome, if you use the microphone</td><td>Calendar requests you have allowed. Audio you speak into the microphone button</td></tr>
+  </table>
+  <p>Cadence does not share your data with anyone else, and does not use advertising or analytics services.</p>
+
+  <h2>Cookies and tracking</h2>
+  <p>Cadence does not set cookies and does not track you across sites. It uses your browser's storage to keep your plan, as described above.</p>
+
+  <h2>What other people can see</h2>
+  <p>Nothing, unless you use Crew. If you add an accountability partner or join a club, they can see your name, your check-ins for the activities you marked as shared (the activity, how long, how it went, and any note you wrote), and your weekly progress on those activities. They cannot see your assignments, your calendar, or activities you did not share.</p>
+
+  <h2>Deleting your data</h2>
+  <ul>
+    <li><b>Without an email account:</b> open your account in Cadence and choose Delete my data, or clear this site's data in your browser.</li>
+    <li><b>With an email account:</b> open your account in Cadence and choose Delete my data. This erases your account, the saved plan, your check-ins, and your connections to partners and clubs. It cannot be undone.</li>
+  </ul>
+  <p>You can also ask for a copy of what is stored in your account, or ask for it to be deleted, by writing to <span data-site="contact"></span>.</p>
+
+  <h2>Age</h2>
+  <p>Cadence is made for high-school students. It is not meant for children under 13, and children under 13 should not use it or sign in. If you are under 18, check with a parent or guardian before signing in with an email, and follow your school's rules about the tools you use for schoolwork.</p>
+
+  <h2>Security</h2>
+  <p>Data in your account is protected by database rules that let each person read and change only their own rows. Keys and tokens for other services stay on your device. No system is perfectly secure, so avoid putting anything in a note or an event title that you would not want stored.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>When this policy changes, the date at the top changes. If a change affects what is collected or who receives it, signed-in users will be told in the app.</p>
+</main>
+<footer><div class="wrap">
+  <a class="brand" href="./"><span class="mark"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.1 5.9"/><path d="M12 8a4 4 0 1 1-3.8 2.8"/></svg></span>Cadence</a>
+  <span class="spacer"></span>
+  <a href="app.html">Open Cadence</a>
+  <a href="demo.html">Try the demo</a>
+  <a href="privacy.html">Privacy</a>
+  <a href="terms.html">Terms</a>
+</div></footer>
+<script type="module" src="site.js"></script>
+</body>
+</html>

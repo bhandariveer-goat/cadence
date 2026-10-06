@@ -1,8 +1,8 @@
-// Command palette (⌘K) and keyboard shortcuts — the thing that makes a web app
-// feel like a desktop product rather than a page. One palette for navigation,
-// actions, assignments and commitments; "?" lists every shortcut.
+// Command palette (Cmd K) and keyboard shortcuts. One palette for navigation,
+// actions, assignments and activities; "?" lists every shortcut.
 
-import { app, go, push, syncCanvas, currentSession, insideCanvas, plannable } from '../core.js';
+import { MOD } from '../shell.js';
+import { app, go, push, syncCanvas, currentSession, insideCanvas, plannable, signedIn } from '../core.js';
 import { weekProgress } from '../../lib/habits.js';
 import { fmtMinutes } from '../../lib/util.js';
 import { svg, I, esc, sheet, KIND_ICON, dueLabel, $ } from '../ui.js';
@@ -13,13 +13,13 @@ let cursor = 0;
 
 const NAV = [
   { id: 'today', label: 'Today', hint: 'Rings, next block, your day', icon: I.sun, run: () => go('today') },
-  { id: 'plan', label: 'Plan — week', hint: 'The whole week on a grid', icon: I.cal, run: () => { app.planMode = 'week'; go('plan'); } },
-  { id: 'school', label: 'Plan — school', hint: 'Every assignment', icon: I.school, run: () => { app.planMode = 'school'; go('plan'); } },
-  { id: 'crew', label: 'Crew', hint: 'Partners, clubs, kudos', icon: I.users, run: () => go('crew') },
-  { id: 'you', label: 'You', hint: 'Commitments and settings', icon: I.you, run: () => go('you') },
-  { id: 'record', label: 'Activities record', hint: 'Hours and descriptions for applications', icon: I.trophy, run: () => { go('you'); push('record'); } },
-  { id: 'review', label: 'Week in review', hint: 'What worked last week', icon: I.chart, run: () => { go('you'); push('review'); } },
-  { id: 'availability', label: "When I'm free", hint: 'Edit your week', icon: I.clock, run: () => { go('you'); push('availability'); } }
+  { id: 'calendar', label: 'Calendar', hint: 'Everything, with a time', icon: I.cal, run: () => go('calendar') },
+  { id: 'school', label: 'School', hint: 'Every assignment, broken down', icon: I.school, run: () => go('plan') },
+  { id: 'activities', label: 'Activities', hint: 'What you do outside class', icon: I.star, run: () => go('activities') },
+  { id: 'crew', label: 'Crew', hint: 'Partners and clubs', icon: I.users, run: () => go('crew') },
+  { id: 'record', label: 'Activities record', hint: 'Hours and descriptions for applications', icon: I.trophy, run: () => { go('activities'); push('record'); } },
+  { id: 'review', label: 'Last week in review', hint: 'What worked last week', icon: I.chart, run: () => { go('activities'); push('review'); } },
+  { id: 'account', label: 'Account and settings', hint: 'School hours, sleep, calendars, sign out', icon: I.you, run: () => { go('today'); push('account'); } }
 ];
 
 function build(query) {
@@ -28,9 +28,10 @@ function build(query) {
   const add = (x) => { if (!q || `${x.label} ${x.hint || ''}`.toLowerCase().includes(q)) out.push(x); };
 
   const cur = currentSession();
-  if (cur) add({ label: `Start “${cur.title}”`, hint: 'Begin the next block', icon: I.play, kind: 'Action', run: () => document.querySelector(`[data-act="start-session"][data-id="${cur.id}"]`)?.click() || go('today') });
-  add({ label: 'Add a commitment', hint: 'Practice, team, job, goal', icon: I.plus, kind: 'Action', run: () => document.dispatchEvent(new CustomEvent('cadence:act', { detail: { act: 'add-commit' } })) });
-  add({ label: 'Add homework', hint: 'Type it how you\'d say it', icon: I.list, kind: 'Action', run: () => { app.planMode = 'school'; go('plan'); setTimeout(() => $('.quickadd input')?.focus(), 60); } });
+  if (cur) add({ label: `Start ${cur.title}`, hint: 'Begin the next block', icon: I.play, kind: 'Action', run: () => document.querySelector(`[data-act="start-session"][data-id="${cur.id}"]`)?.click() || go('today') });
+  add({ label: 'Ask Cadence', hint: 'Say what is going on and the plan changes', icon: I.chat, kind: 'Action', run: () => document.dispatchEvent(new CustomEvent('cadence:act', { detail: { act: 'agent-open' } })) });
+  add({ label: 'Add an activity', hint: 'Practice, team, job, goal', icon: I.plus, kind: 'Action', run: () => document.dispatchEvent(new CustomEvent('cadence:act', { detail: { act: 'add-commit' } })) });
+  add({ label: 'Add an assignment', hint: 'Type it how you would say it', icon: I.list, kind: 'Action', run: () => { go('plan'); setTimeout(() => $('.quickadd input')?.focus(), 60); } });
   if (insideCanvas) add({ label: 'Refresh from Canvas', hint: 'Pull new assignments', icon: I.canvas, kind: 'Action', run: () => syncCanvas() });
   add({ label: 'Keyboard shortcuts', hint: 'Everything you can press', icon: I.settings, kind: 'Action', run: () => shortcutsSheet() });
 
@@ -38,7 +39,7 @@ function build(query) {
 
   for (const c of (app.S.commitments || []).filter((x) => !x.archived)) {
     const p = weekProgress(c, app.S.checkins);
-    add({ label: c.title, hint: `${p.label} this week · check in`, icon: KIND_ICON[c.kind] || I.star, kind: 'Commitment', color: c.color,
+    add({ label: c.title, hint: `${p.label} this week · check in`, icon: KIND_ICON[c.kind] || I.star, kind: 'Activity', color: c.color,
       run: () => document.dispatchEvent(new CustomEvent('cadence:act', { detail: { act: 'checkin', id: c.id } })) });
   }
   for (const t of Object.values(app.S.tasks).filter((t) => plannable(t)).slice(0, 40)) {
@@ -54,10 +55,10 @@ function render(query) {
   const list = dlg.querySelector('.results');
   list.innerHTML = items.length ? items.map((it, i) => `
     <button type="button" class="res" data-i="${i}" aria-selected="${i === cursor}">
-      <span class="ic" ${it.color ? `style="color:${it.color};background:color-mix(in srgb, ${it.color} 14%, var(--surface-2))"` : ''}>${svg(it.icon || I.right, 16)}</span>
-      <span class="grow"><span class="t">${esc(it.label)}</span>${it.hint ? `<span class="m" style="display:block">${esc(it.hint)}</span>` : ''}</span>
+      <span class="ic">${svg(it.icon || I.right, 16)}</span>
+      <span class="grow"><span class="t">${esc(it.label)}</span>${it.hint ? `<span class="m block">${esc(it.hint)}</span>` : ''}</span>
       ${it.kind ? `<span class="pill">${it.kind}</span>` : ''}
-    </button>`).join('') : '<div class="res"><span class="m">Nothing matches that.</span></div>';
+    </button>`).join('') : '<div class="res"><span class="m">No matches. Try a shorter word, or press Esc to close.</span></div>';
   list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
 
@@ -73,9 +74,10 @@ export function openPalette() {
     dlg = document.createElement('dialog');
     dlg.className = 'palette';
     dlg.innerHTML = `
-      <input type="text" placeholder="Search assignments, commitments and commands…" aria-label="Search" autocomplete="off">
+      <label class="palette-search">${svg(I.search, 16)}<span class="sr-only">Search</span>
+        <input type="text" placeholder="Search assignments, activities and commands…" autocomplete="off" spellcheck="false"></label>
       <div class="results" role="listbox"></div>
-      <div class="hintbar"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span><span class="grow"></span><span><kbd>?</kbd> shortcuts</span></div>`;
+      <div class="hintbar"><span><kbd>↑</kbd> <kbd>↓</kbd> Move</span><span><kbd>Enter</kbd> Open</span><span><kbd>Esc</kbd> Close</span><span class="grow"></span><span><kbd>?</kbd> Shortcuts</span></div>`;
     document.body.appendChild(dlg);
     const input = dlg.querySelector('input');
     input.addEventListener('input', () => { cursor = 0; render(input.value); });
@@ -100,50 +102,53 @@ export function openPalette() {
 
 export function shortcutsSheet() {
   const keys = [
-    ['⌘K / Ctrl K', 'Search and commands'],
-    ['Q', 'Add homework'],
-    ['C', 'Check in on a commitment'],
+    [`${MOD}K`, 'Search and commands'],
+    ['/', 'Search'],
+    ['A', 'Ask Cadence'],
+    ['Q', 'Add an assignment'],
+    ['C', 'Check in on an activity'],
     ['T', 'Today'],
-    ['P', 'Plan (week)'],
-    ['S', 'School — assignments'],
+    ['L', 'Calendar'],
+    ['S', 'School'],
+    ['V', 'Activities'],
     ['R', 'Crew'],
-    ['Y', 'You'],
-    ['←  →', 'Previous / next week'],
+    ['←  →', 'Previous / next week, on the calendar'],
     ['N', 'Start the next block'],
     ['?', 'This list'],
-    ['Esc', 'Close a sheet']
+    ['Esc', 'Close what is open']
   ];
   return sheet(`<h2>Keyboard shortcuts</h2><p class="lead">Anywhere except while typing in a field.</p>
     <div class="keys">${keys.map(([k, v]) => `<div class="keyrow"><span>${esc(v)}</span><kbd>${esc(k)}</kbd></div>`).join('')}</div>
-    <div class="actions"><button class="btn primary" value="cancel">Got it</button></div>`);
+    <div class="actions"><button class="btn soft" value="cancel">Close</button></div>`);
 }
 
 /** Global keys. Ignored while typing, and inside any open dialog. */
 export function installShortcuts(actions) {
   document.addEventListener('keydown', (e) => {
     const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable;
-    if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); return openPalette(); }
+    if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (signedIn() && app.S?.profile?.onboarded) openPalette(); return; }
     if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
     if (document.querySelector('dialog[open]')) return;
-    if (!app.S?.profile?.onboarded) return;
+    if (!app.S?.profile?.onboarded || !signedIn()) return;
 
     const k = e.key.toLowerCase();
-    const nav = { t: 'today', p: 'plan', r: 'crew', y: 'you' };
+    const nav = { t: 'today', l: 'calendar', s: 'plan', v: 'activities', r: 'crew' };
     if (k === '?') { e.preventDefault(); return shortcutsSheet(); }
-    if (k === 'q') { e.preventDefault(); app.planMode = 'school'; go('plan'); return setTimeout(() => $('.quickadd input')?.focus(), 60); }
+    if (k === '/') { e.preventDefault(); return openPalette(); }
+    if (k === 'a') { e.preventDefault(); return document.dispatchEvent(new CustomEvent('cadence:act', { detail: { act: 'agent-open' } })); }
+    if (k === 'q') { e.preventDefault(); go('plan'); return setTimeout(() => $('.quickadd input')?.focus(), 60); }
     if (k === 'c') { e.preventDefault(); return actions.checkinPicker(); }
-    if (k === 's') { e.preventDefault(); app.planMode = 'school'; return go('plan'); }
     if (k === 'n') {
       const cur = currentSession();
       if (cur) { e.preventDefault(); document.querySelector(`[data-act="start-session"][data-id="${cur.id}"]`)?.click(); }
       return;
     }
-    if (nav[k]) { e.preventDefault(); if (k === 'p') app.planMode = 'week'; return go(nav[k]); }
-    if (app.view === 'plan' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    if (nav[k]) { e.preventDefault(); return go(nav[k]); }
+    if (app.view === 'calendar' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       e.preventDefault();
-      app.weekOffset = Math.max(0, Math.min(1, app.weekOffset + (e.key === 'ArrowRight' ? 1 : -1)));
+      app.weekOffset = Math.max(0, Math.min(3, app.weekOffset + (e.key === 'ArrowRight' ? 1 : -1)));
       app.planDay = null;
-      go('plan');
+      go('calendar');
     }
   });
 }

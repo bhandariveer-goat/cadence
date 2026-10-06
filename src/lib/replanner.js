@@ -11,16 +11,34 @@ import { expandActivities } from './calendar.js';
 import { commitmentTasks, fixedActivities } from './habits.js';
 import { addDays, startOfDay, dateKey, DAY } from './util.js';
 import { sourceEvents, sourceAssignments } from './sources/sources.js';
+import { dayWindows, dayCeiling, schoolBlocks, pruneDayModel, DAY as DAYMODEL } from './daymodel.js';
 
-/** Everything that blocks time: imported events, connected calendars, fixed commitments. */
+/** Everything that blocks time: school, imported events, connected calendars, fixed commitments. */
 export function allBusy(st) {
   const days = (st.settings?.lookaheadDays ?? 14) + 2;
   return [
     ...(st.busy || []),
+    ...schoolBlocks(st, new Date(), days),
     ...sourceEvents(st).filter((e) => e.busy !== false && !e.allDay),
     ...expandActivities(fixedActivities(st), new Date(), days),
     ...expandActivities(st.activities || [], new Date(), days)
   ];
+}
+
+/**
+ * Settings as the planning engine wants them: free time per date, and the most
+ * any one date may carry. Used for ranking and feasibility, where the question
+ * is "could this fit at all", not "how heavy should tonight be".
+ */
+export function planContext(st) {
+  return {
+    availability: dayWindows(st),
+    settings: {
+      ...st.settings,
+      dailyCapacityMin: DAYMODEL.ceilingSchoolDay,
+      capFor: (day) => dayCeiling(st, day)
+    }
+  };
 }
 
 export function plannable(t, st) {
@@ -37,10 +55,9 @@ export function pruneTasks(st) {
   const yesterday = +addDays(startOfDay(new Date()), -1);
   st.busy = (st.busy || []).filter((b) => b.source === 'ics' || +new Date(b.end) > yesterday);
 
-  // One-off availability the agent wrote ("tonight I can stay up till 12")
-  // applies to a date, so it expires with that date.
-  const today = dateKey(new Date());
-  for (const k of Object.keys(st.availability || {})) if (/^\d{4}-/.test(k) && k < today) delete st.availability[k];
+  // "Tonight I can stay up till 12" and "no school Friday" belong to a date,
+  // so they expire with it.
+  pruneDayModel(st);
 }
 
 /**
@@ -82,11 +99,12 @@ export function recomputeState(st) {
   }
 
   const busy = allBusy(st);
+  const { availability, settings } = planContext(st);
   const homework = Object.values(st.tasks).filter((t) => plannable(t, st));
   const practice = commitmentTasks(st, new Date(), (st.settings.lookaheadDays ?? 14) - 1);
-  const ranked = prioritize([...homework, ...practice], { availability: st.availability, busy, settings: st.settings });
+  const ranked = prioritize([...homework, ...practice], { availability, busy, settings });
   st.ranked = ranked.filter((t) => t.source !== 'commitment').map((t) => ({ id: t.id, priority: t.priority }));
-  st.plan = replan(st, ranked, busy);
+  st.plan = replan(st, ranked, busy, settings);
   return st;
 }
 

@@ -1,118 +1,116 @@
-// The Calendar tab: one merged timeline of everything — Cadence's own blocks,
-// Canvas due dates, and any calendar the student has connected.
+// The Calendar: everything, with a time on it.
 //
-// It's the same renderer the Plan tab's week view uses, so the two never drift.
+// School, events, activities, and the blocks Cadence has planned for the work
+// itself, on one grid. Assignments show twice on purpose: as a "due" marker on
+// the day they are due, and as the blocks where the work actually happens.
+// The School tab is the list of what there is to do; this is when.
 
-import { app, refreshSources, dayAgenda, sessionsOn, go, push } from '../core.js';
+import { app, refreshSources, dayAgenda, sessionsOn, go, render } from '../core.js';
 import { SOURCE_META } from '../../lib/sources/sources.js';
-import { dateKey, addDays, startOfDay, fmtMinutes, fmtTime, fmtDay } from '../../lib/util.js';
-import { svg, I, esc, ago, longDay, plural, DOW_SHORT, isDesktop } from '../ui.js';
-import { timeline, ART } from './parts.js';
-import { weekGrid } from './week.js';
+import { dateKey, fmtMinutes } from '../../lib/util.js';
+import { svg, I, esc, ago, longDay, DOW_SHORT, isDesktop } from '../ui.js';
+import { timeline } from './parts.js';
+import { weekGrid, shownWeek, dueOn, LEGEND } from './week.js';
+
+const monthDay = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 
 export function viewCalendar() {
   const S = app.S;
   const mode = app.calMode === 'day' || !isDesktop() ? 'day' : 'week';
   const connected = Object.entries(S.sources || {}).filter(([, s]) => s.enabled);
-
-  const start = addDays(startOfDay(new Date()), app.weekOffset * 7);
-  const days = [...Array(7)].map((_, i) => addDays(start, i));
+  const days = shownWeek();
   const keys = days.map(dateKey);
-  if (!keys.includes(app.planDay)) app.planDay = keys[0];
+  const today = dateKey(new Date());
+  if (!keys.includes(app.planDay)) app.planDay = keys.includes(today) ? today : keys[0];
+  const range = `${monthDay(days[0])} to ${monthDay(days[6])}`;
+  const errors = connected.filter(([, s]) => s.error);
 
   return `
-    <section class="hello" style="padding-bottom:10px">
-      <div class="row between" style="align-items:flex-start">
+    <section class="hello">
+      <div class="row between top-align">
         <div class="grow"><h1>Calendar</h1><p>${subtitle(connected)}</p></div>
-        <button class="icon-btn ${app.sourcesSyncing ? 'spin' : ''}" data-act="refresh-sources" title="Refresh calendars" aria-label="Refresh calendars">
-          ${svg('<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>', 19)}
-        </button>
+        ${connected.length ? `<button class="icon-btn ${app.sourcesSyncing ? 'spin' : ''}" data-act="refresh-sources" data-tip="Refresh connected calendars" aria-label="Refresh connected calendars">
+          ${svg('<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>', 18)}</button>` : ''}
       </div>
     </section>
 
-    ${sourceChips(connected)}
+    <label class="quickadd-label" for="calendar-add">Add to your calendar</label>
+    <form class="quickadd" data-form="calendar-add">
+      <input type="text" id="calendar-add" name="text" placeholder="Dentist Thursday at 3" autocomplete="off">
+      <button class="btn primary" type="submit">Add to calendar</button>
+    </form>
 
-    ${isDesktop() ? `<div class="seg" role="tablist">
-      <button data-act="cal-mode" data-mode="week" aria-pressed="${mode === 'week'}">Week</button>
-      <button data-act="cal-mode" data-mode="day" aria-pressed="${mode === 'day'}">Day</button>
-    </div>` : ''}
-
-    ${mode === 'week' ? `
-      <div class="row between" style="margin:-2px 0 10px">
-        <span class="small muted" style="font-weight:700">${app.weekOffset ? 'Next week' : 'This week'}</span>
-        <span class="row" style="gap:4px">
-          <button class="icon-btn" data-act="week-shift" data-dir="-1" ${app.weekOffset ? '' : 'disabled style="opacity:.3"'} aria-label="Previous week">${svg(I.left, 18)}</button>
-          <button class="icon-btn" data-act="week-shift" data-dir="1" ${app.weekOffset ? 'disabled style="opacity:.3"' : ''} aria-label="Next week">${svg(I.right, 18)}</button>
-        </span>
+    <div class="cal-bar">
+      <div class="cal-nav">
+        <button class="icon-btn" data-act="week-shift" data-dir="-1" ${app.weekOffset ? '' : 'disabled'} data-tip="Previous week" aria-label="Previous week">${svg(I.left, 18)}</button>
+        <button class="icon-btn" data-act="week-shift" data-dir="1" ${app.weekOffset >= 3 ? 'disabled' : ''} data-tip="Next week" aria-label="Next week">${svg(I.right, 18)}</button>
       </div>
-      ${weekGrid()}`
-    : `
+      <button class="btn small soft" data-act="week-today">Go to today</button>
+      <span class="cal-range">${esc(range)}</span>
+      <span class="text-2 small">${app.weekOffset === 0 ? 'This week' : app.weekOffset === 1 ? 'Next week' : `In ${app.weekOffset} weeks`}</span>
+      ${isDesktop() ? `<div class="seg" role="group" aria-label="View">
+        <button data-act="cal-mode" data-mode="week" aria-pressed="${mode === 'week'}">Week</button>
+        <button data-act="cal-mode" data-mode="day" aria-pressed="${mode === 'day'}">Day</button>
+      </div>` : ''}
+    </div>
+
+    ${errors.length ? `<button class="card warm small tap w100 left" data-act="open-calendars">${esc(SOURCE_META[errors[0][0]]?.label || 'A calendar')} is not syncing. Open calendars to fix it.</button>` : ''}
+
+    ${mode === 'week' ? weekGrid() : `
       <div class="strip">${days.map((d, i) => {
         const k = keys[i];
-        const items = dayAgenda(k);
-        const dots = [...new Set(items.filter((x) => x.type !== 'busy').map((x) => x.commitment?.color || 'var(--accent)'))].slice(0, 3);
-        return `<button class="daychip ${k === dateKey(new Date()) ? 'today' : ''}" data-act="pick-day" data-day="${k}" aria-current="${k === app.planDay}">
-          <span class="dow">${k === dateKey(new Date()) ? 'Today' : DOW_SHORT[d.getDay()]}</span><span class="num">${d.getDate()}</span>
-          <span class="dots">${dots.map((c) => `<i style="--c:${c}"></i>`).join('')}</span></button>`;
+        const kinds = [...new Set(dayAgenda(k).map((x) => (x.type === 'busy' ? (x.source === 'school' ? 'school' : 'event') : (x.type === 'session' && !x.commitment ? 'work' : 'activity'))))];
+        return `<button class="daychip ${k === today ? 'today' : ''}" data-act="pick-day" data-day="${k}" aria-current="${k === app.planDay}">
+          <span class="dow">${k === today ? 'Today' : DOW_SHORT[d.getDay()]}</span><span class="num">${d.getDate()}</span>
+          <span class="dots">${kinds.slice(0, 4).map((c) => `<i class="k-${c}"></i>`).join('')}</span></button>`;
       }).join('')}</div>
       <div class="section-head"><h2>${esc(longDay(app.planDay))}</h2><span class="muted">${dayLoad(app.planDay)}</span></div>
-      ${allDayRow(app.planDay)}
-      ${timeline(app.planDay, { emptyText: 'Nothing on the calendar. A rare free day.' })}
-      <div class="row" style="margin-top:12px;gap:8px">
-        <button class="btn small soft" data-act="block-time" data-day="${app.planDay}">${svg(I.plus, 14)} Block off time</button>
-        <button class="btn small ghost" data-act="open-availability">When I'm free</button>
-      </div>`}
+      ${markers(app.planDay)}
+      ${timeline(app.planDay, { emptyText: 'Nothing on the calendar this day.' })}
+      <div class="wg-legend plain">${LEGEND.map(([id, label]) => `<span><i class="k-${id}"></i>${label}</span>`).join('')}</div>`}
 
-    ${connected.length ? '' : connectPrompt()}
-  `;
+    <p class="cal-foot">
+      <button class="link" data-act="block-time" data-day="${app.planDay}">Add an event with a form</button>
+      <button class="link" data-act="open-calendars">${connected.length ? 'Manage connected calendars' : 'Connect Canvas or Google Calendar'}</button>
+    </p>`;
 }
 
 function subtitle(connected) {
-  if (!connected.length) return 'Your plan and your commitments. Connect Canvas or Google to see everything in one place.';
-  const names = connected.map(([id]) => SOURCE_META[id]?.short || id);
+  const base = 'School, activities, events and the time planned for your work, in one place.';
+  if (!connected.length) return base;
   const last = connected.map(([, s]) => s.lastSync).filter(Boolean).sort().at(-1);
-  return `Cadence + ${names.join(' + ')}${last ? ` · updated ${ago(last)}` : ''}`;
-}
-
-function sourceChips(connected) {
-  const chip = (label, colorVar, extra = '') => `<span class="pill" style="gap:6px">${extra}<i style="width:9px;height:9px;border-radius:50%;background:${colorVar};display:inline-block"></i>${esc(label)}</span>`;
-  const errors = connected.filter(([, s]) => s.error);
-  return `<div class="row wrap" style="gap:6px;margin-bottom:12px">
-    ${chip('Cadence', 'var(--accent)')}
-    ${connected.map(([id, s]) => chip(SOURCE_META[id]?.short || id, id === 'google' ? 'var(--blue, #3b82f6)' : 'var(--green)',
-      s.error ? `<span style="color:var(--amber)">${svg(I.flag, 12)}</span>` : '')).join('')}
-    <button class="pill" data-act="open-calendars" style="border:1px dashed var(--line);background:transparent">${svg(I.plus, 12)} Connect</button>
-    ${errors.length ? `<button class="pill amber" data-act="open-calendars">${esc(SOURCE_META[errors[0][0]]?.short || 'A calendar')} needs attention</button>` : ''}
-  </div>`;
+  return `${base} ${connected.map(([id]) => SOURCE_META[id]?.short || id).join(' and ')} synced${last ? ` ${ago(last)}` : ''}.`;
 }
 
 function dayLoad(k) {
-  const mins = sessionsOn(k).reduce((a, s) => a + s.minutes, 0);
-  return mins ? `${fmtMinutes(mins)} planned` : 'Nothing planned';
+  const mins = sessionsOn(k).filter((s) => !s.done).reduce((a, s) => a + s.minutes, 0);
+  return mins ? `${fmtMinutes(mins)} of work planned` : 'No work planned';
 }
 
-/** All-day events (trips, holidays) sit above the timeline, as in every calendar app. */
-function allDayRow(k) {
+/** What is due that day, and anything that lasts all day. */
+function markers(k) {
+  const due = dueOn(k);
   const all = dayAgenda(k).filter((it) => it.type === 'busy' && it.allDay);
-  if (!all.length) return '';
-  return `<div class="row wrap" style="gap:6px;margin-bottom:10px">${all.map((it) =>
-    `<span class="pill" title="${esc(it.calendarName || '')}">${svg(I.cal, 12)} ${esc(it.title)}</span>`).join('')}</div>`;
-}
-
-function connectPrompt() {
-  return `<div class="card soft" style="margin-top:16px">
-    <div class="row" style="align-items:flex-start">
-      <span class="kind-ic" style="--c:var(--accent)">${svg(I.cal)}</span>
-      <div class="grow">
-        <div class="card-title">Bring your other calendars in</div>
-        <div class="card-sub">Cadence schedules around whatever it can see. Add your Canvas feed and Google Calendar so practice never lands on top of a game or a shift.</div>
-      </div>
-    </div>
-    <button class="btn primary block" style="margin-top:12px" data-act="open-calendars">Connect a calendar</button>
+  if (!due.length && !all.length) return '';
+  return `<div class="cal-markers">
+    ${due.map((t) => `<button class="marker due" data-act="open-guide" data-id="${t.id}">Due: ${esc(t.title)}</button>`).join('')}
+    ${all.map((it) => `<span class="marker">${esc(it.title)}</span>`).join('')}
   </div>`;
 }
 
 export const actions = {
-  'cal-mode': (el) => { app.calMode = el.dataset.mode; go('calendar'); },
+  'cal-mode': (el) => { app.calMode = el.dataset.mode; render(); },
+  'week-today': () => { app.weekOffset = 0; app.planDay = dateKey(new Date()); render(); },
   'refresh-sources': () => refreshSources()
+};
+
+// Whatever is typed here goes to the assistant, which shows what it understood
+// and can undo it. One way of adding things, not two that behave differently.
+export const submitActions = {
+  'calendar-add': (form, data) => {
+    const text = String(data.get('text') || '').trim();
+    if (!text) return;
+    form.reset();
+    document.dispatchEvent(new CustomEvent('cadence:act', { detail: { act: 'agent-say', text } }));
+  }
 };

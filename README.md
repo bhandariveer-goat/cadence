@@ -1,113 +1,161 @@
-# Cadence — show up for what matters
+# Cadence
 
-Canvas tells students what's due. Nothing keeps them accountable for
-everything else: piano, the robotics build, cross-country, a job, college
-essays. Cadence does. It plans that time around homework (pulled in from
-Canvas automatically), keeps a daily streak, brings in friends and clubs for
-accountability, and turns every check-in into an activities record for
-college applications.
+A planner for high-school students. Classes, activities and assignments go on
+one calendar, Cadence plans the time to do the work, and when the day changes
+you tell the assistant in a sentence and the week is rebuilt.
 
-Runs three ways, from the same code:
+It runs in two places from the same code:
 
-- **Website** — a marketing homepage at `index.html` explaining the product
-- **Web app** — installable on a phone, and a full desktop layout on a laptop
-- **Chrome extension** inside Canvas (homework syncs in, plus a launcher button)
+- **A Chrome extension on Canvas.** It reads assignments with the Canvas login
+  the student already has, and opens as a panel on any Canvas page.
+- **A website.** The same planner on a wider canvas, with the assistant docked
+  beside it.
 
-The app adapts by width rather than shipping two codebases: below 768px (phone
-and the 440px extension panel) it's one column with a bottom tab bar; from
-768px it becomes a 240px nav rail beside a wide canvas; from 1180px a right
-pane appears; the Plan tab switches from a day timeline to a full week grid.
-That split follows the desktop conventions the big planners share — see
-`reports/` if you kept the research report.
+## Pages
 
----
+| Address | File | What it is |
+| --- | --- | --- |
+| `/` | `index.html` | Homepage |
+| `/app` | `app.html` | The planner. Opens on the sign-in screen. |
+| `/demo` | `demo.html` | The planner with a sample week, in its own storage |
+| `/privacy`, `/terms` | `privacy.html`, `terms.html` | Legal pages |
+| `/api/agent` | `netlify/functions/agent.mjs` | The assistant, server side |
 
-## Try the demo
+The demo and a real account never share storage. Earlier versions seeded sample
+data into the same record as a person's own plan; `store.js` now keeps two
+buckets, and `scrubDemo()` removes sample data from any plan that picked it up.
+
+## Run it locally
 
 ```bash
-cd cadence && python3 -m http.server 8123
+python3 scripts/devserver.py --mock
 ```
 
-Open <http://localhost:8123/src/panel/panel.html?standalone=1&demo=1> (a phone-sized
-window looks best). Fiona's week: five commitments with a month of history, eight
-assignments, two accountability partners, a club she's in and a club she leads.
-
-## Install
+Open <http://localhost:8123/app> or <http://localhost:8123/demo>. The server
+sends `Cache-Control: no-store`, so an edited file is always the one that runs.
+`--mock` also answers the Supabase and `/api/agent` endpoints in memory, which
+is how sign-in and sync are tested without a real backend.
 
 **Chrome extension:** `chrome://extensions` → Developer mode → Load unpacked →
-this folder. Refresh Canvas; the Cadence button is bottom-right.
+this folder. Refresh Canvas; the Cadence button is bottom right.
 
-**Web app:** serve this folder over HTTPS (GitHub Pages, Netlify, Vercel — it's
-static files) and open it on a phone → Share → Add to Home Screen.
+## The tabs
 
----
+- **Today.** The one thing to do next, the day as a timeline, and a ring per
+  activity.
+- **Calendar.** Everything with a time on it: school, events, activities, due
+  dates, and the blocks Cadence planned for the work. Four kinds, four colours.
+- **School.** A list of assignments. Open one for a summary of what it is, how
+  long it takes, and the steps, each tied to the block it is planned for.
+- **Activities.** What the student does outside class, with a weekly count,
+  the activities record and last week's review.
+- **Crew.** Accountability partners and clubs.
 
-## What's in it
-
-**Today** — rings for each commitment plus School (Apple's close-your-rings),
-the one thing to do now with its *why* ("First chair at the spring concert"),
-and the day as a single timeline. Set-time commitments ask "How was
-cross-country?" once they're over.
-
-**Check-ins** — how it felt, how long, one optional note. Fills the ring,
-extends the daily streak, and adds to the record. Miss a day and a streak freeze
-covers it; every 7 days earns another (max 2) — forgiveness, not shame.
-
-**Desktop** — nav rail, week grid with every block in place, a right pane
-(streak, what's coming, crew), a ⌘K command palette that searches assignments
-and commitments, and keyboard shortcuts (`Q` add homework, `C` check in,
-`T`/`P`/`R`/`Y` to move around, `?` for the list).
-
-**Plan** — the week as day chips and timelines; *School* is every assignment
-grouped by when to start it, each with a guide: what you're doing, what to turn
-in, the steps tied to planned blocks, and where the course materials are.
-
-**Crew** — accountability partners (see each other's weekly rings, send a
-nudge), clubs and classes (a shared team ring toward the big event, leaders see
-who's on track and can post updates), and a feed with one-tap kudos.
-
-**You** — streak and hours, your commitments, **the activities record** (hours
-per week, weeks per year, and a 150-character description per activity — the
-Common App's format, built from your check-ins), and a two-minute **week in
-review** that suggests smaller or bigger targets based on what actually happened.
-
-**Teachers & club leaders** — dictate an assignment into Canvas, and run clubs
-or classes from the same Crew screen.
+The account (school hours, sleep, connected calendars, sign out, delete my
+data) is behind the avatar in the header.
 
 ## How planning works
 
-Homework and flexible commitments go into one schedule. Flexible commitments
-("piano 5× a week, evenings") become sessions pinned to specific days and
-time-of-day windows; set-time commitments block their slots. The scheduler
-packs earliest-deadline-first inside free time and a daily ceiling, spreads big
-assignments across days, and bends its own limits one at a time before
-declaring anything won't fit. Assignments more than a month past due are
-dropped automatically.
+Cadence does not ask when the student wants to work or how much a night.
+`lib/daymodel.js` works it out per date:
 
-## Connecting calendars (Canvas feed + Google Calendar)
+- A day runs from waking to bed. School takes its hours on school days and
+  nothing on days off, so a day with no school opens from the morning.
+- One-off changes belong to a date and expire with it: `no school Friday`,
+  `I'm tired, an hour tonight`, `I can stay up till midnight`.
+- `lib/scheduler.js` tries the lightest daily load first and raises it one step
+  at a time until every assignment lands before it is due. A day the student
+  put a number on keeps that number; the rest of the week absorbs the
+  difference.
+- Ordering: what can only still be on time tonight, then anything late, then
+  earliest deadline. Long work is paced across days, and after two blocks of
+  the same thing there is a 30 minute break before a third.
+- Work with no room left before its deadline is reported once, by name.
 
-Cadence's **Calendar** tab is the merged view: its own blocks, Canvas due
-dates, and any calendar you connect. Whatever it can see, it plans around —
-`lib/replanner.js` folds every source into the busy list the scheduler uses.
+## The assistant
 
-### Canvas calendar feed (no setup needed)
+`lib/agentops.js` defines a small set of operations (add an event, add an
+activity, add an assignment, change one day, change school or sleep, mark done,
+move, remove). Everything the assistant does is one of these, which is what
+makes every change listable and undoable in a single step.
+
+There are two ways a sentence becomes operations:
+
+1. **On the device** (`lib/agent.js`). Rules that read times, ranges, weekday
+   lists, recurrence, amounts of work, "then go to sleep", cancellations,
+   moves and questions. Always available, no network.
+2. **With Claude** (`lib/agentllm.js`, model `claude-opus-5-5`). A tool-use
+   loop: Claude calls tools, the browser runs each against a working copy of
+   the plan and returns what actually changed, and nothing is saved until the
+   turn ends. Used when the student adds their own Anthropic key, or is signed
+   in with an email on a site that runs the server function. If the call fails
+   for any reason the on-device reader answers instead.
+
+What Claude is sent is listed in `privacy.html`. Events from Google Calendar
+are sent as a time with no title.
+
+### The server function
+
+`netlify/functions/agent.mjs` holds the Anthropic key so it never reaches a
+browser. It accepts a request only with a Supabase session that Supabase
+confirms, counts it against a per-account daily limit and a site-wide daily
+limit kept in Postgres, and forwards only `messages`: the model, the instructions and the tools are fixed
+in `lib/agentspec.js`.
+
+Set these in Netlify → Project configuration → Environment variables (never in
+`netlify.toml`, which functions cannot read, and never in this repository):
+
+| Variable | |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | required |
+| `SUPABASE_URL` | required, same as `src/config.js` |
+| `SUPABASE_ANON_KEY` | required, same as `src/config.js` |
+| `AGENT_DAILY_LIMIT` | optional, default 60 requests per account per day |
+| `AGENT_DAILY_TOTAL` | optional, default 1500 requests per day across all accounts |
+
+## Accounts and sync
+
+Without any setup, an account is a name kept in the browser. To add email
+sign-in, so the extension and the website show the same plan:
+
+1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor.
+2. Authentication → Providers → Email: enabled. Edit the Magic Link email
+   template to include `{{ .Token }}` so students get a six-digit code.
+3. Put the project URL and the anon key in `src/config.js`. The anon key is
+   public by design; row level security is what protects the data. Never put
+   the `service_role` key anywhere in this repository.
+
+Sync is one row per account holding the plan (`lib/cloud.js`). It leaves out
+credentials and everything fetched from a connected calendar: the Anthropic
+key, the Google connection and the Canvas feed link stay on the device where
+they were set up.
+
+Each device remembers which version of the row it last matched, and a save is
+accepted only over that version. So a device that is behind loads the newer
+plan instead of overwriting it, and if the same plan was changed in two places
+before either could save, Cadence asks which to keep rather than choosing. An
+open tab checks for changes when it comes back into view and once a minute.
+
+## Connecting calendars
+
+### Canvas calendar feed
 
 1. Canvas → **Calendar** → **Calendar Feed** (bottom right) → copy the link.
-2. Cadence → **Calendar → Connect**, or You → Settings → Calendars → **Add feed link**.
+2. Cadence → your account → **Calendars** → **Add feed link**.
 
-That link is a credential — anyone holding it can read your Canvas calendar, so
-Cadence stores it in extension storage and only ever shows it masked. Inside
-Canvas the existing session-based sync still runs and adds what the feed can't
-carry: submission status, points, instructions and rubrics.
+That link works like a password, so it is only ever shown masked and is not
+synced to the account. Inside Canvas the session-based sync also runs and adds
+what the feed cannot carry: submission status, points, instructions, rubrics.
+A downloaded `.ics` file can be imported instead from the account screen.
 
-### Google Calendar — what you must do in Google Cloud Console
+### Google Calendar: what you must do in Google Cloud Console
 
 Google requires an OAuth client, and only you can create it:
 
 1. **console.cloud.google.com** → create a project (e.g. "Cadence").
 2. **APIs & Services → Library** → enable **Google Calendar API**.
 3. **APIs & Services → OAuth consent screen** → **External** → fill in app name,
-   your email, developer email. Add yourself under **Test users** — while the app
+   your email, developer email. Add yourself under **Test users**: while the app
    is unverified only test users can sign in (up to 100), which is fine for you
    and your classmates.
 4. **Scopes**: add `.../auth/calendar.readonly` for reading, and
@@ -116,7 +164,7 @@ Google requires an OAuth client, and only you can create it:
    to everyone would need Google's verification review.
 5. **Credentials → Create credentials → OAuth client ID → Web application**.
    Under **Authorized redirect URIs** paste the URI Cadence shows you in
-   Calendars → Google → Connect. It looks like:
+   your account → Calendars → Google → Connect. It looks like:
    `https://<extension-id>.chromiumapp.org/google`
 6. Copy the **Client ID** and paste it into Cadence when it asks.
 
@@ -133,15 +181,15 @@ Two limits worth knowing:
 
 ### Adding Cadence's blocks to Google Calendar
 
-Off by default, and opt-in per item even when it's on — nothing appears on a
+Off by default, and opt-in per item even when it's on: nothing appears on a
 real calendar unless it's asked for.
 
 1. Calendars → Google → **Add Cadence blocks to Google Calendar**. Google asks
    again, this time for `calendar.events` (incremental auth: the read grant is
    kept).
-2. Pick which calendar to write to. A separate calendar is worth considering —
+2. Pick which calendar to write to. A separate calendar is worth considering , 
    it makes Cadence's blocks easy to hide or delete in bulk.
-3. Turn it on per item: the **Add to Google Calendar** toggle in a commitment's
+3. Turn it on per item: the **Add to Google Calendar** toggle in an activity's
    editor, or the button on an assignment's guide. The Calendars screen lists
    everything currently syncing, with a **Stop** next to each.
 
@@ -165,83 +213,62 @@ an expired Google token or an unreachable Canvas feed shows an error on that
 one card while the others keep working, and the last good data stays on screen.
 There's a **Refresh now** button for when you can't wait.
 
-## Crew backend
+## Before launch
 
-Everything works on-device with no account. Partners, clubs, kudos and
-cross-device sync need a shared database:
+```bash
+python3 scripts/prelaunch_check.py
+```
 
-1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor
-   (tables, row-level security, and the invite/club functions).
-2. Authentication → Email: enable, and put `{{ .Token }}` in the magic-link
-   template so students get a 6-digit code.
-3. In Cadence: You → Settings → Crew account → paste the project URL and anon key.
+It checks the launch gates (custom domain, favicon on every page, no "made
+with" tag, privacy and terms pages that name who runs the site) and the house
+style (no gradients, no pill-shaped controls, no em dashes or emoji in anything
+a person reads, no scroll or cursor animation, nothing that looks like a
+secret). `LAUNCH.md` has the steps only the owner can do.
 
-Students only ever see check-ins from their partners and clubs, and only for
-commitments they chose to share.
+## What has and has not been tested
 
-## The assistant (website)
+Tested in a browser against the code in this repository:
 
-On the website, **Ask Cadence** opens an assistant panel. Type the way you'd
-text a friend and it writes the week for you:
+- The planner, the day model, and every sentence in the assistant's on-device
+  reader, including undo.
+- Sign-in, sync between two devices, and what sync leaves out, against the mock
+  backend in `scripts/devserver.py`.
+- The server function's checks (auth, limit, body validation, what it forwards)
+  with Anthropic stubbed out.
+- The Claude tool loop with a scripted model: message order, echoing replies
+  unchanged, tool results, rollback on failure.
 
-| You say | What it does |
-| --- | --- |
-| `dinner at 6` | blocks 6–7pm today so homework lands around it |
-| `practice Tue and Thu 4-6` | a repeating block for the next 8 weeks |
-| `I can stay up till midnight` | extends tonight's free time only, not every night |
-| `free after 4 today` | moves tonight's start, same one-day scope |
-| `bio test Friday, takes 2 hours` | homework with a due date and an estimate |
-| `I want to run 4 times a week for 45 minutes` | a commitment with a weekly ring |
-| `I can only do an hour of homework tonight` | lowers the daily cap |
+Not yet run against the real services, because that needs accounts and keys
+only the owner can create:
 
-Every change is listed with an **Undo** that restores the previous state exactly.
-
-It reads sentences offline — `src/lib/agent.js` handles times, ranges, weekday
-lists, recurrence and day parts with no network call, so it works without a key.
-With a Cadence Intelligence key configured it asks Claude first (better with odd
-phrasing) and falls back to the offline reading if that call fails.
-
-One-off changes are stored against the date, not the weekday: "tonight I can
-stay up till midnight" writes `availability['2026-09-28']`, which `freeSlots()`
-prefers over the weekly window and `pruneTasks()` deletes once the date passes.
-
-## Cadence Intelligence (optional)
-
-With a Claude API key (You → Settings), assignment guides are written from the
-full instructions, estimates get sharper, and dictation turns into polished
-drafts. Model: `claude-opus-5`.
+- A live Supabase project (sign-in emails, the SQL in `schema.sql`).
+- A live Anthropic key (the assistant actually talking to Claude).
+- A Netlify deploy of the function.
+- Google Calendar with a real OAuth client.
 
 ## Files
 
 ```
-index.html                                 marketing homepage
-manifest.webmanifest, sw.js                installable web app + offline shell
-manifest.json, src/content, src/background Chrome extension
-src/panel/app.js                           shell: routing, tabs, events
-src/panel/core.js                          state, merged plan, Canvas, crew, check-ins
-src/panel/ui.js                            icons, rings, sheets, formatting
-src/panel/web.css                          website skin: white, top tabs, assistant
-src/panel/views/                           today, plan, week (desktop grid),
-                                           calendar, agent (assistant panel),
-                                           crew, you, commitments, guide,
-                                           palette, create, onboarding, parts
-src/lib/agent.js                           sentences -> scheduling ops, offline
-src/lib/habits.js                          commitments, streaks, record, review
-src/lib/sync.js                            crew adapters (local / demo / Supabase)
-src/lib/sources/canvasFeed.js              Canvas ICS feed → assignments + events
-src/lib/sources/googleCalendar.js          OAuth, events.list, and tagged writes
-src/lib/sources/sources.js                 sync runner: per-source cache + errors
-src/lib/replanner.js                       DOM-free merge + re-plan pipeline
-src/lib/scheduler.js, priority.js, …       planning engine
-supabase/schema.sql                        crew database + security policies
+index.html, site.css, site.js            homepage
+DESIGN.md                               the design system: tokens and the rules behind them
+app.html, demo.html                      the planner, and the planner with sample data
+privacy.html, terms.html                 legal pages
+netlify/functions/agent.mjs              the assistant's server side
+netlify.toml                             clean addresses, headers, function settings
+manifest.json, src/content, src/background   Chrome extension
+src/config.js                            the values that belong to whoever runs this copy
+src/panel/shell.js, app.js, core.js      frame, routing, state and sync
+src/panel/views/                         signin, onboarding, today, calendar, week,
+                                         plan (School), activities, account, agent,
+                                         crew, commitments, guide, calendars, create
+src/lib/daymodel.js                      free time and load, per date
+src/lib/scheduler.js, priority.js        the planner
+src/lib/agent.js                         reading sentences on the device
+src/lib/agentops.js                      the operations, the plan diff, the answers
+src/lib/agentspec.js, agentllm.js        Claude: instructions, tools, the loop
+src/lib/cloud.js                         sign-in and sync
+src/lib/sources/                         Canvas feed, Google Calendar, sync runner
+supabase/schema.sql                      database tables and security policies
+scripts/devserver.py                     local server with mock backends
+scripts/prelaunch_check.py               launch gates and house style
 ```
-
-## Not built yet
-
-- Gmail import — see the notes below on why the Apps Script route beats the API.
-
-- Live Supabase sync is written against the documented REST API but hasn't been
-  run against a real project.
-- Push notifications on phones need a server; reminders currently come from the
-  Chrome extension.
-- Live "study together" sessions (Focusmate-style body doubling).

@@ -21,16 +21,16 @@ export function viewCreate() {
     <div class="card center">
       <button class="mic" id="mic" data-act="mic" aria-label="Start dictation">${svg(I.mic)}</button>
       <div class="small muted" id="mic-status">Tap to start talking</div>
-      <div class="transcript" id="transcript" data-placeholder="${esc(placeholder)}" style="margin-top:12px;text-align:left">${esc(S.draftTranscript || '')}</div>
-      <details style="margin-top:10px;text-align:left">
-        <summary class="link small" style="cursor:pointer">Or type it instead</summary>
-        <textarea id="typed" style="margin-top:8px" placeholder="Worksheet on chapter 3, due Thursday, 20 points"></textarea>
-        <button class="btn small soft" data-act="parse-typed" style="margin-top:8px">Make a draft</button>
+      <div class="transcript mt3 left" id="transcript" data-placeholder="${esc(placeholder)}">${esc(S.draftTranscript || '')}</div>
+      <details class="mt3 left">
+        <summary class="link small">Or type it instead</summary>
+        <textarea class="mt2" id="typed" placeholder="Worksheet on chapter 3, due Thursday, 20 points"></textarea>
+        <button class="btn small soft mt2" data-act="parse-typed">Make a draft</button>
       </details>
     </div>
 
     ${draft ? `
-    <div class="section-head" style="margin-top:18px"><h2>Review before it goes out</h2></div>
+    <div class="section-head mt4"><h2>Review before it goes out</h2></div>
     <form class="card" data-form="save-draft">
       <label class="field"><span>Title</span><input type="text" name="title" value="${esc(draft.title || '')}" required></label>
       <label class="field"><span>Course</span><select name="courseId"><option value="">Choose a course</option>
@@ -46,16 +46,16 @@ export function viewCreate() {
         <label class="field"><span>Type</span><select name="category">${Object.entries(CATEGORIES).map(([id, v]) =>
           `<option value="${id}" ${draft.category === id ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
       </div>
-      <p class="hint" style="margin:-4px 0 12px">Sharing the expected time helps every student plan it properly.</p>
+      <p class="hint up">Sharing the expected time helps every student plan it properly.</p>
       <label class="toggle"><input type="checkbox" name="publish"><i></i><span>Publish right away<small>Otherwise it's saved as an unpublished draft</small></span></label>
-      <div class="row" style="margin-top:16px;gap:8px">
-        <button class="btn ghost" type="button" data-act="discard-draft">Discard</button><span class="grow"></span>
-        <button class="btn primary" type="submit" ${insideCanvas ? '' : 'disabled title="Open Cadence from Canvas to create assignments"'}>Create in Canvas</button>
+      <div class="row mt4 gap2">
+        <button class="btn ghost" type="button" data-act="discard-draft">Discard draft</button><span class="grow"></span>
+        <button class="btn primary" type="submit">Create in Canvas</button>
       </div>
     </form>` : ''}
 
-    <button class="card row" data-act="go" data-tab="crew" style="width:100%;text-align:left;cursor:pointer;margin-top:14px">
-      <span class="kind-ic" style="--c:var(--green)">${svg(I.users)}</span>
+    <button class="card row w100 left mt4" data-act="go" data-tab="crew">
+      <span class="kind-ic k-activity">${svg(I.users)}</span>
       <div class="grow"><div class="card-title">Clubs & classes</div><div class="card-sub">Set a weekly goal and see who's keeping up</div></div>${svg(I.right, 18)}
     </button>`;
 }
@@ -64,7 +64,7 @@ let recog = null;
 
 function toggleMic() {
   const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Rec) return toast("Voice isn't available in this browser — type it instead");
+  if (!Rec) return toast("Voice isn't available in this browser. Type it instead.");
   if (recog) { recog.stop(); return; }
   recog = new Rec();
   recog.continuous = true;
@@ -80,7 +80,7 @@ function toggleMic() {
     const node = document.getElementById('transcript');
     if (node) node.textContent = (finalText + interim).trim();
   };
-  recog.onerror = (e) => { toast(e.error === 'not-allowed' ? 'Cadence needs microphone access for this' : "Didn't catch that — try again"); stopMic(); };
+  recog.onerror = (e) => { toast(e.error === 'not-allowed' ? 'Cadence needs microphone access for this' : "Didn't catch that. Try again."); stopMic(); };
   recog.onend = () => { const text = (document.getElementById('transcript')?.textContent || '').trim(); stopMic(); if (text) parseDraft(text); };
   recog.start();
   document.getElementById('mic')?.classList.add('rec');
@@ -114,6 +114,9 @@ async function parseDraft(text) {
 }
 
 async function saveDraft(form, fd) {
+  // Creating an assignment needs the Canvas session, which only exists when
+  // Cadence is opened from a Canvas page. The button stays clickable and says so.
+  if (!insideCanvas) return toast('Open Cadence from a Canvas page to create this there. Your draft stays here.');
   const draft = {
     title: String(fd.get('title') || '').trim(),
     courseId: String(fd.get('courseId') || '') || null,
@@ -130,7 +133,7 @@ async function saveDraft(form, fd) {
   const ok = await sheet(`
     <h2>Create this assignment?</h2>
     <p class="lead">It'll be added to <b>${esc(course?.name || 'your course')}</b> ${draft.publish ? 'and <b>published to students right away</b>' : 'as an unpublished draft'}.</p>
-    <div class="card soft small" style="margin:0"><b>${esc(draft.title)}</b><div class="muted">${draft.due ? esc(new Date(draft.due).toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : 'No due date'}${draft.points != null ? ` · ${draft.points} points` : ''}</div></div>
+    <div class="card soft small m0"><b>${esc(draft.title)}</b><div class="muted">${draft.due ? esc(new Date(draft.due).toLocaleString([], { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : 'No due date'}${draft.points != null ? ` · ${draft.points} points` : ''}</div></div>
     <div class="actions"><button class="btn ghost" value="cancel">Go back</button><button class="btn primary" name="op" value="create">${draft.publish ? 'Create & publish' : 'Create draft'}</button></div>`);
   if (!ok) return;
   try {

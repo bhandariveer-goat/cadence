@@ -76,7 +76,7 @@ export function scoreTask(task, ctx) {
     return {
       score: 0.25 + (task.pinned ? 0.5 : 0),
       startBy: null, deadline: null, slack: Infinity, feasible: true,
-      reason: 'No deadline — fits wherever there is room', band: 'later'
+      reason: 'No deadline. It fits wherever there is room.', band: 'later'
     };
   }
 
@@ -110,11 +110,11 @@ export function scoreTask(task, ctx) {
   score = clamp(score, 0, 1.5);
 
   let reason;
-  if (late) reason = 'Past due — worth catching up on this week';
-  else if (!feasible) reason = 'A tight one — Cadence is making extra room for it';
+  if (late) reason = 'Past due. Worth catching up on this week.';
+  else if (!feasible) reason = 'A tight one. Cadence is making extra room for it.';
   else if (!startBy || +startBy <= +now) reason = 'Best to start today';
   else if (+startBy < +addDays(now, 1)) reason = 'Start by tomorrow and it stays easy';
-  else reason = `No rush — starting ${startBy.toLocaleDateString([], { weekday: 'long' })} is plenty`;
+  else reason = `No rush. Starting ${startBy.toLocaleDateString([], { weekday: 'long' })} is plenty.`;
 
   const band = late ? 'catchup' : (!feasible || urgency > 0.85) ? 'now' : urgency > 0.5 ? 'soon' : 'later';
   return { score, startBy, deadline, slack, feasible, reason, band };

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Cadence \u2014 AI Planner for Canvas",
-  "version": "0.1.0",
-  "description": "Pulls your Canvas assignments, estimates how long each will take, and builds a realistic day-by-day plan around your calendar.",
+  "name": "Cadence: planner for Canvas",
+  "version": "0.2.0",
+  "description": "Puts your Canvas assignments, classes and activities on one calendar and plans the time to do the work.",
   "permissions": [
     "storage",
     "alarms",

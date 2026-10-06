@@ -1,13 +1,18 @@
--- Cadence Crew backend (Supabase / Postgres).
+-- Cadence backend (Supabase / Postgres): accounts, sync, crew, and the
+-- assistant's rate limit.
 --
--- Run this in the Supabase SQL editor for a new project, then:
---   Authentication → Providers → Email: enable, and edit the Magic Link email
---   template to include {{ .Token }} so students get a 6-digit code.
--- In Cadence: You → Connected → Crew account, paste the project URL + anon key.
+-- Setup, once:
+--   1. Create a Supabase project and run this whole file in its SQL editor.
+--   2. Authentication > Providers > Email: enabled. Then edit the "Magic Link"
+--      email template so it includes {{ .Token }} and students receive a
+--      six-digit code rather than a link.
+--   3. Copy the project URL and the anon key (Project settings > API) into
+--      src/config.js. The anon key is public by design; the policies below are
+--      what protect the data. Never put the service_role key in this repo.
 --
--- Privacy model: you only ever see check-ins from your accountability
--- partners and people in clubs you've joined, and only for commitments you
--- chose to share. Everything else stays on your own device.
+-- Privacy model: a plan is one row that only its owner can read or write.
+-- Check-ins reach other people only for commitments the student chose to
+-- share, and only partners and members of clubs they joined can see them.
 
 create extension if not exists pgcrypto;
 
@@ -221,3 +226,74 @@ create or replace view partner_overview with (security_invoker = true) as
   from partnerships pt
   join profiles p on p.id = case when pt.user_a = auth.uid() then pt.user_b else pt.user_a end
   where auth.uid() in (pt.user_a, pt.user_b);
+
+
+-- ------------------------------------------------------------ planner sync
+-- One row per account holding the plan itself, so the Chrome extension and the
+-- website show the same week. Owner-only in every direction.
+
+create table if not exists planner_state (
+  user_id uuid primary key references auth.users on delete cascade default auth.uid(),
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table planner_state enable row level security;
+
+create policy "read own plan" on planner_state for select using (user_id = auth.uid());
+create policy "create own plan" on planner_state for insert with check (user_id = auth.uid());
+create policy "update own plan" on planner_state for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "delete own plan" on planner_state for delete using (user_id = auth.uid());
+
+-- ----------------------------------------------------- assistant rate limit
+-- netlify/functions/agent.mjs calls bump_agent_usage() with the student's own
+-- token before every model request. The table has row level security on and
+-- no policies, so nobody can read or reset their count directly; the function
+-- is the only way in. It returns two numbers: this account's requests today,
+-- and everyone's. The function enforces a limit on each, so that making new
+-- accounts is not a way round the first one.
+--
+-- user_id is deliberately not a foreign key. A count row is an id and a
+-- number, it is removed the day after it is written, and keeping it when an
+-- account is deleted is what stops delete-and-sign-up-again from resetting
+-- the day's total.
+
+create table if not exists agent_usage (
+  user_id uuid not null,
+  day date not null default current_date,
+  count int not null default 0,
+  primary key (user_id, day)
+);
+
+alter table agent_usage enable row level security;
+
+create or replace function bump_agent_usage() returns table (mine int, total bigint)
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  -- Only today's counts are kept; earlier days are of no use and are removed.
+  delete from agent_usage where day < current_date;
+  insert into agent_usage as u (user_id, day, count) values (auth.uid(), current_date, 1)
+  on conflict (user_id, day) do update set count = u.count + 1
+  returning u.count into n;
+  return query select n, coalesce(sum(a.count), 0)::bigint from agent_usage a where a.day = current_date;
+end $$;
+
+revoke all on function bump_agent_usage() from public;
+grant execute on function bump_agent_usage() to authenticated;
+
+-- --------------------------------------------------------- delete my account
+-- Removes the sign-in itself; every table above references auth.users or
+-- profiles with "on delete cascade", so the plan, check-ins, kudos, nudges and
+-- memberships go with it.
+
+create or replace function delete_my_account() returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'not signed in'; end if;
+  delete from auth.users where id = auth.uid();
+end $$;
+
+revoke all on function delete_my_account() from public;
+grant execute on function delete_my_account() to authenticated;

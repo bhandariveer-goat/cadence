@@ -1,24 +1,12 @@
-// Offline shell for the Cadence web app. Network-first for the app's own files
-// (so updates land immediately), falling back to the cache when offline.
-const CACHE = 'cadence-v1';
-const SHELL = [
-  './src/panel/panel.html', './src/panel/panel.css', './src/panel/app.js', './manifest.webmanifest', './icons/icon192.png'
-];
-
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
-});
-
-self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
-});
-
-self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  e.respondWith(
-    fetch(e.request)
-      .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
-      .catch(() => caches.match(e.request, { ignoreSearch: true }))
-  );
+// Cadence no longer uses a service worker. Earlier versions installed one that
+// kept serving old files after a deploy. A browser that still has it will fetch
+// this file on its next visit; all this version does is clear what the old one
+// cached and unregister itself, then reload any open pages onto the network.
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    for (const key of await caches.keys()) await caches.delete(key);
+    await self.registration.unregister();
+    for (const client of await self.clients.matchAll({ type: 'window' })) client.navigate(client.url);
+  })());
 });

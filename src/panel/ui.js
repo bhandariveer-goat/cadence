@@ -1,7 +1,7 @@
 // Shared UI vocabulary: icons, rings, sheets, toasts, and the small formatting
 // helpers every view needs. No state lives here.
 
-import { fmtTime, fmtDay, startOfDay, atTime, clamp, escapeHtml, DAY, MIN } from '../lib/util.js';
+import { fmtTime, fmtClock, fmtDay, startOfDay, atTime, clamp, escapeHtml, DAY, MIN } from '../lib/util.js';
 
 export const esc = escapeHtml;
 
@@ -11,9 +11,9 @@ export const isWide = () => matchMedia('(min-width: 1180px)').matches;
 export const $ = (sel, root = document) => root.querySelector(sel);
 
 // ------------------------------------------------------------------ icons
-// One family: 24px grid, 2px rounded strokes.
+// One family: 24px grid, 1.75px rounded strokes.
 
-export const svg = (inner, size) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+export const svg = (inner, size) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${size ? ` width="${size}" height="${size}"` : ''}>${inner}</svg>`;
 
 export const I = {
@@ -22,7 +22,9 @@ export const I = {
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.6 14.6c2.6.3 4.3 2.1 4.9 5"/>',
   you: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.6-4 4.6-6 8-6s6.4 2 8 6"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>',
-  check: '<path d="M5 12.5l4.5 4.5L19 7.5" stroke-width="3"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5" stroke-width="2.5"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  send: '<path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>',
   play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
   sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
   external: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
@@ -77,7 +79,7 @@ export const KIND_ICON = {
 // ---------------------------------------------------------------- visuals
 
 /** A progress ring. Colors go through style="" because SVG attributes can't read CSS variables. */
-export function ring({ pct = 0, color = 'var(--accent)', size = 64, stroke = 7, inner = '', label = '' } = {}) {
+export function ring({ pct = 0, color = 'var(--k-activity)', size = 64, stroke = 7, inner = '', label = '' } = {}) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const p = clamp(pct, 0, 1);
@@ -92,55 +94,47 @@ export function ring({ pct = 0, color = 'var(--accent)', size = 64, stroke = 7, 
   </span>`;
 }
 
+/** Initials in a circle. People are told apart by name, not by a colour. */
 export function avatar(person = {}, size = 36) {
   const initials = String(person.name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-  return `<span class="avatar" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.38)}px;--ac:${person.color || '#f97316'}">${esc(initials)}</span>`;
+  const type = size < 34 ? 12 : size < 50 ? 14 : 16;
+  return `<span class="avatar" style="width:${size}px;height:${size}px;font-size:${type}px">${esc(initials)}</span>`;
 }
 
-const COURSE_COLORS = ['#f0712b', '#1fa971', '#3b82f6', '#8b5cf6', '#d88a0b', '#e0508b', '#14b8a6', '#c26a2e'];
-export function colorFor(x) {
-  if (x?.color) return x.color;
-  const key = String(x?.courseId || x?.courseName || '');
-  if (!key) return 'var(--accent)';
-  let h = 0;
-  for (const ch of key) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return COURSE_COLORS[h % COURSE_COLORS.length];
-}
-
-/** A small burst of color when a ring closes. Skipped for reduced motion. */
-export function celebrate(anchor) {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const rect = anchor?.getBoundingClientRect?.() || { left: innerWidth / 2, top: innerHeight / 3, width: 0, height: 0 };
-  const layer = document.createElement('div');
-  layer.className = 'confetti';
-  layer.style.left = `${rect.left + rect.width / 2}px`;
-  layer.style.top = `${rect.top + rect.height / 2}px`;
-  const colors = ['#f0712b', '#ffb347', '#1fa971', '#3b82f6', '#8b5cf6', '#e0508b'];
-  for (let i = 0; i < 22; i++) {
-    const bit = document.createElement('i');
-    const angle = (Math.PI * 2 * i) / 22 + Math.random() * 0.4;
-    const dist = 50 + Math.random() * 60;
-    bit.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
-    bit.style.setProperty('--dy', `${Math.sin(angle) * dist - 30}px`);
-    bit.style.setProperty('--rot', `${Math.random() * 540}deg`);
-    bit.style.background = colors[i % colors.length];
-    layer.appendChild(bit);
-  }
-  document.body.appendChild(layer);
-  setTimeout(() => layer.remove(), 1000);
-}
+/**
+ * Colour says what kind of thing something is, and there are four kinds (see
+ * the --k tokens in panel.css). Homework is always the work colour; it used to
+ * get a different hue per course, which made a list of six assignments six
+ * colours for no reason a reader could use.
+ */
+export const colorFor = () => 'var(--k-work)';
 
 // ---------------------------------------------------------- sheet & toast
 
-/** Bottom sheet. Resolves with FormData (including the pressed button's name/value) or null. */
+/**
+ * An overlay that asks for something. Resolves with FormData (including the
+ * pressed button's name and value) or null.
+ *
+ * It is one of two things, decided by what is in it. With fields it is a
+ * sheet: a short form, beside the page on a wide screen and rising from the
+ * bottom on a narrow one. With no fields it is a question, shown as a small
+ * dialog in the middle, and the way out of it is what has focus when it opens.
+ * The browser's own <dialog> keeps focus inside and hands it back on close.
+ */
+const FIELDS = 'input:not([type=hidden]), select, textarea, .choices, .feel, .stepper, .days, .tiles';
 export function sheet(html, { onMount } = {}) {
   const dlg = $('#sheet');
   const form = $('#sheet-form');
-  form.innerHTML = `<div class="grab"></div>${html}`;
+  form.innerHTML = `<div class="grab" aria-hidden="true"></div>${html}`;
+  const confirm = !form.querySelector(FIELDS);
+  dlg.classList.toggle('confirm', confirm);
+  const heading = form.querySelector('h2');
+  if (heading) { heading.id = 'sheet-title'; dlg.setAttribute('aria-labelledby', 'sheet-title'); } else dlg.removeAttribute('aria-labelledby');
   let submitter = null;
   const onSubmit = (e) => { submitter = e.submitter; };
   form.addEventListener('submit', onSubmit);
   dlg.showModal();
+  if (confirm) form.querySelector('button[value="cancel"]')?.focus();
   onMount?.(form);
   return new Promise((resolve) => {
     dlg.addEventListener('close', () => {
@@ -151,6 +145,52 @@ export function sheet(html, { onMount } = {}) {
       resolve(fd);
     }, { once: true });
   });
+}
+
+/**
+ * Names for controls that are only an icon. Anything with data-tip gets its
+ * name beside it on hover and on keyboard focus, with its shortcut if it has
+ * one (data-kbd). The title attribute is not used for this: it is slow, it
+ * cannot show a key, and it never appears for someone using a keyboard.
+ */
+export function installTips() {
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.setAttribute('role', 'tooltip');
+  tip.id = 'tip';
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  let owner = null;
+
+  const hide = () => {
+    if (!owner) return;
+    owner.removeAttribute('aria-describedby');
+    owner = null;
+    tip.classList.remove('on');
+    tip.hidden = true;
+  };
+  const show = (el) => {
+    if (el === owner) return;
+    hide();
+    owner = el;
+    tip.innerHTML = `<span>${esc(el.dataset.tip)}</span>${el.dataset.kbd ? `<kbd>${esc(el.dataset.kbd)}</kbd>` : ''}`;
+    tip.hidden = false;
+    el.setAttribute('aria-describedby', 'tip');
+    const r = el.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    const below = r.bottom + 8 + t.height < innerHeight;
+    tip.style.top = `${Math.round(below ? r.bottom + 8 : r.top - t.height - 8)}px`;
+    tip.style.left = `${Math.round(clamp(r.left + r.width / 2 - t.width / 2, 8, innerWidth - t.width - 8))}px`;
+    tip.classList.add('on');
+  };
+  const target = (e) => e.target.closest?.('[data-tip]:not([data-tip=""])');
+
+  document.addEventListener('mouseover', (e) => { const el = target(e); if (el) show(el); else hide(); });
+  document.addEventListener('focusin', (e) => { const el = target(e); if (el && el.matches(':focus-visible')) show(el); else hide(); });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('mousedown', hide);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+  document.addEventListener('scroll', hide, true);
 }
 
 let toastTimer = null;
@@ -186,13 +226,10 @@ export const mmss = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStar
 export const listJoin = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
 
 export function short(hhmm) {
-  const t = toMin(hhmm);
-  const h = Math.floor(t / 60), m = t % 60;
-  return `${h % 12 || 12}${m ? `:${String(m).padStart(2, '0')}` : ''}`;
+  return fmtClock(hhmm);
 }
 export function range(a, b) {
-  const ap = (x) => (toMin(x) >= 720 ? 'PM' : 'AM');
-  return ap(a) === ap(b) ? `${short(a)}–${short(b)} ${ap(b)}` : `${short(a)} ${ap(a)} – ${short(b)} ${ap(b)}`;
+  return `${fmtClock(a)} to ${fmtClock(b)}`;
 }
 
 export function daysLabel(days = []) {
@@ -202,7 +239,7 @@ export function daysLabel(days = []) {
   if (set.length === 7) return 'Every day';
   if (key === '6,0') return 'Weekends';
   const names = set.map((d) => DOW_SHORT[d]);
-  return names.length > 1 ? `${names.slice(0, -1).join(', ')} & ${names.at(-1)}` : (names[0] || 'Any day');
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] || 'Any day');
 }
 
 export function timeSelect(name, value, extra = '') {

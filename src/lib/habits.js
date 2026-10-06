@@ -15,15 +15,15 @@
 import { dateKey, addDays, startOfDay, atTime, MIN, DAY, clamp, uid } from './util.js';
 
 export const KINDS = {
-  practice: { label: 'Practice', icon: 'music', color: '#8b5cf6', verb: 'Practiced' },
-  sport: { label: 'Sport', icon: 'run', color: '#10b981', verb: 'Trained' },
-  club: { label: 'Club or team', icon: 'users', color: '#3b82f6', verb: 'Worked' },
-  service: { label: 'Service', icon: 'heart', color: '#ec4899', verb: 'Volunteered' },
-  work: { label: 'Job', icon: 'briefcase', color: '#d97706', verb: 'Worked' },
-  project: { label: 'Project', icon: 'spark', color: '#ef4444', verb: 'Built' },
-  study: { label: 'Study goal', icon: 'book', color: '#6366f1', verb: 'Studied' },
-  wellness: { label: 'Wellbeing', icon: 'leaf', color: '#14b8a6', verb: 'Made time for' },
-  custom: { label: 'Something else', icon: 'star', color: '#f97316', verb: 'Put time into' }
+  practice: { label: 'Practice', icon: 'music', color: 'var(--k-activity)', verb: 'Practiced' },
+  sport: { label: 'Sport', icon: 'run', color: 'var(--k-activity)', verb: 'Trained' },
+  club: { label: 'Club or team', icon: 'users', color: 'var(--k-activity)', verb: 'Worked' },
+  service: { label: 'Service', icon: 'heart', color: 'var(--k-activity)', verb: 'Volunteered' },
+  work: { label: 'Job', icon: 'briefcase', color: 'var(--k-activity)', verb: 'Worked' },
+  project: { label: 'Project', icon: 'spark', color: 'var(--k-activity)', verb: 'Built' },
+  study: { label: 'Study goal', icon: 'book', color: 'var(--k-activity)', verb: 'Studied' },
+  wellness: { label: 'Wellbeing', icon: 'leaf', color: 'var(--k-activity)', verb: 'Made time for' },
+  custom: { label: 'Something else', icon: 'star', color: 'var(--k-activity)', verb: 'Put time into' }
 };
 
 export const COLORS = ['#f97316', '#8b5cf6', '#10b981', '#3b82f6', '#ec4899', '#d97706', '#14b8a6', '#6366f1', '#ef4444'];
@@ -231,13 +231,14 @@ export function commitmentTasks(state, now = new Date(), horizonDays = 13) {
 /** Fixed-schedule commitments block time the same way activities did. */
 export function fixedActivities(state) {
   return (state.commitments || []).filter((c) => !c.archived && isFixed(c)).map((c) => ({
-    id: c.id, title: c.title, days: c.schedule.days, start: c.schedule.start, end: c.schedule.end
+    id: c.id, title: c.title, days: c.schedule.days, start: c.schedule.start, end: c.schedule.end, skip: c.skip || null
   }));
 }
 
 /** Fixed commitments that ended today with no check-in yet — "Did you make it to practice?" */
 export function pendingCheckins(state, now = new Date()) {
   return (state.commitments || []).filter((c) => !c.archived && isFixed(c)
+    && !c.skip?.[dateKey(now)]
     && (c.schedule.days || []).includes(now.getDay())
     && toMin(`${now.getHours()}:${now.getMinutes()}`) >= toMin(c.schedule.end)
     && !checkedInOn(c, state.checkins || [], now));

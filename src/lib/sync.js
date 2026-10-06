@@ -15,15 +15,14 @@ import { uid, addDays, dateKey, startOfDay } from './util.js';
 
 const PEOPLE_COLORS = ['#8b5cf6', '#10b981', '#3b82f6', '#ec4899', '#d97706', '#14b8a6'];
 
-export function createSync(state, { demo = false, saveSession = () => {} } = {}) {
+export function createSync(state, { demo = false, cloud = null } = {}) {
   if (demo) return demoAdapter(state);
-  const cfg = state.sync || {};
-  if (cfg.mode === 'supabase' && cfg.url && cfg.anonKey) return supabaseAdapter(cfg, saveSession);
+  if (cloud?.signedIn) return supabaseAdapter(cloud);
   return localAdapter();
 }
 
 class CrewUnavailable extends Error {
-  constructor() { super('Connect a Cadence account to use Crew.'); this.code = 'unavailable'; }
+  constructor() { super('Sign in with your email to use Crew.'); this.code = 'unavailable'; }
 }
 
 // ------------------------------------------------------------------ local
@@ -35,8 +34,7 @@ function localAdapter() {
     me: () => null,
     feed: async () => [], partners: async () => [], clubs: async () => [], nudges: async () => [],
     share: async () => {}, kudos: no, nudge: no, invite: no, acceptInvite: no,
-    createClub: no, joinClub: no, club: no, shoutout: no,
-    signIn: no, verify: no, signOut: async () => {}
+    createClub: no, joinClub: no, club: no, shoutout: no
   };
 }
 
@@ -70,7 +68,7 @@ function demoAdapter(state) {
         { id: 'priya', ...people.priya, since: dateKey(addDays(new Date(), -12)), sharing: ['Cross-country'], weekPct: 0.5, streak: 6, lastAt: ago(60 * 20) }
       ],
       nudges: [
-        { id: 'n1', from: people.maya, message: 'Piano tonight? I\'m doing violin at 7 😤', at: ago(95), seen: false }
+        { id: 'n1', from: people.maya, message: 'Piano tonight? I am doing violin at 7.', at: ago(95), seen: false }
       ],
       clubs: [
         {
@@ -80,7 +78,7 @@ function demoAdapter(state) {
             { ...people.jordan, weekPct: 1, streak: 9 }, { ...people.sam, weekPct: 0.5, streak: 3 },
             { ...people.leo, weekPct: 0.5, streak: 5 }, { ...people.ava, weekPct: 0, streak: 0 }
           ],
-          posts: [{ id: 'p1', from: people.patel, text: 'Huge night Wednesday — intake arm is working. Two build nights this week, everyone. 🙌', at: ago(60 * 30) }]
+          posts: [{ id: 'p1', from: people.patel, text: 'Big night Wednesday: the intake arm is working. Two build nights this week, everyone.', at: ago(60 * 30) }]
         },
         {
           id: 'green', name: 'Green Team', kind: 'club', role: 'leader', code: 'GREEN-4K', leader: null,
@@ -128,7 +126,7 @@ function demoAdapter(state) {
     seenNudge: async (id) => { const n = c.nudges.find((x) => x.id === id); if (n) n.seen = true; },
     invite: async () => ({ code: 'FIONA-3X9' }),
     acceptInvite: async (code) => {
-      if (!/^[A-Z]+-[A-Z0-9]{3}$/i.test(code)) throw new Error("That code doesn't look right — it's like MAYA-7K2");
+      if (!/^[A-Z]+-[A-Z0-9]{3}$/i.test(code)) throw new Error("That code doesn't look right. It should look like MAYA-7K2.");
       const p = { id: uid('p'), name: 'Alex Kim', color: PEOPLE_COLORS[3], since: dateKey(new Date()), sharing: ['Guitar'], weekPct: 0.4, streak: 2, lastAt: new Date().toISOString() };
       c.partners.push(p);
       return p;
@@ -141,63 +139,25 @@ function demoAdapter(state) {
     joinClub: async (code) => {
       const club = c.clubs.find((x) => x.code.toLowerCase() === String(code).trim().toLowerCase());
       if (club) return clubSummary(club);
-      throw new Error("No club with that code — double-check it with your leader");
+      throw new Error('No club with that code. Check it with your leader.');
     },
     shoutout: async (clubId, text) => {
       const club = c.clubs.find((x) => x.id === clubId);
       if (club) club.posts.unshift({ id: uid('p'), from: { id: 'me', name: meName, color: '#f97316' }, text, at: new Date().toISOString() });
     },
-    signIn: async () => ({ sent: true }), verify: async () => ({}), signOut: async () => {}
   };
 }
 
 // --------------------------------------------------------------- supabase
 
-function supabaseAdapter(cfg, saveSession) {
-  const base = cfg.url.replace(/\/+$/, '');
-  let session = cfg.session || null;
-
-  const headers = (auth = true) => ({
-    apikey: cfg.anonKey,
-    'content-type': 'application/json',
-    ...(auth && session?.access_token ? { authorization: `Bearer ${session.access_token}` } : {})
-  });
-
-  async function authCall(path, body) {
-    const res = await fetch(`${base}/auth/v1/${path}`, { method: 'POST', headers: headers(false), body: JSON.stringify(body) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.msg || data.error_description || data.message || `Sign-in failed (${res.status})`);
-    return data;
-  }
-
-  function keep(data) {
-    session = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at: Date.now() + (data.expires_in || 3600) * 1000,
-      user: data.user ? { id: data.user.id, email: data.user.email } : session?.user
-    };
-    saveSession(session);
-    return session;
-  }
-
-  async function fresh() {
-    if (!session) throw new Error('Sign in to use Crew');
-    if (Date.now() > (session.expires_at || 0) - 60000) keep(await authCall('token?grant_type=refresh_token', { refresh_token: session.refresh_token }));
-  }
-
-  async function rest(path, { method = 'GET', body, prefer } = {}) {
-    await fresh();
-    const res = await fetch(`${base}/rest/v1/${path}`, {
-      method,
-      headers: { ...headers(), ...(prefer ? { prefer } : {}) },
-      body: body == null ? undefined : JSON.stringify(body)
-    });
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new Error(data?.message || `Crew sync failed (${res.status})`);
-    return data;
-  }
+function supabaseAdapter(cloud) {
+  // Sign-in and token refresh live in lib/cloud.js; crew is one more thing the
+  // same account can do, not a separate login.
+  const rest = async (path, opts) => {
+    try { return await cloud.rest(path, opts); }
+    catch (e) { throw new Error(String(e.message || '').replace(/^Sync failed/, 'Crew sync failed')); }
+  };
+  const session = { get user() { return cloud.user(); } };
 
   const rpc = (name, args) => rest(`rpc/${name}`, { method: 'POST', body: args });
   const uidOf = () => session?.user?.id;
@@ -206,16 +166,8 @@ function supabaseAdapter(cfg, saveSession) {
   return {
     mode: 'supabase',
     available: true,
-    get signedIn() { return !!session; },
-    me: () => (session ? { id: uidOf(), email: session.user?.email } : null),
-
-    signIn: (email) => authCall('otp', { email, create_user: true }).then(() => ({ sent: true })),
-    verify: async (email, code, name) => {
-      keep(await authCall('verify', { type: 'email', email, token: code }));
-      if (name) await rest('profiles', { method: 'POST', body: { id: uidOf(), name }, prefer: 'resolution=merge-duplicates' });
-      return session;
-    },
-    signOut: async () => { session = null; saveSession(null); },
+    get signedIn() { return cloud.signedIn; },
+    me: () => cloud.user(),
 
     feed: async () => {
       const rows = await rest('checkins?select=id,user_id,title,kind,color,minutes,feel,note,at,profiles(name,color),kudos(from_user)&order=at.desc&limit=40');
