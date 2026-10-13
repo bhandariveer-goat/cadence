@@ -10,7 +10,7 @@ import {
   showUpStreak, weekProgress, activityRecord, weeklyReview, weekStart, isFixed, pendingCheckins, COMMON_APP
 } from '../../lib/habits.js';
 import { fmtMinutes, dateKey } from '../../lib/util.js';
-import { svg, I, esc, ring, toast, KIND_ICON, daysLabel, plural } from '../ui.js';
+import { svg, I, esc, ring, toast, copyFrom, KIND_ICON, daysLabel, plural } from '../ui.js';
 import { scheduleLabel, ART } from './parts.js';
 
 export function viewActivities() {
@@ -171,10 +171,7 @@ export function viewReview() {
 export const actions = {
   'open-record': () => push('record'),
   'open-review': () => push('review'),
-  'copy-record': async () => {
-    try { await navigator.clipboard.writeText(recordText()); toast('Copied'); }
-    catch { toast('Copying is blocked here. Select the text and copy it by hand.'); }
-  },
+  'copy-record': (el) => copyFrom(el, recordText()),
   'apply-suggestion': (el) => persist((st) => {
     const c = st.commitments.find((x) => x.id === el.dataset.id);
     if (c && !isFixed(c)) c.target.sessions = Number(el.dataset.to);

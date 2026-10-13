@@ -1,7 +1,7 @@
 // Commitment sheets: check in, add or edit a commitment, and the detail view
 // you get by tapping a ring.
 
-import { app, checkIn, undoCheckin, persist, findSession, minutesSince, push, commitmentById, restore } from '../core.js';
+import { app, checkIn, undoCheckin, persist, findSession, minutesSince, push, commitmentById, undoTo } from '../core.js';
 import {
   newCommitment, weekProgress, weekStreak, sessionMinutes, targetSessions, isFixed, KINDS, FEELS, activityRecord
 } from '../../lib/habits.js';
@@ -222,7 +222,7 @@ export async function commitmentEditor(existing = null, { kind = null, afterSave
   if (res.get('op') === 'archive') {
     const snap = structuredClone(app.S);
     await persist((st) => { const x = st.commitments.find((y) => y.id === existing.id); if (x) x.archived = true; });
-    toast(`${existing.title} removed`, { label: 'Undo', run: () => restore(snap) });
+    toast(`${existing.title} removed`, undoTo(snap));
     return null;
   }
 

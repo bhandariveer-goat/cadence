@@ -19,7 +19,12 @@ It runs in two places from the same code:
 | `/app` | `app.html` | The planner. Opens on the sign-in screen. |
 | `/demo` | `demo.html` | The planner with a sample week, in its own storage |
 | `/privacy`, `/terms` | `privacy.html`, `terms.html` | Legal pages |
+| `/contact` | `contact.html` | A short form, received by Netlify Forms |
+| `/thanks` | `thanks.html` | Where the form lands once a message is sent |
+| anything else | `404.html` | "This page does not exist", with ways back |
+| `/robots.txt`, `/sitemap.xml` | written by `scripts/stamp_pages.py` | What crawlers may fetch, and the pages to find |
 | `/api/agent` | `netlify/functions/agent.mjs` | The assistant, server side |
+| `/api/visit` | `netlify/functions/visit.mjs` | Counts visits from labelled links. Off unless `site.countVisits` is on |
 
 The demo and a real account never share storage. Earlier versions seeded sample
 data into the same record as a person's own plan; `store.js` now keeps two
@@ -213,6 +218,105 @@ an expired Google token or an unreachable Canvas feed shows an error on that
 one card while the others keep working, and the last good data stays on screen.
 There's a **Refresh now** button for when you can't wait.
 
+## What every page does
+
+The things a site is expected to have, and where each one lives.
+
+| | Public pages (`site.js`, `site.css`) | The app (`src/panel/`) |
+| --- | --- | --- |
+| Light and dark | Button in the header, and in the menu on a phone | Header button on a wide screen, Account > Appearance, the palette |
+| Search | The magnifier in the header, or press `/`. Searches the public pages in the browser | The command palette: `Ctrl/Cmd K` or `/` |
+| Small screens | A menu button that opens the page links. On the homepage the two main buttons follow in a bar at the bottom of a phone whenever the page's own are off screen | Tabs along the bottom |
+| Where you are | Breadcrumbs on every page below the homepage, and the current page marked in the header | A back button on every screen that was opened from another |
+| Skip link | "Skip to the page", first thing Tab reaches | The same |
+| Storage notice | One sentence the first time, with a link to the privacy page | The sign-in screen says where the plan is kept |
+| Back to top | A button that appears after a screen and a half | Pressing the tab you are on |
+| Reading progress | A 2px line under the header | Not used: an app page is not read top to bottom |
+| Questions | Eight, on the homepage, each opening in place | |
+| Contact | The contact page: a form, a promise of when to expect a reply (`site.replyWithin`), and a thank-you page after sending. A Contact button in the corner leads to it | A Contact link under Account and on the sign-in screen |
+| A page that is not there | `404.html`, with links back and the site search | Unknown screens fall back to Today |
+| Last updated | In the footer (`SITE_UPDATED` in `site.js`), and at the top of the privacy and terms pages | "Synced" and "saved" times next to what they describe |
+| Copy | Copy the contact address | Invite codes, the activities record, the Google redirect address |
+| Forms | The contact form: an error under the field it is about, a ring on the button while it sends, and the message kept if sending fails | An error under the field it is about; a success line under the form; a ring on a button that is working; Show / Hide on the API key |
+| Confirming | | A named question before anything that cannot be put back; Undo for everything else |
+| Print | Documents: no header, links written out | The page that is showing, in full |
+
+Cadence sets no cookies, so the notice is not a consent banner: there is
+nothing to consent to. It says where the plan is stored and is dismissed once.
+
+### Links with a label on them
+
+A link shared in a newsletter can end in `?utm_source=newsletter`. The site
+takes the label off the address as soon as the page opens, so a link copied
+from the address bar is clean. By default that is all that happens.
+
+If `site.countVisits` is set to `true` in `src/config.js`, the page also asks
+`/api/visit` to add one to that label's count for the day. A row is a label, a
+date and a number (`visit_counts` in `supabase/schema.sql`). There is no IP
+address, cookie, account or browser detail in it, and one browser tab is
+counted once. The privacy page, the homepage table and the storage notice
+change their wording by themselves when the switch is on, so they never say
+"no tracking" while a count is being kept. It is off in this repository.
+
+## What is in the HTML, and what is not
+
+The public pages (home, privacy, terms, contact, thank-you, 404) are plain
+HTML. Every word on them, every link and every heading's id is in the file as
+it is served, so a reader with scripts off and a crawler that does not run
+them get the whole page. `site.js` only adds things that need a script to
+exist at all: search, the theme button, the notice.
+
+Three things on those pages come from `src/config.js` rather than being typed
+into the page: who runs the site, the site's address, and the reply-time
+promise. `scripts/stamp_pages.py` writes them into the HTML:
+
+```bash
+python3 scripts/stamp_pages.py           # after changing the site block in src/config.js
+python3 scripts/stamp_pages.py --check   # changes nothing; says what is out of date
+```
+
+It also writes, for every page, the canonical address, the tags a shared link
+is drawn from (one image, `icons/social.png`, 1200 by 630, made by
+`scripts/make_social_image.py`), `noindex` on the pages that should stay out
+of search results, breadcrumb data for search engines, and the two files
+`robots.txt` and `sitemap.xml`. A page's title and description are written by
+hand at the top of the page; the script reads them. Running it twice changes
+nothing, and the pre-launch check fails if it has not been run.
+
+Some sentences are only true in some set-ups: "there are no analytics" while
+visit counting is off, a different sentence while it is on. Both wordings are
+written in the page, each marked `data-needs="..."`, and the script puts the
+one that does not apply inside an HTML comment (`<!--off ... off-->`). So the
+page never says both, to a browser or to anything that only reads the HTML,
+and the other wording is still there for the day the set-up changes.
+
+The same goes for the few sentences a script decides when to show: the
+storage notice and what the contact form says when a message will not send
+are written in the page, hidden, and the script only reveals them.
+
+The planner itself (`/app`, and `/demo`) is the exception, and cannot be
+otherwise. It is an application: it draws a week from a plan that is stored in
+the visitor's own browser, so there is nothing on the server to turn into HTML
+ahead of time, and nothing in it that belongs in a search result. Both pages
+say so with scripts off, link to the pages that are plain text, and ask search
+engines not to index them.
+
+Links between pages are ordinary `<a href>`, written from the root of the
+site with the file name (`/privacy.html`), and so are the stylesheets and
+scripts. That way a page still works when it is reached at its clean address
+with a slash on the end (`/privacy/`), and the 404 page works at any depth.
+The canonical address of each page is the clean one (`/privacy`), which
+Netlify serves from the same file.
+
+### The worked example on the homepage
+
+"A sample week, worked through" is copied from the demo with the clock held
+at a Sunday at 6:00pm: the assignments and activities are the sample data in
+`src/panel/mock.js`, and every number in it (the total per day, when each
+thing is finished, what did not fit) is what the planner produced. The
+student is made up and the page says so. If the planner's rules change, the
+example has to be copied again; nothing checks it automatically.
+
 ## Before launch
 
 ```bash
@@ -220,10 +324,17 @@ python3 scripts/prelaunch_check.py
 ```
 
 It checks the launch gates (custom domain, favicon on every page, no "made
-with" tag, privacy and terms pages that name who runs the site) and the house
+with" tag, privacy and terms pages that name who runs the site), the house
 style (no gradients, no pill-shaped controls, no em dashes or emoji in anything
-a person reads, no scroll or cursor animation, nothing that looks like a
-secret). `LAUNCH.md` has the steps only the owner can do.
+a person reads, no scroll or cursor animation beyond the two allowed by name,
+nothing that looks like a secret), a few things that have to stay true as
+the site changes (the theme script loads before the styles on every page, the
+"site updated" date is not older than the pages, the visit counter and the
+privacy page agree), and what it takes to be found and shared (a title, a
+description and a canonical address of its own on every page, the sitemap and
+`robots.txt`, the share image, text that is in the HTML, and every link from
+one page to another going somewhere that exists). `LAUNCH.md` has the steps
+only the owner can do.
 
 ## What has and has not been tested
 
@@ -237,23 +348,62 @@ Tested in a browser against the code in this repository:
   with Anthropic stubbed out.
 - The Claude tool loop with a scripted model: message order, echoing replies
   unchanged, tool results, rollback on failure.
+- The public pages and the app at phone and desktop widths, light and dark:
+  text sizes, nothing wider than the screen, tap areas of 44px, no console
+  errors. Search, the menu, the notice, back to top, copy, Show / Hide, the
+  form error and success lines, resending a sign-in code, and Undo on the
+  removals that have it.
+- The visit counter end to end against the mock, and the server function's
+  checks (wrong origin, bad labels, oversized bodies, a failing database) with
+  the database stubbed out.
+- Print, by switching the print rules on in a browser window. Not on paper.
+- The public pages with scripts switched off (in a sandboxed frame): all the
+  text, the links and the contact form are there, and no button is dead.
+- The contact form against the local stand-in for Netlify Forms: errors under
+  the fields, the sending state, a failed send keeping the message, a sent
+  one landing on the thank-you page, and a plain form post with no script.
+- The 404 page at a made-up address three folders deep, including its search.
+- The header at widths from 320 to 1440 pixels on every public page, with
+  the menu open where there is one, in light and dark.
+- Pages reached at a clean address with a slash on the end (`/privacy/`,
+  `/app/`), which is where relative links would have broken.
+- The pre-launch check itself, against 42 deliberately altered copies of the
+  site: 39 broken in one way each (a dead link, a missing canonical, a
+  duplicate title, an em dash written as an entity, and so on), which it
+  caught, and 3 changed harmlessly, which it let pass.
+- `scripts/stamp_pages.py` with an empty address, a name with an apostrophe,
+  an accent and an ampersand in it, and a setting that was commented out.
 
 Not yet run against the real services, because that needs accounts and keys
 only the owner can create:
 
 - A live Supabase project (sign-in emails, the SQL in `schema.sql`).
 - A live Anthropic key (the assistant actually talking to Claude).
-- A Netlify deploy of the function.
+- A Netlify deploy of the functions.
 - Google Calendar with a real OAuth client.
+- `count_visit()` in a real Postgres (it has only been read, not run).
+- A screen reader, and a real phone. The checks above are measurements in a
+  desktop browser set to a phone's size.
+- Netlify Forms. The contact form has only met the stand-in in
+  `scripts/devserver.py`; whether a real message arrives depends on form
+  detection being switched on in Netlify (see `LAUNCH.md`).
+- Anything a search engine or a chat app does with the pages. The live site
+  is behind Netlify's visitor access protection, so it could not be fetched
+  the way a crawler would fetch it.
 
 ## Files
 
 ```
-index.html, site.css, site.js            homepage
+index.html, site.css, site.js            homepage, and what all the public pages share
+contact.html, thanks.html, 404.html      the contact form, where it lands, and the page for a wrong address
+robots.txt, sitemap.xml                  written by scripts/stamp_pages.py; do not edit by hand
+icons/social.png                         the picture a shared link shows
+src/panel/theme.js                       light or dark, decided before the page paints
 DESIGN.md                               the design system: tokens and the rules behind them
 app.html, demo.html                      the planner, and the planner with sample data
 privacy.html, terms.html                 legal pages
 netlify/functions/agent.mjs              the assistant's server side
+netlify/functions/visit.mjs              counts visits from labelled links (off by default)
 netlify.toml                             clean addresses, headers, function settings
 manifest.json, src/content, src/background   Chrome extension
 src/config.js                            the values that belong to whoever runs this copy
@@ -270,5 +420,7 @@ src/lib/cloud.js                         sign-in and sync
 src/lib/sources/                         Canvas feed, Google Calendar, sync runner
 supabase/schema.sql                      database tables and security policies
 scripts/devserver.py                     local server with mock backends
-scripts/prelaunch_check.py               launch gates and house style
+scripts/stamp_pages.py                   writes config values, canonical and share tags, robots.txt and the sitemap
+scripts/make_social_image.py             draws icons/social.png (needs Pillow; only when the picture should change)
+scripts/prelaunch_check.py               launch gates, house style, and whether the site can be found and shared
 ```

@@ -31,6 +31,7 @@ export function mountShell(root = document.getElementById('root')) {
         <button class="icon-btn" id="btn-sync" data-tip="Refresh from Canvas" aria-label="Refresh from Canvas" hidden>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
         </button>
+        <button class="icon-btn" id="btn-theme" data-act="theme-toggle" hidden></button>
         <button class="avatar-btn" id="btn-account" data-act="open-account" aria-label="Your account" hidden></button>
         <button class="icon-btn" id="btn-close" data-tip="Close Cadence" aria-label="Close Cadence" hidden>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>

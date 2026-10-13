@@ -35,7 +35,7 @@
   .tab[aria-current="page"]::before { top: auto; bottom: -1px; left: var(--s3); right: var(--s3); }
   .tab .dot-badge { position: static; box-shadow: none; }
 
-  main { grid-column: 1; grid-row: 2; padding: var(--s6) var(--gutter) var(--s16); }
+  main { --pad-top: var(--s6); grid-column: 1; grid-row: 2; padding: var(--pad-top) var(--gutter) var(--s16); }
   /* With a pane beside it the page only needs breathing room on that side. */
   .body:has(> #side:not([hidden])) main,
   .body:has(> #agent:not([hidden])) main { padding-right: var(--s8); }
@@ -133,3 +133,27 @@
 }
 
 @media (prefers-reduced-motion: reduce) { .ag-thinking i { animation: none; opacity: .5; } }
+
+/* --------------------------------------------------------------- print */
+/* The page that is showing, on paper: all of it rather than the part that
+   fits the window, without the controls, in the light colours (the dark set
+   is for screens only). This is last in the last stylesheet so that it wins
+   over the wide layout above, which a sheet of paper is wide enough to
+   trigger. */
+@media print {
+  html, body, #root, .app { height: auto !important; }
+  .app, .body { display: block !important; }
+  main { overflow: visible !important; padding: 0 !important; }
+  .top { min-height: 0; margin-bottom: 12pt; padding: 0 0 8pt; border-bottom: 1px solid var(--line-strong); }
+  .top-actions, .tabbar, #side, .agent, .toast, .tip, .skip, .demo-bar, .boot, dialog,
+  .quickadd-label, .quickadd, .form-success, .back, .cal-nav, .seg, .cal-foot, .bd-actions, .now-actions, .feed-actions, .guide-actions,
+  .ask-line, .btn, .link, .check, .chev, .page-foot, .hello .icon-btn { display: none !important; }
+  .section.group > .section-head, .wg-head { position: static; }
+  .wg-body { max-height: none; overflow: visible; }
+  .card, .now, .tl-item, .task, .feed-card { break-inside: avoid; }
+  .section-head, .hello { break-after: avoid; }
+  /* What kind of thing each block is, is said in colour. Keep the colour. */
+  .wg-block, .wg-legend i, .dot, .daychip .dots i, .tl-card .kind, .load-bar, .load-bar i, .brand-mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: inherit; }
+  @page { margin: 14mm; }
+}

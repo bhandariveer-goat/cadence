@@ -1,7 +1,7 @@
 // Teacher tools: say an assignment out loud, review the draft, create it in
 // Canvas. Club leaders get the same shortcut to Crew.
 
-import { app, persist, insideCanvas, go } from '../core.js';
+import { app, persist, insideCanvas, go, undoTo } from '../core.js';
 import * as canvas from '../../lib/canvas.js';
 import * as ai from '../../lib/ai.js';
 import { parseAssignmentText } from '../../lib/parse.js';
@@ -149,7 +149,13 @@ async function saveDraft(form, fd) {
 export const actions = {
   mic: () => toggleMic(),
   'parse-typed': () => parseDraft(document.getElementById('typed')?.value),
-  'discard-draft': () => persist((st) => { st.draft = null; st.draftTranscript = ''; }, { recalc: false })
+  // Thrown away at once, with a way back: a draft is a minute of someone's
+  // talking, and the button sits next to the one that sends it.
+  'discard-draft': async () => {
+    const snap = structuredClone(app.S);
+    await persist((st) => { st.draft = null; st.draftTranscript = ''; }, { recalc: false });
+    toast('Draft discarded', undoTo(snap));
+  }
 };
 
 export const submitActions = { 'save-draft': saveDraft };

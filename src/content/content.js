@@ -46,8 +46,10 @@
     frame.id = 'cadence-frame';
     frame.src = `${PANEL_URL}?host=${encodeURIComponent(location.origin)}`;
     frame.setAttribute('title', 'Cadence planner');
-    // The assistant and teacher dictation can listen instead of making you type.
-    frame.setAttribute('allow', 'microphone');
+    // The assistant and teacher dictation can listen instead of making you
+    // type, and the copy buttons (an invite code, the activities record) can
+    // put text on the clipboard.
+    frame.setAttribute('allow', 'microphone; clipboard-write');
     host.appendChild(frame);
     document.documentElement.appendChild(host);
   }

@@ -142,7 +142,7 @@ export function viewClub() {
     ${leader ? `
       <div class="card">
         <div class="row between"><div><div class="card-title">Invite ${who}</div><div class="card-sub">They join with this code</div></div>
-          <button class="btn small soft" data-act="club-copy" data-code="${esc(c.code)}">${svg(I.copy, 14)} Copy</button></div>
+          <button class="btn small soft" data-copy="${esc(c.code)}">${svg(I.copy, 14)} Copy code</button></div>
         <div class="code mt3">${esc(c.code)}</div>
       </div>
       <div class="row gap2 mb3">
@@ -216,17 +216,11 @@ async function invitePartner() {
     <h2>Invite a partner</h2>
     <p class="lead">Pick someone who will actually notice: a friend, teammate, sibling or parent. Share your code:</p>
     <div class="code">${esc(code)}</div>
-    <button type="button" class="btn soft block mt3" data-copy>${svg(I.copy, 16)} Copy code</button>
+    <button type="button" class="btn soft block mt3" data-copy="${esc(code)}">${svg(I.copy, 16)} Copy code</button>
     <div class="q">Have a friend's code?</div>
     <div class="row gap2"><input type="text" class="code-input" name="code" placeholder="MAYA-7K2" autocomplete="off" spellcheck="false" aria-label="Partner code">
       <button class="btn primary" name="op" value="accept">Add partner</button></div>
-    <div class="actions"><button class="btn ghost" value="cancel">Close</button></div>`, {
-    onMount(form) {
-      form.querySelector('[data-copy]').addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(code); toast('Code copied'); } catch { toast(`Your code is ${code}`); }
-      });
-    }
-  });
+    <div class="actions"><button class="btn ghost" value="cancel">Close</button></div>`);
   if (res?.get('op') !== 'accept') return;
   try {
     const p = await app.sync.acceptInvite(String(res.get('code') || ''));
@@ -309,7 +303,6 @@ export const actions = {
   'club-create': () => createClub(),
   'open-club': (el) => { push('club', { clubId: el.dataset.id }); },
   'club-post': () => postUpdate(),
-  'club-copy': async (el) => { try { await navigator.clipboard.writeText(el.dataset.code); toast('Code copied'); } catch { toast(el.dataset.code); } },
   'club-nudge': async (el) => {
     try { await app.sync.nudge(el.dataset.id, 'A reminder from your club: there is still time this week.'); toast(`Nudged ${el.dataset.name.split(' ')[0]}`); }
     catch (e) { toast(e.message); }

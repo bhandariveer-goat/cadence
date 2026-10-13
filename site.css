@@ -38,11 +38,51 @@
   --r-sm: 4px; --r: 6px; --r-lg: 8px; --r-xl: 12px;
   --m2: 150ms;
   --wide: 1120px;
+  --field: #948e87;
+  --green: #15803d;
+  --red: #b91c1c;
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, .07);
+  --scrim: rgba(20, 19, 18, .5);
   color-scheme: light;
 }
 
+/* Dark, when the toggle in the header (or the app) has chosen it. The same
+   values as the app's. src/panel/theme.js writes data-theme on <html>.
+   Screens only: paper is always light. */
+@media screen {
+:root[data-theme="dark"] {
+  --bg: #141312;
+  --surface-2: #232220;
+  --surface-3: #2d2b28;
+  --line: #2f2d2a;
+  --line-strong: #45423e;
+  --text: #f3f1ee;
+  --text-2: #c4c0ba;
+  --muted: #9c9790;
+  --accent: #ff8a4c;
+  --accent-strong: #ff8a4c;
+  --accent-hover: #ffa06c;
+  --accent-soft: #33211a;
+  --accent-ink: #ffb48a;
+  --on-accent: #1c1b19;
+  --k-school: #a8a29e;
+  --k-event: #60a5fa;
+  --k-activity: #4ade80;
+  --k-work: #ff8a4c;
+  --field: #7d7871;
+  --green: #4ade80;
+  --red: #f87171;
+  --shadow-3: 0 0 0 1px rgba(255, 255, 255, .06);
+  --scrim: rgba(0, 0, 0, .6);
+  color-scheme: dark;
+}
+}
+
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-padding-top: var(--s16); }
+/* hidden means hidden, whatever display a class has set. Controls that need
+   script start hidden in the HTML and must stay that way without it. */
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--s16) + var(--s4)); }
 body { margin: 0; background: var(--bg); color: var(--text); font: 400 var(--t-body)/1.6 var(--font); -webkit-font-smoothing: antialiased; }
 h1, h2, h3, p, ul, ol, dl, dd, figure { margin: 0; }
 h1, h2, h3 { text-wrap: balance; }
@@ -52,31 +92,100 @@ a { color: var(--accent-strong); text-underline-offset: 2px; }
 :focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
 ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
 .wrap { width: 100%; max-width: var(--wide); margin: 0 auto; padding: 0 var(--s6); }
-.skip { position: fixed; top: var(--s2); left: var(--s2); z-index: 20; padding: var(--s2) var(--s3); border-radius: var(--r); background: var(--text); color: var(--bg); font-size: var(--t-sm); font-weight: 500; text-decoration: none; transform: translateY(-200%); }
+.skip { position: fixed; top: var(--s2); left: var(--s2); z-index: 30; padding: var(--s2) var(--s3); border-radius: var(--r); background: var(--text); color: var(--bg); font-size: var(--t-sm); font-weight: 500; text-decoration: none; transform: translateY(-200%); }
+.skip { display: inline-flex; align-items: center; min-height: 44px; }
 .skip:focus { transform: none; }
 
 /* ----------------------------------------------------------------- nav */
-.nav { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line); background: var(--bg); }
+.nav { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--line); background: var(--bg); }
+/* How far down the page you are, as a 2px line on the header's lower edge.
+   It is tied to the scroll position by the browser (no script runs while
+   scrolling) and only where the browser supports that; elsewhere, and for
+   anyone who has asked for less motion, there is no line. */
+@supports (animation-timeline: scroll()) {
+  .nav::after {
+    content: ""; position: absolute; left: 0; bottom: -1px; width: 100%; height: 2px;
+    background: var(--accent); transform-origin: 0 50%; transform: scaleX(0);
+    animation: read-progress linear both; animation-timeline: scroll(root block);
+  }
+  @keyframes read-progress { to { transform: scaleX(1); } }
+  @media (prefers-reduced-motion: reduce) { .nav::after { display: none; } }
+}
 .nav .wrap { display: flex; align-items: center; gap: var(--s6); height: 64px; }
 .brand { display: flex; align-items: center; gap: var(--s2); color: var(--text); font-size: var(--t-body); font-weight: 600; letter-spacing: -.01em; text-decoration: none; }
+a.brand { position: relative; }
+a.brand::after { content: ""; position: absolute; inset: -8px -4px; }
 .brand .mark { width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r); background: var(--accent); color: #fff; }
 .nav .links { display: flex; gap: var(--s6); }
-.nav .links a { position: relative; color: var(--text-2); font-size: var(--t-sm); font-weight: 500; text-decoration: none; }
+.nav .links a { position: relative; color: var(--text-2); font-size: var(--t-sm); font-weight: 500; text-decoration: none; white-space: nowrap; }
 .nav .links a::after { content: ""; position: absolute; inset: -12px -4px; }
 .nav .links a:hover { color: var(--text); }
+.nav .links a[aria-current="page"] { color: var(--text); text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 6px; }
 .nav .spacer, footer .spacer { flex: 1; }
 .nav .actions { display: flex; gap: var(--s2); }
+.nav .tools { display: flex; align-items: center; gap: var(--s2); }
+.tool {
+  position: relative; display: inline-flex; align-items: center; gap: var(--s2); height: 36px; padding: 0 var(--s2) 0 var(--s3);
+  border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--bg); color: var(--muted);
+  font: inherit; font-size: var(--t-sm); cursor: pointer; transition: background-color var(--m2) ease, color var(--m2) ease;
+}
+.tool::after { content: ""; position: absolute; inset: -4px; }
+.tool:hover { background: var(--surface-2); color: var(--text); }
+.tool.icon { width: 36px; padding: 0; justify-content: center; color: var(--text-2); }
+kbd { display: inline-block; min-width: 20px; padding: 0 var(--s1); border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: var(--r-sm); background: var(--bg); color: var(--text-2); font: 500 var(--t-meta)/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; text-align: center; }
+code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surface-2); font: 400 var(--t-sm)/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+/* The name of an icon-only control, on hover and on keyboard focus. */
+[data-tip]::before {
+  content: attr(data-tip); position: absolute; top: calc(100% + var(--s2)); right: 0; z-index: 30; pointer-events: none;
+  padding: var(--s1) var(--s2); border-radius: var(--r); background: var(--text); color: var(--bg);
+  font-size: var(--t-meta); font-weight: 500; line-height: 1.5; white-space: nowrap; opacity: 0; transition: opacity 100ms ease;
+}
+[data-tip]:hover::before, [data-tip]:focus-visible::before { opacity: 1; }
+.float[data-tip]::before { top: auto; bottom: calc(100% + var(--s2)); }
 .menu { display: none; position: relative; }
 .menu summary { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s3); border: 1px solid var(--line-strong); border-radius: var(--r); font-size: var(--t-sm); font-weight: 500; cursor: pointer; list-style: none; }
 .menu summary::-webkit-details-marker { display: none; }
 .menu nav { position: absolute; top: calc(100% + var(--s2)); right: 0; width: 220px; display: grid; padding: var(--s2); border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); box-shadow: 0 4px 12px rgba(0, 0, 0, .06); }
-.menu nav a { display: flex; align-items: center; min-height: 44px; padding: 0 var(--s3); border-radius: var(--r); color: var(--text); font-size: var(--t-sm); font-weight: 500; text-decoration: none; }
-.menu nav a:hover { background: var(--surface-2); }
+.menu summary:hover { background: var(--surface-2); }
+.menu nav a, .menu nav button { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 var(--s3); border: 0; border-radius: var(--r); background: none; color: var(--text); font: inherit; font-size: var(--t-sm); font-weight: 500; text-align: left; text-decoration: none; cursor: pointer; }
+.menu nav a:hover, .menu nav button:hover { background: var(--surface-2); }
+.menu nav a[aria-current="page"] { color: var(--accent-ink); }
+/* On a short screen (a phone on its side) the menu scrolls inside itself, and
+   stops above the bar of actions when that is showing. */
+.menu nav { max-height: calc(100dvh - var(--s16) - var(--s4) - var(--cta-h, 0px)); overflow-y: auto; overscroll-behavior: contain; }
+/* The two buttons are in the menu only while the header has no room for them. */
+.menu nav .demo-link, .menu nav .open-link { display: none; }
+.menu nav button:first-of-type { margin-top: var(--s2); border-top: 1px solid var(--line); border-radius: 0 0 var(--r) var(--r); padding-top: var(--s2); min-height: 52px; }
+/* The header at three widths.
+   A phone: the name, the main button, and a menu that holds everything else.
+   In between: search, the theme and both buttons are in the header, and the
+   links to the parts of the page stay in the menu, because written out they
+   would not fit on one line.
+   Wide: the links are written out and there is no menu. The homepage has six
+   of them, so there it gives up "Try the demo", which is in the page itself
+   a few lines further down. */
+@media (max-width: 1079.98px) {
+  .nav .links { display: none; }
+  .menu { display: block; }
+}
+@media (min-width: 768px) {
+  .menu nav button { display: none; }
+}
+@media (min-width: 1080px) {
+  .nav-home .actions .btn.plain { display: none; }
+}
 @media (max-width: 767.98px) {
   .wrap { padding: 0 var(--s4); }
   .nav .wrap { gap: var(--s2); }
-  .nav .links, .nav .actions .btn.plain { display: none; }
-  .menu { display: block; }
+  .nav .tools, .nav .actions .btn.plain { display: none; }
+  .menu nav .demo-link, .cta-bar-on .menu nav .open-link { display: flex; }
+}
+/* Narrower than any current phone, but it is where a page ends up at 400%
+   zoom: the main button moves into the menu too, and the header still fits. */
+@media (max-width: 359.98px) {
+  .nav .actions { display: none; }
+  .menu nav .open-link { display: flex; }
 }
 
 .btn { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 var(--s4); border: 1px solid transparent; border-radius: var(--r); font: inherit; font-size: var(--t-sm); font-weight: 500; line-height: 1.2; white-space: nowrap; text-decoration: none; cursor: pointer; transition: background-color var(--m2) ease, border-color var(--m2) ease; }
@@ -99,6 +208,23 @@ a { color: var(--accent-strong); text-underline-offset: 2px; }
 .live { width: 100%; max-width: 420px; margin: 0 auto; }
 .live iframe { display: block; width: 100%; height: min(640px, calc(100dvh - 176px)); min-height: 480px; border: 1px solid var(--line-strong); border-radius: var(--r-xl); background: var(--bg); }
 .live figcaption { margin-top: var(--s3); color: var(--muted); font-size: var(--t-sm); text-align: center; }
+/* Until the demo has loaded, its frame holds three quiet bars, not a blank. */
+.live { position: relative; }
+.live-wait { position: absolute; inset: var(--s6) var(--s6) auto; display: grid; gap: var(--s3); pointer-events: none; }
+.live-wait i { height: 12px; border-radius: var(--r-sm); background: var(--surface-3); animation: wait 1.2s ease-in-out infinite alternate; }
+.live-wait i:nth-child(1) { width: 55%; height: 20px; }
+.live-wait i:nth-child(2) { width: 85%; }
+.live-wait i:nth-child(3) { width: 70%; }
+/* The frame is held back only where a script is there to bring it in: theme.js
+   puts data-theme on <html> the moment any script runs. With scripts off the
+   frame simply shows. And if this page's own script never arrives, the frame
+   brings itself in after five seconds instead of staying blank. */
+.live iframe { position: relative; }
+:root[data-theme] .live iframe { opacity: 0; transition: opacity var(--m2) ease; animation: live-late var(--m2) ease 5s forwards; }
+:root[data-theme] .live.ready iframe { opacity: 1; animation: none; }
+:root:not([data-theme]) .live-wait, .live.ready .live-wait { display: none; }
+@keyframes live-late { to { opacity: 1; } }
+@keyframes wait { from { opacity: .45; } to { opacity: 1; } }
 @media (min-width: 960px) {
   .hero { padding: var(--s16) 0; }
   .hero .wrap { grid-template-columns: minmax(0, 1fr) 420px; gap: var(--s16); }
@@ -153,6 +279,28 @@ h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.25; }
 .changes b { display: block; font-weight: 500; }
 .changes small { display: block; color: var(--muted); font-size: var(--t-meta); }
 
+/* One sample week: what went in on the left, the plan day by day on the
+   right, and what came out underneath. */
+.example { display: grid; gap: var(--s8); margin-top: var(--s12); }
+.given h3:not(:first-child) { margin-top: var(--s8); }
+.given ul { display: grid; gap: var(--s2); margin-top: var(--s3); padding-left: var(--s6); color: var(--text-2); }
+/* The days are a list, not a table, so on a phone each one is its name and
+   its total on one line with what was planned underneath, and nothing has to
+   be scrolled sideways. */
+.week { margin: 0; border: 1px solid var(--line-strong); border-radius: var(--r-lg); }
+.week > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s1) var(--s4); padding: var(--s3) var(--s4); }
+.week > div + div { border-top: 1px solid var(--line); }
+.week dt { font-size: var(--t-sm); font-weight: 600; }
+.week dd { grid-column: 1 / -1; color: var(--text-2); font-size: var(--t-sm); }
+.week dd.time { grid-column: 2; grid-row: 1; color: var(--text); font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (min-width: 768px) {
+  .week > div { grid-template-columns: 144px minmax(0, 1fr) auto; }
+  .week dd { grid-column: 2; }
+  .week dd.time { grid-column: 3; }
+}
+.points.results { max-width: 72ch; margin-top: var(--s8); }
+@media (min-width: 960px) { .example { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s16); align-items: start; } }
+
 /* Where it runs: two places, side by side. */
 .places { display: grid; gap: var(--s8); margin-top: var(--s12); }
 .places > div { padding-top: var(--s4); border-top: 2px solid var(--text); }
@@ -170,14 +318,29 @@ h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.25; }
 .where tbody tr + tr > * { border-top: 1px solid var(--line); }
 .after-table { margin-top: var(--s6); }
 
+/* Questions: one column, each answer behind its question. */
+.faq { display: grid; gap: var(--s8); }
+.faq-list { max-width: 72ch; border-top: 1px solid var(--line-strong); }
+.faq-list details { border-bottom: 1px solid var(--line); }
+.faq-list summary { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s4); min-height: 56px; padding: var(--s3) 0; font-size: var(--t-h3); font-weight: 600; line-height: 1.3; cursor: pointer; list-style: none; scroll-margin-top: var(--s16); }
+.faq-list summary::-webkit-details-marker { display: none; }
+.faq-list summary::after { content: ""; width: 8px; height: 8px; flex: none; margin-right: var(--s1); border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translate(-2px, -2px); transition: transform var(--m2) ease; }
+.faq-list details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.faq-list summary:hover { color: var(--accent-ink); }
+.faq-list details p { max-width: 64ch; padding: 0 var(--s8) var(--s6) 0; color: var(--text-2); }
+@media (min-width: 960px) { .faq { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s16); align-items: start; } }
+.faq-list .ask { padding-top: var(--s4); color: var(--text-2); }
+
 .closing h2 { max-width: none; }
 .closing p { margin-top: var(--s2); color: var(--text-2); }
 
 footer { border-top: 1px solid var(--line); padding: var(--s8) 0 var(--s12); color: var(--muted); font-size: var(--t-sm); }
 footer .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s4) var(--s6); }
+.foot-links { display: flex; flex-wrap: wrap; gap: var(--s4) var(--s6); }
 footer a:not(.brand) { position: relative; color: var(--text-2); text-decoration: none; }
 footer a:not(.brand)::after { content: ""; position: absolute; inset: -12px -4px; }
 footer a:not(.brand):hover { color: var(--text); text-decoration: underline; }
+footer .updated-on { flex-basis: 100%; color: var(--muted); font-size: var(--t-meta); }
 
 /* ----------------------------------------------------------- documents */
 /* Privacy and terms: one column, kept to a readable measure. */
@@ -197,4 +360,122 @@ footer a:not(.brand):hover { color: var(--text); text-decoration: underline; }
 .doc th { border-bottom-color: var(--line-strong); color: var(--text); }
 .pending { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-ink); font-weight: 500; }
 
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; } }
+/* Where this page sits: Home, then this page. The last one is where you are
+   and is not a link. The mark between them is drawn, not typed, so a screen
+   reader does not read out a slash. */
+.crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s3); margin: 0 0 var(--s4); padding: 0; list-style: none; font-size: var(--t-sm); }
+.crumbs li { display: inline-flex; align-items: center; gap: var(--s3); color: var(--muted); }
+.crumbs li + li::before { content: ""; width: 1px; height: 12px; background: var(--field); transform: rotate(20deg); }
+.crumbs a { position: relative; color: var(--text-2); text-decoration: none; }
+.crumbs a::after { content: ""; position: absolute; inset: -12px -4px; }
+.crumbs a:hover { color: var(--text); text-decoration: underline; }
+.crumbs [aria-current="page"] { color: var(--text); font-weight: 500; }
+/* A list whose entries are links to go to: each link is a full tap high. */
+.doc ul.ways { gap: 0; }
+.ways a { display: inline-flex; align-items: center; min-height: 44px; }
+.doc .intro { max-width: 60ch; margin-top: var(--s3); font-size: var(--t-lead); line-height: 1.5; }
+
+/* The contact form. A label above every field; what is wrong goes under the
+   field it is about; the button says what it does and is never switched off. */
+.enquiry { display: grid; gap: var(--s4); max-width: 560px; margin-top: var(--s8); }
+.enquiry .field { display: grid; gap: var(--s1); }
+.enquiry p { margin: 0; }
+.enquiry label { color: var(--text); font-size: var(--t-sm); font-weight: 500; }
+.enquiry label i { color: var(--muted); font-style: normal; font-weight: 400; }
+.enquiry input, .enquiry textarea { width: 100%; min-height: 44px; padding: var(--s2) var(--s3); border: 1px solid var(--field); border-radius: var(--r); background: var(--bg); color: var(--text); font: inherit; line-height: 1.4; transition: border-color var(--m2) ease; }
+.enquiry textarea { min-height: 144px; resize: vertical; }
+.enquiry input:hover, .enquiry textarea:hover { border-color: var(--text-2); }
+.enquiry input:focus-visible, .enquiry textarea:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: -1px; border-color: var(--accent-strong); }
+.enquiry [aria-invalid="true"] { border-color: var(--red) !important; }
+.enquiry .hint { color: var(--muted); font-size: var(--t-meta); }
+.enquiry .field-error, .enquiry .form-error { color: var(--red); font-size: var(--t-sm); }
+.enquiry .form-error a { color: inherit; }
+.enquiry .btn { justify-self: start; gap: var(--s2); }
+.enquiry .btn[aria-busy="true"] { opacity: .75; cursor: default; transform: none; }
+.enquiry .btn[aria-busy="true"]::before { content: ""; width: 16px; height: 16px; flex: none; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 800ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 479.98px) { .enquiry .btn { justify-self: stretch; } }
+
+/* -------------------------------------------------------------- search */
+dialog.search { width: min(640px, calc(100vw - var(--s8))); max-height: min(560px, calc(100dvh - var(--s16))); margin: 12vh auto auto; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-xl); background: var(--bg); color: var(--text); box-shadow: var(--shadow-3); overflow: hidden; }
+dialog.search[open] { display: flex; flex-direction: column; animation: pop-in var(--m2) cubic-bezier(.16, 1, .3, 1); }
+dialog.search::backdrop { background: var(--scrim); }
+@keyframes pop-in { from { opacity: 0; transform: scale(.98); } }
+.search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--s2) var(--s3); padding: var(--s4); border-bottom: 1px solid var(--line); }
+.search-field { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--s2); color: var(--text); font-size: var(--t-sm); font-weight: 500; }
+.search-field svg { color: var(--muted); }
+.search-form input { width: 100%; min-height: 44px; padding: 0 var(--s3); border: 1px solid var(--field); border-radius: var(--r); background: var(--bg); color: var(--text); font: inherit; }
+.search-form input::placeholder { color: var(--muted); opacity: 1; }
+.search-form input:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: -1px; border-color: var(--accent-strong); }
+.search-form .btn { min-height: 44px; }
+.search-status { margin: 0; padding: var(--s3) var(--s4) 0; color: var(--muted); font-size: var(--t-sm); }
+.search-status .link { position: relative; padding: 0; border: 0; background: none; color: var(--accent-strong); font: inherit; font-weight: 500; cursor: pointer; }
+.search-status .link::after { content: ""; position: absolute; inset: -12px -4px; }
+.search-status .link:hover { text-decoration: underline; }
+.search-results { flex: 1; min-height: 0; margin: 0; padding: var(--s2); list-style: none; overflow-y: auto; overscroll-behavior: contain; }
+.search-results a { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 0 var(--s3); min-height: 44px; padding: var(--s2) var(--s3); border-radius: var(--r); color: var(--text); text-decoration: none; }
+.search-results a:hover, .search-results a[aria-current] { background: var(--surface-2); }
+.search-results b { font-size: var(--t-sm); font-weight: 500; }
+.search-results small { color: var(--muted); font-size: var(--t-meta); }
+.search-results span { grid-column: 1 / -1; color: var(--text-2); font-size: var(--t-sm); }
+mark { border-radius: var(--r-sm); background: color-mix(in srgb, var(--accent) 28%, transparent); color: inherit; }
+
+/* ------------------------------------------------- copy, floats, notice */
+.copy { position: relative; margin-left: var(--s2); padding: 0 var(--s2); min-height: 28px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--bg); color: var(--text-2); font: inherit; font-size: var(--t-sm); font-weight: 500; cursor: pointer; transition: background-color var(--m2) ease; }
+.copy::after { content: ""; position: absolute; inset: -8px 0; }
+.copy:hover { background: var(--surface-2); color: var(--text); }
+.copy.done { border-color: var(--green); color: var(--green); }
+
+.top-marker { position: absolute; top: 0; left: 0; width: 1px; height: 1px; pointer-events: none; }
+.floaters { position: fixed; right: var(--s4); bottom: calc(var(--s4) + var(--notice-h, 0px) + var(--cta-h, 0px)); z-index: 15; display: grid; justify-items: end; gap: var(--s2); }
+.float { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); width: 44px; height: 44px; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--bg); color: var(--text); font: inherit; font-size: var(--t-sm); font-weight: 500; text-decoration: none; box-shadow: 0 4px 12px rgba(0, 0, 0, .06); cursor: pointer; transition: background-color var(--m2) ease; }
+.float:hover { background: var(--surface-2); }
+.float.wide { width: auto; padding: 0 var(--s4) 0 var(--s3); }
+
+.notice { position: fixed; left: var(--s4); bottom: var(--s4); z-index: 16; display: grid; gap: var(--s3); width: min(400px, calc(100vw - var(--s8))); padding: var(--s4); border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); box-shadow: 0 4px 12px rgba(0, 0, 0, .06); font-size: var(--t-sm); }
+.notice p { color: var(--text-2); }
+.notice-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3); }
+.notice-actions a { position: relative; color: var(--text); }
+.notice-actions a::after { content: ""; position: absolute; inset: -12px -4px; }
+@media (min-width: 768px) { :root { --notice-h: 0px !important; } }
+@media (max-width: 767.98px) { .notice { left: var(--s2); right: var(--s2); bottom: calc(var(--s2) + var(--cta-h, 0px)); width: auto; } }
+
+/* On a phone the two main actions follow you down the homepage in a bar at
+   the bottom, within reach of a thumb. It is only there while neither of the
+   page's own pairs of buttons is on screen, so the same button is never shown
+   twice; while this is working the header's copy steps aside as well. */
+.cta-bar { display: none; }
+@media (max-width: 767.98px) {
+  .cta-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 14; display: flex; gap: var(--s2); padding: var(--s2) var(--s4) max(var(--s2), env(safe-area-inset-bottom)); border-top: 1px solid var(--line-strong); background: var(--bg); }
+  .cta-bar .btn { flex: 1; }
+  .cta-bar-on .nav .actions { display: none; }
+  /* While the bar is up, the corner keeps only the way back to the top:
+     Contact is in the menu and the footer, and a phone has no room for both. */
+  .cta-bar:not([hidden]) ~ .floaters .float.wide { display: none; }
+}
+
+/* ---------------------------------------------------------------- print */
+/* The privacy policy and the terms are things people print or save. On
+   paper: no header, no buttons, black on white, and every link's address
+   written out after it. */
+@media print {
+  :root { --bg: #fff; --surface-2: #fff; --surface-3: #eee; --line: #bbb; --line-strong: #888; --text: #000; --text-2: #222; --muted: #444; --accent-strong: #000; --accent-ink: #000; }
+  .nav, .skip, .floaters, .notice, .cta, .cta-bar, .crumbs, .live, .closing, dialog, .copy, .enquiry, footer .spacer, footer a:not(.brand) { display: none !important; }
+  body { font-size: 11pt; }
+  section { padding: 16pt 0; break-inside: avoid; }
+  h1, h2, h3 { break-after: avoid; }
+  .doc { max-width: none; padding: 0; }
+  .doc a[href^="http"]::after, .doc a[href^="mailto:"]::after { content: " (" attr(href) ")"; font-weight: 400; word-break: break-all; }
+  .faq-list details { break-inside: avoid; }
+  .faq-list summary::after { display: none; }
+  .where { overflow: visible; }
+  .where table { min-width: 0; }
+  footer { border-top: 1px solid #888; }
+  @page { margin: 18mm; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .live-wait i { animation: none; opacity: .7; }
+  .enquiry .btn[aria-busy="true"]::before { display: none; }
+}

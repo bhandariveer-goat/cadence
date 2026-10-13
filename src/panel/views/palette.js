@@ -33,6 +33,11 @@ function build(query) {
   add({ label: 'Add an activity', hint: 'Practice, team, job, goal', icon: I.plus, kind: 'Action', run: () => document.dispatchEvent(new CustomEvent('cadence:act', { detail: { act: 'add-commit' } })) });
   add({ label: 'Add an assignment', hint: 'Type it how you would say it', icon: I.list, kind: 'Action', run: () => { go('plan'); setTimeout(() => $('.quickadd input')?.focus(), 60); } });
   if (insideCanvas) add({ label: 'Refresh from Canvas', hint: 'Pull new assignments', icon: I.canvas, kind: 'Action', run: () => syncCanvas() });
+  if (window.CadenceTheme) {
+    const dark = window.CadenceTheme.current() === 'dark';
+    add({ label: dark ? 'Switch to light theme' : 'Switch to dark theme', hint: 'Appearance: light or dark, kept in this browser', icon: dark ? I.sun : I.moon, kind: 'Action',
+      run: () => window.CadenceTheme.set(dark ? 'light' : 'dark') });
+  }
   add({ label: 'Keyboard shortcuts', hint: 'Everything you can press', icon: I.settings, kind: 'Action', run: () => shortcutsSheet() });
 
   for (const n of NAV) add({ ...n, kind: 'Go to' });

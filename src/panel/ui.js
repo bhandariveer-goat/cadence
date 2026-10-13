@@ -17,6 +17,8 @@ export const svg = (inner, size) => `<svg viewBox="0 0 24 24" fill="none" stroke
   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${size ? ` width="${size}" height="${size}"` : ''}>${inner}</svg>`;
 
 export const I = {
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7l8.5 6 8.5-6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/>',
   cal: '<rect x="3" y="4.5" width="18" height="16" rx="3.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.6 14.6c2.6.3 4.3 2.1 4.9 5"/>',
@@ -193,14 +195,111 @@ export function installTips() {
   document.addEventListener('scroll', hide, true);
 }
 
+/**
+ * Puts text on the clipboard. The modern way first; where that is blocked (an
+ * older browser, or a frame that was not given the permission) the older way,
+ * which needs a real text box to copy from. True if either worked.
+ */
+export async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* try the older way */ }
+  try {
+    const box = document.createElement('textarea');
+    box.value = text;
+    box.setAttribute('readonly', '');
+    box.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0';
+    // Inside an open dialog everything outside it is inert, so the box goes in it.
+    (document.querySelector('dialog[open]') || document.body).appendChild(box);
+    box.select();
+    const ok = document.execCommand('copy');
+    box.remove();
+    return ok;
+  } catch { return false; }
+}
+
+/** Copies, and says how it went on the button that was pressed, then puts the button's own words back. */
+export async function copyFrom(button, text) {
+  const html = button._html ?? (button._html = button.innerHTML);
+  const ok = await copyText(text);
+  button.textContent = ok ? 'Copied' : 'Could not copy. Select it instead.';
+  button.classList.toggle('done', ok);
+  button.setAttribute('aria-live', 'polite');
+  if (document.activeElement !== button) button.focus({ preventScroll: true });
+  clearTimeout(button._back);
+  button._back = setTimeout(() => { button.innerHTML = html; button.classList.remove('done'); }, ok ? 2000 : 4000);
+  return ok;
+}
+
+/**
+ * Two small behaviours that work anywhere, including inside a sheet.
+ *
+ *   data-copy="text"    copies the text (see copyFrom above)
+ *   data-reveal="id"    shows what is typed in the password field with that
+ *                       id, or hides it again; the button says which it does
+ */
+export function installFieldHelpers() {
+  document.addEventListener('click', (e) => {
+    const copy = e.target.closest?.('[data-copy]');
+    if (copy) {
+      e.preventDefault();
+      copyFrom(copy, copy.dataset.copy);
+      return;
+    }
+    const reveal = e.target.closest?.('[data-reveal]');
+    if (reveal) {
+      e.preventDefault();
+      const field = document.getElementById(reveal.dataset.reveal);
+      if (!field) return;
+      const show = field.type === 'password';
+      const what = reveal.dataset.what || 'what you typed';
+      field.type = show ? 'text' : 'password';
+      reveal.textContent = show ? 'Hide' : 'Show';
+      reveal.setAttribute('aria-label', `${show ? 'Hide' : 'Show'} ${what}`);
+      field.focus({ preventScroll: true });
+    }
+  });
+}
+
+/**
+ * Says that a form worked, in the status line next to that form (an element
+ * that is already on the page and empty, so a screen reader announces the
+ * change), and clears it again after a while.
+ */
+let flashTimer = null;
+export function flash(id, text, ms = 10000) {
+  clearTimeout(flashTimer);
+  // After the view has been redrawn, so the line that gets the text is the
+  // one now on the page.
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    flashTimer = setTimeout(() => { const now = document.getElementById(id); if (now) now.textContent = ''; }, ms);
+  }, 60);
+}
+
+/**
+ * A short message at the bottom of the screen. With an action (Undo) it stays
+ * for eight seconds, and for as long as the pointer or the keyboard is on it:
+ * a way back that leaves before it can be reached is not a way back.
+ */
 let toastTimer = null;
+let toastStale = null;
 export function toast(msg, action) {
   const t = $('#toast');
+  // Emptied when it goes, so a button that is no longer shown cannot be pressed.
+  const hide = () => { clearTimeout(toastTimer); t.hidden = true; t.innerHTML = ''; };
   t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button type="button">${esc(action.label)}</button>` : ''}`;
-  if (action) t.querySelector('button').onclick = () => { t.hidden = true; action.run(); };
+  if (action) t.querySelector('button').onclick = () => { hide(); action.run(); };
   t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, action ? 5500 : 3200);
+  const arm = () => { clearTimeout(toastTimer); toastTimer = setTimeout(hide, action ? 8000 : 3200); };
+  t.onmouseenter = t.onfocusin = () => clearTimeout(toastTimer);
+  t.onmouseleave = t.onfocusout = arm;
+  arm();
+  // An Undo that restores the whole plan (core.js undoTo) goes as soon as the
+  // plan is changed again; see persist().
+  document.removeEventListener('cadence:edited', toastStale);
+  toastStale = action?.untilEdited ? hide : null;
+  if (toastStale) document.addEventListener('cadence:edited', toastStale, { once: true });
 }
 
 // ------------------------------------------------------------- formatting

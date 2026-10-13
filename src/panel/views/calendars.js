@@ -1,7 +1,7 @@
 // Connect and manage calendar sources: the Canvas feed, Google Calendar, and
 // how often Cadence checks them.
 
-import { app, persist, refreshSources, pushGoogleBlocks, back, insideCanvas } from '../core.js';
+import { app, persist, refreshSources, pushGoogleBlocks, back, insideCanvas, undoTo } from '../core.js';
 import { pushedItems } from '../../lib/replanner.js';
 import { SOURCE_META, canvasFeed, google } from '../../lib/sources/sources.js';
 import { fmtMinutes } from '../../lib/util.js';
@@ -155,8 +155,9 @@ async function canvasFeedSheet() {
   if (!res) return;
 
   if (res.get('op') === 'remove') {
+    const snap = structuredClone(app.S);
     await persist((st) => { st.sources.canvasFeed = { ...st.sources.canvasFeed, enabled: false, url: '', events: [], assignments: [], error: null }; });
-    return toast('Canvas feed removed');
+    return toast('Canvas feed removed', undoTo(snap));
   }
   const url = String(res.get('url') || '').trim();
   if (!url) return toast('Paste the feed link first');
@@ -183,6 +184,7 @@ async function googleConnect() {
       <div class="card soft small mb4">
         <b>Redirect URI to paste into Google</b>
         <div class="muted mt1 break">${esc(google.redirectUri())}</div>
+        <button type="button" class="btn small soft mt2" data-copy="${esc(google.redirectUri())}" aria-live="polite">Copy the redirect URI</button>
       </div>
       <label class="field"><span>Client ID</span>
         <input type="text" name="clientId" placeholder="1234-abc.apps.googleusercontent.com" autocomplete="off" spellcheck="false"></label>

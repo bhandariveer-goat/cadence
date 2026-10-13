@@ -6,7 +6,16 @@
 #   /demo        demo.html    the same planner with sample data
 #   /privacy     privacy.html
 #   /terms       terms.html
+#   /contact     contact.html the contact form (Netlify Forms; see LAUNCH.md)
+#   /thanks      thanks.html  where the form lands once a message is sent
+#   anything else             404.html, which Netlify serves by itself
+#   /robots.txt, /sitemap.xml written by scripts/stamp_pages.py
 #   /api/agent   netlify/functions/agent.mjs   the assistant, server side
+#   /api/visit   netlify/functions/visit.mjs   visit counts, off by default
+#
+# The one step before a commit that touches the site's address, who runs it,
+# or a page's title: python3 scripts/stamp_pages.py. It writes those into the
+# HTML, so what is served is complete without any script running.
 #
 # Secrets (ANTHROPIC_API_KEY and friends) are set in the Netlify UI. They are
 # never written here: functions cannot read variables declared in this file,
@@ -40,6 +49,16 @@
 [[redirects]]
   from = "/terms"
   to = "/terms.html"
+  status = 200
+
+[[redirects]]
+  from = "/contact"
+  to = "/contact.html"
+  status = 200
+
+[[redirects]]
+  from = "/thanks"
+  to = "/thanks.html"
   status = 200
 
 # Old links to the app keep working. force = true because the file still

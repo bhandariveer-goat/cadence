@@ -283,6 +283,61 @@ end $$;
 revoke all on function bump_agent_usage() from public;
 grant execute on function bump_agent_usage() to authenticated;
 
+-- ------------------------------------------------------------ visit counts
+-- Optional, and off unless site.countVisits is true in src/config.js. When a
+-- link to the site carries a label (utm_source and friends), the site asks
+-- netlify/functions/visit.mjs to add one to that label's count for the day.
+--
+-- A row is three short labels, a date and a number. There is no visitor in
+-- it: no ip address, no account, no cookie, no user agent. Row level security
+-- is on with no policies, so the count can only be added to through the
+-- function below and only read by the project owner (the SQL editor, or the
+-- Table editor in the Supabase dashboard).
+--
+-- The function is open to "anon" because a visitor has no account. So that an
+-- open function cannot be used to fill the table, a day holds at most 200
+-- different labels; anything past that is added to one row called "other".
+-- Rows older than 400 days are removed.
+
+create table if not exists visit_counts (
+  day date not null default current_date,
+  source text not null default '',
+  medium text not null default '',
+  campaign text not null default '',
+  count int not null default 0,
+  primary key (day, source, medium, campaign)
+);
+
+alter table visit_counts enable row level security;
+
+create or replace function count_visit(p_source text, p_medium text, p_campaign text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  s text := coalesce(p_source, '');
+  m text := coalesce(p_medium, '');
+  c text := coalesce(p_campaign, '');
+begin
+  -- The same rule the server function applies, repeated here because this
+  -- function can also be called directly with the public key.
+  if s !~ '^[a-z0-9_-]{0,40}$' or m !~ '^[a-z0-9_-]{0,40}$' or c !~ '^[a-z0-9_-]{0,40}$' then
+    raise exception 'bad label';
+  end if;
+  if s = '' and m = '' and c = '' then raise exception 'no label'; end if;
+
+  delete from visit_counts where day < current_date - 400;
+
+  if not exists (select 1 from visit_counts v where v.day = current_date and v.source = s and v.medium = m and v.campaign = c)
+     and (select count(*) from visit_counts v where v.day = current_date) >= 200 then
+    s := 'other'; m := ''; c := '';
+  end if;
+
+  insert into visit_counts as v (day, source, medium, campaign, count) values (current_date, s, m, c, 1)
+  on conflict (day, source, medium, campaign) do update set count = v.count + 1;
+end $$;
+
+revoke all on function count_visit(text, text, text) from public;
+grant execute on function count_visit(text, text, text) to anon, authenticated;
+
 -- --------------------------------------------------------- delete my account
 -- Removes the sign-in itself; every table above references auth.users or
 -- profiles with "on delete cascade", so the plan, check-ins, kudos, nudges and

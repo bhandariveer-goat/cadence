@@ -5,14 +5,14 @@
 // tab answers "what do I actually have to do, and how big is it".
 
 import {
-  app, persist, restore, go, push, render, findSession, runningSession, minutesSince, rankedTasks, plannable
+  app, persist, go, push, render, findSession, runningSession, minutesSince, rankedTasks, plannable, undoTo
 } from '../core.js';
 import { learn } from '../../lib/estimator.js';
 import { isStale } from '../../lib/priority.js';
 import { parseAssignmentText } from '../../lib/parse.js';
 import { fmtMinutes, fmtTime, fmtDay, dateKey, addDays, atTime, uid, MIN, DAY, clamp } from '../../lib/util.js';
 import {
-  svg, I, esc, sheet, toast, colorFor, dueLabel, longDay, timeSelect, plural, toLocalInput
+  svg, I, esc, sheet, toast, flash, colorFor, dueLabel, longDay, timeSelect, plural, toLocalInput
 } from '../ui.js';
 import { ART } from './parts.js';
 import { stepSchedule, ensureGuide } from './guide.js';
@@ -48,14 +48,15 @@ function schoolList() {
   return `
     <label class="quickadd-label" for="quick-add">Add an assignment</label>
     <form class="quickadd" data-form="quick-add">
-      <input type="text" id="quick-add" name="text" placeholder="Spanish quiz Thursday, 30 min" autocomplete="off">
+      <input type="text" id="quick-add" name="text" placeholder="Spanish quiz Thursday, 30 min" autocomplete="off" required data-error="Type the assignment first, for example: Spanish quiz Thursday, 30 min.">
       <button class="btn primary" type="submit">Add assignment</button>
     </form>
+    <p class="form-success" id="quick-add-status" role="status"></p>
 
     ${groups.filter(([, list]) => list.length).map(([label, list]) => `
-      <div class="section"><div class="section-head"><h2>${label}</h2><span class="muted">${list.length}</span></div>
+      <div class="section group"><div class="section-head"><h2>${label}</h2><span class="muted">${list.length}</span></div>
       <div class="card flush">${list.map(taskRow).join('')}</div></div>`).join('')}
-    ${done.length ? `<div class="section"><div class="section-head"><h2>Finished this week</h2><span class="muted">${done.length}</span></div>
+    ${done.length ? `<div class="section group"><div class="section-head"><h2>Finished this week</h2><span class="muted">${done.length}</span></div>
       <div class="card flush">${done.map(taskRow).join('')}</div></div>` : ''}
     ${!open.length && !done.length ? `<div class="card"><div class="empty"><h2>No assignments yet</h2><p>They arrive from Canvas through the Chrome extension, or add one in the box above. Each gets a time estimate and its own blocks on your calendar.</p></div></div>` : ''}`;
 }
@@ -197,7 +198,7 @@ async function finishSession(id) {
   const msg = !finished ? 'Block done.'
     : drift > 0.2 ? 'Done! Next time Cadence will plan more time for these.'
       : drift < -0.2 ? 'Done, and quicker than planned. Cadence will remember.' : CHEERS[Math.floor(Math.random() * CHEERS.length)];
-  toast(msg, { label: 'Undo', run: () => restore(snap) });
+  toast(msg, undoTo(snap));
 }
 
 async function undoSession(id) {
@@ -226,7 +227,7 @@ async function skipSession(id) {
   });
   const moved = (app.S.plan?.sessions || []).find((x) => (x.taskId === s.taskId || (s.commitmentId && x.commitmentId === s.commitmentId)) && !x.done && x.id !== s.id);
   toast(moved ? `Moved to ${fmtDay(moved.start) === 'Today' ? 'later today' : fmtDay(moved.start)} at ${fmtTime(moved.start)}` : 'Moved to later',
-    { label: 'Undo', run: () => restore(snap) });
+    undoTo(snap));
 }
 
 async function completeTask(taskId) {
@@ -247,7 +248,7 @@ async function completeTask(taskId) {
   const snap = structuredClone(app.S);
   if (app.view === 'guide') { app.view = app.stack.pop()?.view || 'plan'; }
   await persist((st) => { finishTask(st, st.tasks[taskId], actual === 'skip' ? 0 : Number(actual)); });
-  toast(CHEERS[Math.floor(Math.random() * CHEERS.length)], { label: 'Undo', run: () => restore(snap) });
+  toast(CHEERS[Math.floor(Math.random() * CHEERS.length)], undoTo(snap));
 }
 
 async function dismissTask(taskId) {
@@ -256,7 +257,7 @@ async function dismissTask(taskId) {
   const snap = structuredClone(app.S);
   if (app.view === 'guide') { app.view = app.stack.pop()?.view || 'plan'; }
   await persist((st) => { if (t.source === 'manual') delete st.tasks[taskId]; else st.dismissed[taskId] = true; });
-  toast(t.source === 'manual' ? 'Deleted' : 'Taken off your plan', { label: 'Undo', run: () => restore(snap) });
+  toast(t.source === 'manual' ? 'Deleted' : 'Taken off your plan', undoTo(snap));
 }
 
 async function editTask(taskId) {
@@ -305,7 +306,12 @@ async function quickAdd(form, text) {
   form.reset();
   const first = (app.S.plan?.sessions || []).find((s) => s.taskId === id && !s.done);
   const t = app.S.tasks[id];
-  toast(first ? `Added. About ${fmtMinutes(t.estimateMin)}, starting ${fmtDay(first.start)} at ${fmtTime(first.start)}.` : `Added ${t.title}`);
+  // Said under the box it was typed in, and the cursor goes back there, so a
+  // list of five things is five lines and five Enters.
+  flash('quick-add-status', first
+    ? `Added ${t.title}. About ${fmtMinutes(t.estimateMin)}, starting ${dayWord(dateKey(new Date(first.start)))} at ${clockOf(first.start)}.`
+    : `Added ${t.title}.`);
+  if (app.view === 'plan') document.getElementById('quick-add')?.focus();
 }
 
 export const actions = {

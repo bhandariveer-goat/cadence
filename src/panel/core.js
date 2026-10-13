@@ -443,13 +443,21 @@ const shouldAutoSync = () => !app.S.lastSync || Date.now() - +new Date(app.S.las
  * did (as opposed to housekeeping), which is what sync compares between devices.
  */
 export async function persist(mutator, { recalc = true, edit = true } = {}) {
+  // An Undo still on screen that works by putting the whole plan back was
+  // made for the plan as it stood before this change. It is withdrawn here,
+  // because pressing it now would undo this change as well.
+  if (edit) document.dispatchEvent(new Event('cadence:edited'));
   app.S = await update((st) => { mutator(st); if (edit) st.editedAt = new Date().toISOString(); if (recalc) recompute(st); return st; });
   updateBadge();
   render();
   if (edit) pushSoon();
 }
 
+/** The Undo for a change that is taken back by restoring the plan from just before it. */
+export const undoTo = (snapshot) => ({ label: 'Undo', run: () => restore(snapshot), untilEdited: true });
+
 export async function restore(snapshot) {
+  document.dispatchEvent(new Event('cadence:edited'));
   app.S = await saveState({ ...snapshot, cloud: app.S.cloud, editedAt: new Date().toISOString() });
   updateBadge();
   render();

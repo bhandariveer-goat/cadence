@@ -8,8 +8,8 @@
 // can be upgraded to an email later.
 
 import { app, render, signInLocal, signInCloud, resolvePlanConflict, planConflict, insideCanvas, STANDALONE } from '../core.js';
+import { svg, I, esc, toast, flash } from '../ui.js';
 import { cloudConfigured } from '../../config.js';
-import { svg, I, esc, toast } from '../ui.js';
 import { ART } from './parts.js';
 
 export const pageUrl = (page) => new URL(`../../../${page}`, import.meta.url).href;
@@ -50,13 +50,17 @@ export function viewSignIn() {
       <p class="lead">We sent a six-digit code to <b>${esc(d.email)}</b>. It can take a minute to arrive.</p>
       <form class="signin-form" data-form="signin-code" autocomplete="off">
         <label class="field"><span>Code</span>
-          <input type="text" class="code-input" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" spellcheck="false" placeholder="123456" required data-error="Enter the six-digit code from the email."></label>
+          <input type="text" class="code-input" name="code" value="${esc(d.code || '')}" inputmode="numeric" maxlength="6" autocomplete="one-time-code" spellcheck="false" placeholder="123456" required data-error="Enter the six-digit code from the email."></label>
         <label class="field"><span>Your name</span>
           <input type="text" name="name" value="${esc(d.name || d.canvasName || '')}" maxlength="60" autocomplete="given-name" required data-error="Enter a name for Cadence to call you."></label>
         ${d.error ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
         <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
-      <button class="link mt4" data-act="signin-back">Use a different email</button>
+      <p class="form-success" id="signin-status" role="status"></p>
+      <p class="signin-more">
+        <button class="link" data-act="signin-resend" ${d.resending ? 'aria-busy="true"' : ''}>${d.resending ? 'Sending a new code…' : 'Send a new code'}</button>
+        <button class="link" data-act="signin-back">Use a different email</button>
+      </p>
     </div>`;
   }
 
@@ -109,6 +113,7 @@ export function viewSignIn() {
       ${STANDALONE ? `<a href="${esc(pageUrl('demo.html'))}">Try the demo</a>` : ''}
       <a href="${esc(pageUrl('privacy.html'))}" target="_blank" rel="noopener">Privacy</a>
       <a href="${esc(pageUrl('terms.html'))}" target="_blank" rel="noopener">Terms</a>
+      <a href="${esc(pageUrl('contact.html'))}" target="_blank" rel="noopener">Contact</a>
     </p>
   </div>`;
 }
@@ -126,7 +131,7 @@ export const submitActions = {
     if (d.busy) return;
     const email = String(data.get('email') || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Enter an email like you@school.org.', 'email');
-    Object.assign(d, { email, busy: true, error: null });
+    Object.assign(d, { email, busy: true, error: null, code: '' });
     render();
     try {
       await app.cloud.sendCode(email);
@@ -141,7 +146,7 @@ export const submitActions = {
     const code = String(data.get('code') || '').replace(/\D/g, '');
     const name = String(data.get('name') || '').trim();
     if (code.length !== 6) return fail('Enter the six-digit code from the email.', 'code');
-    Object.assign(d, { name, busy: true, error: null });
+    Object.assign(d, { name, code, busy: true, error: null });
     render();
     try {
       const { conflict, remote } = await signInCloud(d.email, code, name);
@@ -154,7 +159,25 @@ export const submitActions = {
 };
 
 export const actions = {
-  'signin-back': () => { Object.assign(draft(), { step: 'start', error: null, busy: false }); render(); },
+  'signin-back': () => { Object.assign(draft(), { step: 'start', error: null, busy: false, code: '' }); render(); },
+  // A code that never arrived, or ran out. What is already typed is kept, and
+  // the result is said next to the form: sent, or why not.
+  'signin-resend': async () => {
+    const d = draft();
+    if (d.busy || d.resending || !d.email) return;
+    const typed = (name) => document.querySelector(`.signin-form [name="${name}"]`)?.value;
+    Object.assign(d, { resending: true, error: null, code: typed('code') ?? d.code, name: typed('name') ?? d.name });
+    render();
+    try {
+      await app.cloud.sendCode(d.email);
+      d.resending = false;
+      render();
+      flash('signin-status', `A new code is on its way to ${d.email}. Use the newest one.`, 20000);
+    } catch (e) {
+      d.resending = false;
+      fail(e.message, 'code');
+    }
+  },
   'signin-cancel': () => { app.signin = null; render(); },
   'signin-keep': async (el) => {
     const d = draft();

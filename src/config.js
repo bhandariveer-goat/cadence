@@ -22,11 +22,27 @@ export const CONFIG = {
 
   // Shown on the privacy policy and terms pages. Fill these in before launch;
   // the pages say so plainly while they are empty.
+  //
+  // After changing anything in this block, run
+  //     python3 scripts/stamp_pages.py
+  // It writes these values into the HTML itself (and into robots.txt and
+  // sitemap.xml), so the pages are complete before any script runs.
   site: {
     name: 'Cadence',
-    domain: '',
+    // Where the site lives, with no https:// and no slash. The Netlify
+    // address for now; replace it with the custom domain when there is one.
+    domain: 'cadenceaiplanning.netlify.app',
     operator: '',
-    contactEmail: ''
+    contactEmail: '',
+    // The promise on the contact page: "We reply within ___." Written so it
+    // finishes that sentence. Leave it empty to make no promise.
+    replyWithin: 'a week',
+    // Count visits that arrive from a labelled link (utm_source and friends):
+    // one number per label per day, nothing about the visitor. Off unless you
+    // turn it on, because the privacy page says "no tracking" while it is off
+    // and changes its wording by itself when it is on. Needs the Supabase
+    // project and the two SUPABASE_ variables on the server (see LAUNCH.md).
+    countVisits: false
   }
 };
 

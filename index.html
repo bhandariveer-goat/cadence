@@ -1,68 +1,90 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme-default="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cadence: the planner that schedules your homework</title>
-<meta name="description" content="Cadence reads your assignments from Canvas and plans the work around school, practice and sleep. When your day changes, tell it in a sentence and the week is rebuilt.">
-<link rel="icon" href="favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="icons/icon32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="icons/icon16.png">
-<link rel="apple-touch-icon" href="icons/icon192.png">
-<meta name="theme-color" content="#ffffff">
-<meta property="og:title" content="Cadence: the planner that schedules your homework">
-<meta property="og:description" content="Classes, activities and assignments on one calendar, with the time to do the work already planned.">
+<meta name="description" content="Cadence reads your assignments from Canvas and plans the work around school, practice and sleep. When your day changes, tell it in a sentence.">
+<!-- stamp:head -->
+<link rel="canonical" href="https://cadenceaiplanning.netlify.app/">
+<meta property="og:site_name" content="Cadence">
 <meta property="og:type" content="website">
-<meta property="og:image" content="icons/icon512.png">
-<link rel="stylesheet" href="site.css">
+<meta property="og:title" content="Cadence: the planner that schedules your homework">
+<meta property="og:description" content="Cadence reads your assignments from Canvas and plans the work around school, practice and sleep. When your day changes, tell it in a sentence.">
+<meta property="og:url" content="https://cadenceaiplanning.netlify.app/">
+<meta property="og:image" content="https://cadenceaiplanning.netlify.app/icons/social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Cadence: the planner that schedules your homework. A week with school, activities, events and planned work.">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Cadence","url":"https://cadenceaiplanning.netlify.app/"}</script>
+<!-- /stamp:head -->
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/icon32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/icon16.png">
+<link rel="apple-touch-icon" href="/icons/icon192.png">
+<meta name="theme-color" content="#ffffff">
+<script src="/src/panel/theme.js"></script>
+<link rel="stylesheet" href="/site.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to the page</a>
 
-<header class="nav"><div class="wrap">
-  <a class="brand" href="./" translate="no"><span class="mark"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.1 5.9"/><path d="M12 8a4 4 0 1 1-3.8 2.8"/></svg></span>Cadence</a>
+<header class="nav nav-home"><div class="wrap">
+  <a class="brand" href="/" translate="no"><span class="mark"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.1 5.9"/><path d="M12 8a4 4 0 1 1-3.8 2.8"/></svg></span>Cadence</a>
   <nav class="links" aria-label="On this page">
     <a href="#what">What it does</a>
     <a href="#how">How it plans</a>
+    <a href="#example">An example</a>
     <a href="#assistant">The assistant</a>
     <a href="#data">Your data</a>
+    <a href="#questions">Questions</a>
   </nav>
   <span class="spacer"></span>
+  <div class="tools">
+    <button type="button" class="tool icon" data-search hidden aria-label="Search this site" aria-keyshortcuts="/" data-tip="Search this site (press /)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
+    <button type="button" class="tool icon" data-theme-toggle hidden aria-label="Switch to dark theme" data-tip="Switch to dark theme"></button>
+  </div>
   <div class="actions">
-    <a class="btn plain small" href="demo.html">Try the demo</a>
-    <a class="btn primary small" href="app.html">Open Cadence</a>
+    <a class="btn plain small" href="/demo.html">Try the demo</a>
+    <a class="btn primary small" href="/app.html">Open Cadence</a>
   </div>
   <details class="menu">
     <summary>Menu</summary>
     <nav aria-label="On this page">
       <a href="#what">What it does</a>
       <a href="#how">How it plans</a>
+      <a href="#example">An example</a>
       <a href="#assistant">The assistant</a>
       <a href="#data">Your data</a>
-      <a href="demo.html">Try the demo</a>
+      <a href="#questions">Questions</a>
+      <a href="/contact.html">Contact</a>
+      <a class="demo-link" href="/demo.html">Try the demo</a>
+      <a class="open-link" href="/app.html">Open Cadence</a>
     </nav>
   </details>
 </div></header>
 
-<main id="main">
+<main id="main" tabindex="-1">
 
 <div class="hero"><div class="wrap">
   <div>
     <h1>The planner that schedules your homework.</h1>
     <p class="sub">Cadence reads assignments from Canvas and plans the work around school, practice and sleep. Tell it when your day changes.</p>
     <div class="cta">
-      <a class="btn primary large" href="app.html">Open Cadence</a>
-      <a class="btn plain large" href="demo.html">Try the demo</a>
+      <a class="btn primary large" href="/app.html">Open Cadence</a>
+      <a class="btn plain large" href="/demo.html">Try the demo</a>
     </div>
   </div>
   <figure class="live">
-    <iframe src="demo.html?embed=1" title="Cadence, running with a sample week"></iframe>
+    <div class="live-wait" aria-hidden="true"><i></i><i></i><i></i></div>
+    <iframe src="/demo.html?embed=1" title="Cadence, running with a sample week"></iframe>
     <figcaption>This is the app itself, with a sample week. Click around.</figcaption>
   </figure>
 </div></div>
 
 <section id="what"><div class="wrap jobs">
-  <h2>Three tabs, three jobs.</h2>
+  <h2 id="three-tabs-three-jobs">Three tabs, three jobs.</h2>
   <dl>
     <div><dt>Calendar</dt>
       <dd>Everything with a time on it: school hours, practice, a dentist appointment, what is due, and the blocks planned for the work itself.</dd></div>
@@ -74,23 +96,62 @@
 </div></section>
 
 <section id="how"><div class="wrap">
-  <h2>It does not ask how many hours you want to work.</h2>
+  <h2 id="it-does-not-ask-how-many-hours-you-want-to-work">It does not ask how many hours you want to work.</h2>
   <p class="lead">Most planners open with a settings page. Students do not know those numbers, and the same answer every Tuesday is wrong the Tuesday there is a meet.</p>
   <div class="rules">
-    <div><h3>Free time is worked out per day</h3>
+    <div><h3 id="free-time-is-worked-out-per-day">Free time is worked out per day</h3>
       <p>A day runs from when you wake to when you sleep. School and your calendar take their hours. What is left is where work can go.</p></div>
-    <div><h3>A light week stays light</h3>
+    <div><h3 id="a-light-week-stays-light">A light week stays light</h3>
       <p>Cadence tries the lightest evenings first and makes them heavier only when something would otherwise miss its due date.</p></div>
-    <div><h3>What is due soonest goes first</h3>
+    <div><h3 id="what-is-due-soonest-goes-first">What is due soonest goes first</h3>
       <p>Long assignments are split across several days, with no more than two blocks of the same thing back to back.</p></div>
-    <div><h3>If something will not fit, it says so</h3>
+    <div><h3 id="if-something-will-not-fit-it-says-so">If something will not fit, it says so</h3>
       <p>Once, by name, with the due date. It does not quietly fill every night to make the numbers work.</p></div>
   </div>
+  <p class="after-table">The next section applies these four rules to <a href="#example">one sample week</a>.</p>
+</div></section>
+
+<section id="example"><div class="wrap">
+  <h2 id="a-sample-week-worked-through">A sample week, worked through.</h2>
+  <p class="lead">This is the week in the demo, as Cadence plans it at 6pm on a Sunday. The student, Fiona, is made up. The plan is not: it is what the planner produced for this list.</p>
+  <div class="example">
+    <div class="given">
+      <h3 id="what-was-on-the-list">What was on the list</h3>
+      <ul>
+        <li>Eight assignments, 18h 40m of work in all</li>
+        <li>One of them already a day late: a physics worksheet</li>
+        <li>The biggest: a research paper draft, 8 hours, due in 13 days</li>
+      </ul>
+      <h3 id="what-was-already-taken">What was already taken</h3>
+      <ul>
+        <li>School, 8:30am to 3:30pm on weekdays</li>
+        <li>Robotics until 5:30pm on Monday and Wednesday, cross-country until 5:45pm on Tuesday and Thursday</li>
+        <li>A family dinner on Tuesday, the dentist on Friday, a food bank shift on Saturday morning</li>
+        <li>Piano five times a week and college essays twice, at no fixed time</li>
+      </ul>
+    </div>
+    <dl class="week">
+      <div><dt>Sunday, from 6pm</dt><dd>The late worksheet first, then college essays, piano, and the first 45 minutes of the calculus problem set</dd><dd class="time">2h 50m planned</dd></div>
+      <div><dt>Monday</dt><dd>The rest of the problem set and a permission slip, both due Tuesday at 8am. Piano, and the first of three sittings of The Great Gatsby</dd><dd class="time">1h 55m planned</dd></div>
+      <div><dt>Tuesday</dt><dd>Piano before the family dinner. After it, Gatsby finished and the vocab quiz started</dd><dd class="time">2h planned</dd></div>
+      <div><dt>Wednesday</dt><dd>Vocab finished the evening before the quiz, college essays, and the lab report started</dd><dd class="time">1h 50m planned</dd></div>
+      <div><dt>Thursday</dt><dd>Piano, two more blocks of the lab report, and a first 20 minutes on an interview writeup</dd><dd class="time">2h planned</dd></div>
+      <div><dt>Friday</dt><dd>The lab report finished a day early, then piano</dd><dd class="time">1h 55m planned</dd></div>
+      <div><dt>Saturday</dt><dd>The writeup before and after the food bank shift, then the first two blocks of the research paper</dd><dd class="time">2h 45m planned</dd></div>
+    </dl>
+  </div>
+  <ul class="points results">
+    <li><b>Seven of the eight are finished before they are due.</b> The eighth was late before the week began, which is why it is done first. The closest of the rest is the permission slip: due Tuesday at 8am, done on Monday at 6:20pm.</li>
+    <li><b>Monday to Friday never go past two hours.</b> Saturday and Sunday carry up to three.</li>
+    <li><b>The research paper is spread over five days.</b> Twelve blocks from Saturday to the following Wednesday, finished three days before it is due.</li>
+    <li><b>What did not fit is named.</b> One piano session that Saturday and one college-essays session the next day have no slot: each of those days has fifteen minutes left under its limit, and neither session is that short. Cadence says so instead of pushing a day past its limit.</li>
+  </ul>
+  <p class="after-table">The same week is running in the <a href="/demo.html">demo</a>. Open it on another day and the dates move with you, so the details will differ.</p>
 </div></section>
 
 <section id="assistant"><div class="wrap split">
   <div>
-    <h2>Say what is going on. The plan changes.</h2>
+    <h2 id="say-what-is-going-on-the-plan-changes">Say what is going on. The plan changes.</h2>
     <p class="lead">Type that you are home and tired. Cadence puts dinner on the calendar, keeps tonight to what you can do, and moves the rest.</p>
     <ul class="points">
       <li><b>It shows its work.</b> Every reply lists what changed and what moved because of it.</li>
@@ -113,54 +174,97 @@
 </div></section>
 
 <section id="where"><div class="wrap">
-  <h2>A Chrome extension on Canvas, and this website.</h2>
+  <h2 id="a-chrome-extension-on-canvas-and-this-website">A Chrome extension on Canvas, and this website.</h2>
   <div class="places">
-    <div><h3>On Canvas</h3>
+    <div><h3 id="on-canvas">On Canvas</h3>
       <p>The extension adds a Cadence button to every Canvas page and reads your courses and assignments with the login you already have there. There is no API token to create and nothing for your school to install.</p></div>
-    <div><h3>On the website</h3>
+    <div><h3 id="on-the-website">On the website</h3>
       <p>The same planner with more room: the week grid, the assistant beside it, and keyboard shortcuts. A website cannot read Canvas by itself, which is what the extension is for.</p></div>
   </div>
-  <p class="also" data-needs="cloud" hidden>Sign in with the same email in both and they show the same plan. Sign-in is a six-digit code sent to your email. There is no password.</p>
+  <!--off <p class="also" data-needs="cloud">Sign in with the same email in both and they show the same plan. Sign-in is a six-digit code sent to your email. There is no password.</p> off-->
   <p class="also" data-needs="no-cloud">Connect Google Calendar, or paste your Canvas calendar feed link, and Cadence plans around what is already there. It writes to Google Calendar only if you turn that on, item by item.</p>
 </div></section>
 
 <section id="data"><div class="wrap">
-  <h2>What goes where.</h2>
+  <h2 id="what-goes-where">What goes where.</h2>
   <div class="where" tabindex="0" role="region" aria-label="What Cadence stores and where">
     <table>
       <thead><tr><th scope="col">What</th><th scope="col">Where it is kept</th><th scope="col">Who else receives it</th></tr></thead>
       <tbody>
-        <tr><th scope="row">Your plan</th><td>In your browser.<span data-needs="cloud" hidden> If you sign in with an email, a copy is saved to your account so your other devices can load it.</span></td><td>No one</td></tr>
+        <tr><th scope="row">Your plan</th><td>In your browser.<!--off <span data-needs="cloud"> If you sign in with an email, a copy is saved to your account so your other devices can load it.</span> off--></td><td>No one</td></tr>
         <tr><th scope="row">Canvas assignments</th><td>Read in your own browser, with your own Canvas login</td><td>No one</td></tr>
         <tr><th scope="row">Connected calendars</th><td>On the device where you connected them</td><td>No one</td></tr>
         <tr><th scope="row">What you tell the assistant</th><td>Simple sentences are read on your device</td><td>Anthropic, only when the assistant uses Claude for a harder one: your message and a summary of your week</td></tr>
-        <tr><th scope="row">Ads and analytics</th><td>There are none</td><td>No one</td></tr>
+        <tr><th scope="row">A message you send us</th><td>With Netlify, the company that hosts this site</td><td>The person who runs Cadence, to answer you. Netlify checks it for spam with a service called Akismet</td></tr>
+        <tr data-needs="no-visits"><th scope="row">Ads and analytics</th><td>There are none</td><td>No one</td></tr>
+        <!--off <tr data-needs="visits"><th scope="row">Ads and visit counts</th><td>No ads. A link shared with a label on it adds one to that label&rsquo;s count for the day</td><td>No one, and nothing about you is recorded</td></tr> off-->
       </tbody>
     </table>
   </div>
-  <p class="after-table"><a href="privacy.html">Read the privacy policy</a>, which lists exactly what is in that summary.</p>
+  <p class="after-table"><a href="/privacy.html">Read the privacy policy</a>, which lists exactly what is in that summary, or see <a href="/privacy.html#deleting-your-data">how to delete your data</a>.</p>
+</div></section>
+
+<section id="questions"><div class="wrap faq">
+  <h2 id="questions-2">Questions.</h2>
+  <div class="faq-list">
+    <details><summary id="is-cadence-free">Is Cadence free?</summary>
+      <p>Yes. There is no paid plan and there are no ads.</p></details>
+    <details><summary id="does-my-school-have-to-set-anything-up">Does my school have to set anything up?</summary>
+      <p>No. The extension reads Canvas through the login you already have in your browser, so there is no API token to create and nothing for an administrator to install.</p></details>
+    <details><summary id="can-i-use-it-without-canvas">Can I use it without Canvas?</summary>
+      <p>Yes. Type an assignment in a sentence, like &ldquo;Spanish quiz Thursday, 30 min&rdquo;, and it is estimated and scheduled the same way. Activities and events never needed Canvas. The <a href="/demo.html">demo</a> works the same way, with a sample week already in it.</p></details>
+    <details><summary id="how-does-it-know-how-long-something-takes">How does it know how long something takes?</summary>
+      <p>It starts from the assignment&rsquo;s title and instructions. When you finish something it asks whether that took less time, about that, or longer, and later estimates for the same kind of work adjust. You can set the time yourself on any assignment.</p></details>
+    <details><summary id="what-if-i-am-having-a-bad-day">What if I am having a bad day?</summary>
+      <p>Tell the assistant how much you can do tonight. There is <a href="#assistant">an example of that</a> further up this page. That night keeps the number you gave it and the rest of the week absorbs the difference. If something can no longer be finished on time, it says which thing and when it is due.</p></details>
+    <details><summary id="does-it-work-on-my-phone">Does it work on my phone?</summary>
+      <p>The website works in a phone&rsquo;s browser. The Chrome extension, which is the part that reads Canvas, runs in Chrome on a computer or a Chromebook.</p></details>
+    <details><summary id="who-can-see-my-plan">Who can see my plan?</summary>
+      <p>Nobody, unless you add an accountability partner or join a club. They see your name and the check-ins for the activities you chose to share, and nothing about your assignments or your calendar. The privacy policy says <a href="/privacy.html#what-other-people-can-see">exactly what they can see</a>.</p></details>
+    <details><summary id="is-the-assistant-an-ai">Is the assistant an AI?</summary>
+      <p>Simple sentences are read by ordinary code on your own device. Harder ones can go to Claude, an AI model made by Anthropic, if you add your own key or sign in on a copy of Cadence that offers it. The privacy policy lists <a href="/privacy.html#the-assistant-and-ai">exactly what is sent</a>.</p></details>
+    <p class="ask">Not answered here? <a href="/contact.html">Ask on the contact page</a>.<span data-needs="reply"> We reply within <span data-site="reply">a week</span>.</span></p>
+  </div>
 </div></section>
 
 <section class="closing"><div class="wrap">
-  <h2>Try it with your own week.</h2>
+  <h2 id="try-it-with-your-own-week">Try it with your own week.</h2>
   <p>Free, in Chrome on Canvas and on this website.</p>
   <div class="cta">
-    <a class="btn primary large" href="app.html">Open Cadence</a>
-    <a class="btn plain large" href="demo.html">Try the demo</a>
+    <a class="btn primary large" href="/app.html">Open Cadence</a>
+    <a class="btn plain large" href="/demo.html">Try the demo</a>
   </div>
 </div></section>
 
 </main>
 
+<div class="cta-bar" data-cta-bar hidden>
+  <a class="btn primary" href="/app.html">Open Cadence</a>
+  <a class="btn plain" href="/demo.html">Try the demo</a>
+</div>
+
 <footer><div class="wrap">
-  <a class="brand" href="./" translate="no"><span class="mark"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.1 5.9"/><path d="M12 8a4 4 0 1 1-3.8 2.8"/></svg></span>Cadence</a>
+  <a class="brand" href="/" translate="no"><span class="mark"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.1 5.9"/><path d="M12 8a4 4 0 1 1-3.8 2.8"/></svg></span>Cadence</a>
   <span class="spacer"></span>
-  <a href="app.html">Open Cadence</a>
-  <a href="demo.html">Try the demo</a>
-  <a href="privacy.html">Privacy</a>
-  <a href="terms.html">Terms</a>
+  <nav class="foot-links" aria-label="Footer">
+    <a href="/app.html">Open Cadence</a>
+    <a href="/demo.html">Try the demo</a>
+    <a href="/contact.html">Contact</a>
+    <a href="/privacy.html">Privacy</a>
+    <a href="/terms.html">Terms</a>
+  </nav>
+  <span class="updated-on">Site updated <span data-site="updated"><time datetime="2026-10-12">October 12, 2026</time></span></span>
 </div></footer>
 
-<script type="module" src="site.js"></script>
+<aside class="notice" data-notice aria-label="How Cadence stores things" hidden>
+  <p data-needs="no-visits">Cadence uses no cookies and no tracking. Your plan is kept in this browser&rsquo;s storage.</p>
+  <!--off <p data-needs="visits">Cadence uses no cookies. Your plan is kept in this browser&rsquo;s storage. Visits from shared links are counted by the link&rsquo;s label, never by person.</p> off-->
+  <div class="notice-actions">
+    <a href="/privacy.html">Read the privacy policy</a>
+    <button type="button" class="btn plain small" data-dismiss>Hide this notice</button>
+  </div>
+</aside>
+
+<script type="module" src="/site.js"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@
 // due (lib/daymodel.js). What is here is only what Cadence cannot know without
 // being told: when school runs and roughly when you sleep.
 
-import { app, persist, push, back, render, insideCanvas, DEMO, signOut, syncDown, STANDALONE } from '../core.js';
+import { app, persist, push, back, render, insideCanvas, DEMO, signOut, syncDown, STANDALONE, undoTo } from '../core.js';
 import { parseICS } from '../../lib/calendar.js';
 import { parseCanvasFeed, looksLikeCanvasIcs } from '../../lib/sources/canvasFeed.js';
 import { applyImported } from '../../lib/sources/sources.js';
@@ -79,6 +79,7 @@ export function viewAccount() {
       <label class="integration toggle"><span class="ic">${svg(I.bell, 18)}</span>
         <span class="grow"><span class="t block">Reminders</span><small>A nudge before each block and check-in</small></span>
         <input type="checkbox" data-act="set-toggle" data-key="remindersEnabled" ${S.settings.remindersEnabled ? 'checked' : ''}><i></i></label>
+      ${window.CadenceTheme ? row('theme-sheet', window.CadenceTheme.current() === 'dark' ? I.moon : I.sun, 'Appearance', themeLine()) : ''}
       ${row('role', I.swap, teacher ? 'Switch to student view' : 'Teacher and club leader tools', teacher ? 'Plan your own week' : 'Draft assignments by voice, run a club')}
     </div>
 
@@ -92,7 +93,39 @@ export function viewAccount() {
 
     <p class="page-foot">
       <a href="${esc(pageUrl('privacy.html'))}" target="_blank" rel="noopener">Privacy</a>
-      <a href="${esc(pageUrl('terms.html'))}" target="_blank" rel="noopener">Terms</a></p>`;
+      <a href="${esc(pageUrl('terms.html'))}" target="_blank" rel="noopener">Terms</a>
+      ${contactLink()}</p>`;
+}
+
+/** The way to reach whoever runs this copy of Cadence: the contact page. */
+export const contactLink = () => `<a href="${esc(pageUrl('contact.html'))}" target="_blank" rel="noopener">Contact</a>`;
+
+const THEMES = {
+  light: { label: 'Light', sub: '' },
+  dark: { label: 'Dark', sub: '' },
+  system: { label: 'Match this device', sub: 'Follows the light or dark setting of your computer or phone' }
+};
+
+function themeLine() {
+  const T = window.CadenceTheme;
+  const pref = T.preference();
+  return pref === 'system' ? `Matching this device, which is ${T.current()} right now` : THEMES[pref].label;
+}
+
+async function themeSheet() {
+  const T = window.CadenceTheme;
+  if (!T) return;
+  const pref = T.preference();
+  const res = await sheet(`
+    <h2>Appearance</h2>
+    <p class="lead">This choice is kept in this browser. It is not part of your plan and is not saved to your account.</p>
+    <div class="choices stacked">${Object.entries(THEMES).map(([id, v]) =>
+      `<button class="choice" name="theme" value="${id}" aria-pressed="${pref === id}">${v.label}${v.sub ? `<small>${v.sub}</small>` : ''}</button>`).join('')}</div>
+    <div class="actions"><button class="btn ghost" value="cancel">Cancel</button></div>`);
+  const pick = res?.get('theme');
+  if (!THEMES[pick]) return;
+  T.set(pick);
+  render();
 }
 
 const clockOf = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); const ap = h >= 12 ? 'pm' : 'am'; const hr = h % 12 || 12; return m ? `${hr}:${String(m).padStart(2, '0')}${ap}` : `${hr}${ap}`; };
@@ -210,11 +243,12 @@ async function icsSheet() {
   if (!res) return;
   const form = document.getElementById('sheet-form');
   if (res.get('op') === 'clear') {
+    const snap = structuredClone(app.S);
     await persist((st) => {
       st.busy = st.busy.filter((b) => b.source !== 'ics');
       if (st.sources?.canvasFeed?.fromFile && !st.sources.canvasFeed.url) st.sources.canvasFeed.enabled = false;
     });
-    return toast('Imported events removed');
+    return toast('Imported events removed', undoTo(snap));
   }
   const text = form.dataset.ics || '';
   delete form.dataset.ics;
@@ -244,7 +278,9 @@ async function aiSheet() {
   const res = await sheet(`
     <h2>Assistant</h2>
     <p class="lead">The assistant already reads plain sentences on its own. With an Anthropic API key it uses Claude for messier ones, and writes the summary and steps on each assignment from the full instructions.</p>
-    <label class="field"><span>Anthropic API key</span><input type="password" name="key" value="${esc(s.apiKey || '')}" placeholder="Starts with sk-ant-" autocomplete="off" spellcheck="false"></label>
+    <div class="field"><label for="ai-key">Anthropic API key</label>
+      <div class="with-btn"><input type="password" id="ai-key" name="key" value="${esc(s.apiKey || '')}" placeholder="Starts with sk-ant-" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn soft" data-reveal="ai-key" data-what="the key" aria-label="Show the key">Show</button></div></div>
     <p class="hint up">Kept on this device and sent only to Anthropic. It is not saved to your Cadence account. Using it is billed to whoever owns the key.</p>
     <label class="toggle"><input type="checkbox" name="on" ${s.useAI || !s.apiKey ? 'checked' : ''}><i></i><span>Use Claude with this key</span></label>
     <div class="actions"><button class="btn ghost" value="cancel">Cancel</button><button class="btn primary" name="op" value="save">Save changes</button></div>`);
@@ -319,6 +355,7 @@ export const actions = {
   'style-sheet': () => styleSheet(),
   'ics-sheet': () => icsSheet(),
   'ai-sheet': () => aiSheet(),
+  'theme-sheet': () => themeSheet(),
   'account-signout': () => signOutFlow(),
   'account-delete': () => deleteFlow(),
   'account-add-email': () => addEmail(),

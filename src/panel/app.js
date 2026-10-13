@@ -7,7 +7,7 @@ import {
   app, boot, setRender, go, back, push, activeTab, runningSession, findSession, syncCanvas, insideCanvas, STANDALONE, DEMO, EMBEDDED, signedIn, planConflict
 } from './core.js';
 import { showUpStreak } from '../lib/habits.js';
-import { svg, I, mmss, toast, $, isWide, isDesktop, esc, installTips } from './ui.js';
+import { svg, I, mmss, toast, $, isWide, isDesktop, esc, installTips, installFieldHelpers } from './ui.js';
 
 import * as today from './views/today.js';
 import * as plan from './views/plan.js';
@@ -58,6 +58,7 @@ const ACTIONS = {
   back: () => back(),
   palette: () => openPalette(),
   shortcuts: () => shortcutsSheet(),
+  'theme-toggle': () => window.CadenceTheme?.set(window.CadenceTheme.current() === 'dark' ? 'light' : 'dark'),
   streak: () => {
     const s = showUpStreak(app.S);
     toast(s.days
@@ -92,6 +93,7 @@ function renderApp() {
     $('#btn-close').hidden = STANDALONE;
     $('#btn-cmd').hidden = !isDesktop() || !!gate;
     renderStreak(!!gate || teacher);
+    renderTheme();
     renderAccount(!!gate);
     const ask = $('#btn-agent');
     ask.hidden = !!gate || teacher;
@@ -142,6 +144,20 @@ function renderStreak(hide) {
   chip.setAttribute('aria-label', `${s.days}-day streak${s.freezes ? `, ${s.freezes} freezes` : ''}`);
   chip.dataset.tip = `${s.days}-day streak`;
   chip.innerHTML = `${svg(I.flame, 16)}<span>${s.days}</span>`;
+}
+
+/** Light or dark, one click away where the header has room for it. The same
+    choice, with "match this device" as well, is under Account > Appearance. */
+function renderTheme() {
+  const btn = $('#btn-theme');
+  const T = window.CadenceTheme;
+  btn.hidden = !T || !isDesktop();
+  if (btn.hidden) return;
+  const dark = T.current() === 'dark';
+  const label = dark ? 'Switch to light theme' : 'Switch to dark theme';
+  btn.innerHTML = svg(dark ? I.sun : I.moon, 18);
+  btn.dataset.tip = label;
+  btn.setAttribute('aria-label', label);
 }
 
 function renderAccount(hide) {
@@ -213,9 +229,11 @@ document.addEventListener('input', (ev) => {
 });
 
 // Fields are checked when they are left, never while they are being typed in,
-// and the message goes the moment the field is touched again. Submit is always
+// and the message goes as soon as the field is changed. Submit is always
 // clickable: with something missing it says what, next to the field, and puts
-// the cursor there. The browser's own bubbles are turned off (novalidate is
+// the cursor there. The message stays while the cursor arrives (focus alone
+// does not clear it, or pointing at the field would erase what it was being
+// pointed at for). The browser's own bubbles are turned off (novalidate is
 // set as forms appear) so errors have one voice, in one place.
 const fieldMessage = (el) => (el.validity.valid ? '' : (el.dataset.error || (el.validity.valueMissing ? 'Fill this in to go on.' : 'Check this and try again.')));
 function clearFieldError(el) {
@@ -239,8 +257,24 @@ function showFieldError(el) {
   return true;
 }
 const checked = (el) => el.matches?.('input, select, textarea') && el.willValidate && !!el.closest('form');
-document.addEventListener('focusout', (ev) => { if (checked(ev.target) && ev.target.value !== '') showFieldError(ev.target); });
-document.addEventListener('focusin', (ev) => { if (checked(ev.target)) clearFieldError(ev.target); });
+// Leaving a field by pressing a button: the check waits until the press is
+// over. A message appearing under the field moves everything below it, and a
+// button that moves between the press and the release never gets its click.
+// (mousedown and mouseup, because a tap produces those too, and it is on
+// mousedown that focus leaves the field.)
+let pressing = false;
+document.addEventListener('mousedown', () => { pressing = true; }, true);
+document.addEventListener('mouseup', () => { pressing = false; }, true);
+document.addEventListener('keydown', () => { pressing = false; }, true);
+window.addEventListener('blur', () => { pressing = false; });
+document.addEventListener('focusout', (ev) => {
+  const el = ev.target;
+  if (!checked(el) || el.value === '') return;
+  const check = () => { if (el.isConnected && el.value !== '') showFieldError(el); };
+  if (!pressing) return check();
+  // The click, if there is one, is sent straight after mouseup; this runs after it.
+  document.addEventListener('mouseup', () => setTimeout(check, 0), { capture: true, once: true });
+});
 document.addEventListener('input', (ev) => { if (checked(ev.target)) clearFieldError(ev.target); });
 new MutationObserver(() => { for (const f of document.querySelectorAll('form:not([novalidate])')) f.noValidate = true; })
   .observe(document.documentElement, { childList: true, subtree: true });
@@ -276,6 +310,15 @@ for (const q of ['(min-width: 768px)', '(min-width: 1180px)']) {
 installShortcuts({ checkinPicker });
 agent.installAgentInput();
 installTips();
+installFieldHelpers();
+
+// The theme can change from here, from another tab, or with the system at
+// sunset. The header button always follows; the page is redrawn only when it
+// is the one that shows the choice, so nothing being typed elsewhere is lost.
+document.addEventListener('cadence:theme', () => {
+  renderTheme();
+  if (app.S && app.view === 'account' && signedIn()) renderApp();
+});
 
 // The palette runs actions by name rather than reaching into every module.
 document.addEventListener('cadence:act', (e) => {

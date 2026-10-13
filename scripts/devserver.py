@@ -11,9 +11,15 @@ differences that matter while developing:
   * with --mock it also answers the two backends Cadence talks to, so sign-in,
     sync and the assistant can be exercised without a Supabase project or an
     Anthropic key. The mock keeps everything in memory and accepts any
-    six-digit code.
+    six-digit code. It also stands in for Netlify Forms, so the contact page
+    can be sent: without --mock a form post gets the 404 it would get on a
+    Netlify site where forms have not been switched on.
+
+Like Netlify, it serves 404.html (with a 404 status) for an address that does
+not exist, and each page at its clean address: /privacy is privacy.html.
 """
 import json
+import re
 import sys
 import time
 import uuid
@@ -32,6 +38,9 @@ ROWS = {}       # user id -> {data, updated_at}
 PROFILES = {}   # user id -> row
 USAGE = {}      # user id -> count
 AGENT_CALLS = []
+VISITS = {}     # "source|medium|campaign" -> count
+ENQUIRIES = []  # what the contact form sent, minus anything a bot filled in
+LABEL = re.compile(r'^[a-z0-9_-]{0,40}$')
 
 
 def _moment(stamp):
@@ -94,15 +103,42 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
         self.end_headers()
 
+    def send_error(self, code, message=None, explain=None):
+        # An address with nothing at it gets the site's own 404 page, as it
+        # does on Netlify, and still says 404.
+        page = ROOT / '404.html'
+        if code == 404 and page.is_file() and self.command in ('GET', 'HEAD'):
+            raw = page.read_bytes()
+            self.send_response(404)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(raw)))
+            self.end_headers()
+            if self.command == 'GET':
+                self.wfile.write(raw)
+            return
+        super().send_error(code, message, explain)
+
     def do_GET(self):
         path = urlparse(self.path).path
+        if MOCK and path == '/mock/visits':
+            return self._json(200, VISITS)
+        if MOCK and path == '/mock/enquiries':
+            return self._json(200, ENQUIRIES)
         if MOCK and path.startswith('/mock/'):
             return self._mock('GET', path[5:])
-        # The same clean addresses netlify.toml sets up: /app serves app.html.
-        name = path.strip('/')
-        if name and '.' not in name and '/' not in name and (ROOT / f'{name}.html').is_file():
-            self.path = f'/{name}.html' + (('?' + urlparse(self.path).query) if urlparse(self.path).query else '')
+        self._clean_address()
         return super().do_GET()
+
+    def do_HEAD(self):
+        self._clean_address()
+        return super().do_HEAD()
+
+    def _clean_address(self):
+        """The same clean addresses netlify.toml sets up: /app is app.html."""
+        parts = urlparse(self.path)
+        name = parts.path.strip('/')
+        if name and '.' not in name and '/' not in name and (ROOT / f'{name}.html').is_file():
+            self.path = f'/{name}.html' + (('?' + parts.query) if parts.query else '')
 
     def do_POST(self):
         path = urlparse(self.path).path
@@ -110,6 +146,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self._mock('POST', path[5:])
         if MOCK and path == '/api/agent':
             return self._agent()
+        if MOCK and path == '/api/visit':
+            return self._visit()
+        if MOCK and 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', ''):
+            return self._form(path)
         self._json(404, {'message': 'not found'})
 
     do_PATCH = do_POST
@@ -176,6 +216,38 @@ class Handler(SimpleHTTPRequestHandler):
         body = self._body()
         AGENT_CALLS.append(body)
         self._json(501, {'error': 'The mock server has no model behind it. The assistant falls back to reading the message itself.'})
+
+    def _form(self, path):
+        """Stand-in for Netlify Forms. A post with a form-name is kept; one with
+        the hidden box filled in is accepted and thrown away, as Netlify does
+        with spam. A script gets 200; a plain form post is sent on to the page
+        named in the form's action, which is the address it was posted to."""
+        n = int(self.headers.get('Content-Length') or 0)
+        fields = {k: v[0] for k, v in parse_qs(self.rfile.read(n).decode('utf-8', 'replace'), keep_blank_values=True).items()}
+        if not fields.get('form-name'):
+            return self._json(404, {'message': 'not found'})
+        if not fields.get('bot-field'):
+            ENQUIRIES.append({k: v for k, v in fields.items() if k != 'bot-field'})
+        if path in ('', '/'):
+            self.send_response(200)
+            self.send_header('Content-Length', '0')
+            return self.end_headers()
+        self.send_response(303)
+        self.send_header('Location', path)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+
+    def _visit(self):
+        """Stand-in for netlify/functions/visit.mjs: the same rule, kept in memory."""
+        body = self._body()
+        labels = [body.get(k, '') if isinstance(body.get(k, ''), str) else None for k in ('source', 'medium', 'campaign')]
+        if any(v is None or not LABEL.match(v) for v in labels) or not any(labels):
+            self.send_response(400)
+            return self.end_headers()
+        key = '|'.join(labels)
+        VISITS[key] = VISITS.get(key, 0) + 1
+        self.send_response(204)
+        self.end_headers()
 
 
 if __name__ == '__main__':

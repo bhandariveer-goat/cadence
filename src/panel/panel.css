@@ -45,6 +45,7 @@
   --amber-soft: #fbf2dc;
   --red: #b91c1c;
   --red-soft: #fcecec;
+  --on-red: #ffffff;
 
   /* What kind of thing is on the calendar. Used everywhere a day is drawn. */
   --k-school: #8a857f;
@@ -101,42 +102,46 @@
   color-scheme: light;
 }
 
-/* The panel inside Canvas follows the system. The website stays light. */
-@media (prefers-color-scheme: dark) {
-  :root:not(:has(body.web)) {
-    --bg: #141312;
-    --surface: #1b1a18;
-    --surface-2: #232220;
-    --surface-3: #2d2b28;
-    --line: #2f2d2a;
-    --line-strong: #45423e;
-    --field: #7d7871;
-    --text: #f3f1ee;
-    --text-2: #c4c0ba;
-    --muted: #9c9790;
-    --accent: #ff8a4c;
-    --accent-strong: #ff8a4c;
-    --accent-hover: #ffa06c;
-    --accent-soft: #33211a;
-    --accent-ink: #ffb48a;
-    --on-accent: #1c1b19;
-    --ring: #ff8a4c;
-    --green: #4ade80;
-    --green-soft: #16291d;
-    --amber: #e5b455;
-    --amber-soft: #2e2614;
-    --red: #f87171;
-    --red-soft: #331a1a;
-    --k-school: #a8a29e;
-    --k-event: #60a5fa;
-    --k-activity: #4ade80;
-    --k-work: #ff8a4c;
-    --ring-track: rgba(243, 241, 238, .12);
-    --shadow-2: 0 0 0 1px rgba(255, 255, 255, .04);
-    --shadow-3: 0 0 0 1px rgba(255, 255, 255, .06);
-    --scrim: rgba(0, 0, 0, .6);
-    color-scheme: dark;
-  }
+/* Dark. Which theme shows is decided by src/panel/theme.js and written on
+   <html data-theme>: the person's own choice if they made one, otherwise
+   light on the website and the system's setting in the panel inside Canvas.
+   Screens only: on paper it is always the light set above. */
+@media screen {
+:root[data-theme="dark"] {
+  --bg: #141312;
+  --surface: #1b1a18;
+  --surface-2: #232220;
+  --surface-3: #2d2b28;
+  --line: #2f2d2a;
+  --line-strong: #45423e;
+  --field: #7d7871;
+  --text: #f3f1ee;
+  --text-2: #c4c0ba;
+  --muted: #9c9790;
+  --accent: #ff8a4c;
+  --accent-strong: #ff8a4c;
+  --accent-hover: #ffa06c;
+  --accent-soft: #33211a;
+  --accent-ink: #ffb48a;
+  --on-accent: #1c1b19;
+  --ring: #ff8a4c;
+  --green: #4ade80;
+  --green-soft: #16291d;
+  --amber: #e5b455;
+  --amber-soft: #2e2614;
+  --red: #f87171;
+  --red-soft: #331a1a;
+  --k-school: #a8a29e;
+  --k-event: #60a5fa;
+  --k-activity: #4ade80;
+  --k-work: #ff8a4c;
+  --ring-track: rgba(243, 241, 238, .12);
+  --shadow-2: 0 0 0 1px rgba(255, 255, 255, .04);
+  --shadow-3: 0 0 0 1px rgba(255, 255, 255, .06);
+  --scrim: rgba(0, 0, 0, .6);
+  --on-red: #1c1b19;
+  color-scheme: dark;
+}
 }
 
 /* ---------------------------------------------------------------- base */
@@ -170,6 +175,7 @@ svg { flex: none; }
   background: var(--text); color: var(--bg); font-size: var(--t-sm); font-weight: 500; text-decoration: none;
   transform: translateY(-200%);
 }
+.skip { display: inline-flex; align-items: center; min-height: var(--hit); }
 .skip:focus { transform: none; }
 
 /* --------------------------------------------------------------- shell */
@@ -192,8 +198,9 @@ svg { flex: none; }
 /* main takes focus only from the skip link (tabindex -1), never from Tab,
    so it shows no ring of its own. */
 main {
-  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-  padding: var(--s4) var(--gutter) var(--s8); outline: none;
+  --pad-top: var(--s4);
+  position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--pad-top) var(--gutter) var(--s8); outline: none;
 }
 
 .tabbar {
@@ -329,12 +336,21 @@ kbd {
 .btn.ghost:hover { background: var(--surface-2); color: var(--text); }
 .btn.danger { color: var(--red); }
 .btn.danger:hover { background: var(--red-soft); }
-.btn.danger-solid { background: var(--red); color: #fff; }
+.btn.danger-solid { background: var(--red); color: var(--on-red); }
 .btn.danger-solid:hover { background: color-mix(in srgb, var(--red) 86%, #000); }
 .btn.small { min-height: 36px; padding: 0 var(--s3); }
 .btn.small::after { content: ""; position: absolute; inset: -4px 0; }
 .btn.block { width: 100%; white-space: normal; padding-block: var(--s2); text-align: center; }
-.btn:disabled, .btn[aria-busy="true"] { opacity: .55; cursor: default; transform: none; }
+.btn.done { border-color: var(--green); color: var(--green); }
+.btn:disabled { opacity: .55; cursor: default; transform: none; }
+/* Working on it: the label says what ("Sending…") and a small ring turns in
+   front of it. The button keeps its place and its width. */
+.btn[aria-busy="true"], .link[aria-busy="true"] { opacity: .75; cursor: default; transform: none; }
+.btn[aria-busy="true"]::before, .link[aria-busy="true"]::before {
+  content: ""; width: 14px; height: 14px; flex: none; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+.link[aria-busy="true"] { display: inline-flex; align-items: center; gap: var(--s2); text-decoration: none; }
 
 /* --------------------------------------------------------------- cards */
 /* A card is a frame for a group, not a decoration for one thing. */
@@ -478,6 +494,9 @@ button.tl-card:hover { background: var(--surface-2); border-color: var(--line-st
 .people { display: flex; gap: var(--s4); padding: var(--s1) 0 var(--s2); overflow-x: auto; scrollbar-width: none; }
 .people::-webkit-scrollbar { display: none; }
 .person { display: flex; flex-direction: column; align-items: center; gap: var(--s1); width: 72px; flex: none; padding: 0; border: 0; background: none; }
+.person .avatar, .person-add { transition: box-shadow var(--m2) ease, background-color var(--m2) ease; }
+.person:hover .avatar { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--line-strong); }
+.person:hover .person-add { background: var(--surface-2); color: var(--text); }
 .person-add { width: 56px; height: 56px; display: grid; place-items: center; border: 1px dashed var(--line-strong); border-radius: 50%; color: var(--text-2); }
 .person .name { max-width: 72px; font-size: var(--t-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person .streak { display: inline-flex; align-items: center; gap: 2px; color: var(--amber); font-size: var(--t-meta); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -559,7 +578,7 @@ button.tl-card:hover { background: var(--surface-2); border-color: var(--line-st
 /* A label above every control. The outline is dark enough to find. */
 
 .field { display: block; margin-bottom: var(--s4); }
-.field > span { display: block; margin-bottom: var(--s1); color: var(--text); font-size: var(--t-sm); font-weight: 500; }
+.field > span, .field > label { display: block; margin-bottom: var(--s1); color: var(--text); font-size: var(--t-sm); font-weight: 500; }
 .field > span i { color: var(--muted); font-style: normal; font-weight: 400; }
 input[type=text], input[type=email], input[type=number], input[type=password], input[type=date], input[type=time], input[type=datetime-local], input[type=search], input[type=url], select, textarea {
   width: 100%; min-height: var(--hit); padding: var(--s2) var(--s3);
@@ -568,6 +587,7 @@ input[type=text], input[type=email], input[type=number], input[type=password], i
   transition: border-color var(--m2) ease;
 }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
+input:hover, select:hover, textarea:hover { border-color: var(--text-2); }
 select {
   appearance: none; padding-right: var(--s8);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23736e68' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
@@ -578,6 +598,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 [aria-invalid="true"] { border-color: var(--red) !important; }
 .field-error, .form-error { margin: var(--s1) 0 0; color: var(--red); font-size: var(--t-sm); }
 .form-error { margin: 0 0 var(--s2); }
+/* It worked. The line is on the page from the start and empty, so that when
+   it is given words a screen reader says them; empty, it takes no room. */
+.form-success { margin: 0; color: var(--green); font-size: var(--t-sm); font-weight: 500; }
+.form-success:not(:empty) { display: flex; align-items: baseline; gap: var(--s2); margin: var(--s2) 0 var(--s3); }
+.form-success:not(:empty)::before { content: ""; width: 10px; height: 6px; flex: none; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-3px) rotate(-45deg); }
+/* A field with a button beside it that acts on that field. */
+.with-btn { display: flex; gap: var(--s2); }
+.with-btn input { flex: 1; min-width: 0; }
+.with-btn .btn { flex: none; min-width: 72px; }
 .pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--s2); }
 .pair .to { color: var(--text-2); font-size: var(--t-sm); }
 .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
@@ -588,14 +617,20 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .code-input { font-family: var(--mono); letter-spacing: .04em; text-transform: uppercase; }
 .disclosure { margin-bottom: var(--s3); padding: 0 var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2); }
 .disclosure summary { display: flex; align-items: center; min-height: 48px; font-size: var(--t-sm); font-weight: 500; cursor: pointer; }
+.disclosure summary:hover { color: var(--accent-ink); }
 .disclosure[open] { padding-bottom: var(--s4); }
 
 /* A switch, drawn square like everything else here. */
-.toggle { display: flex; align-items: center; gap: var(--s3); min-height: var(--hit); cursor: pointer; }
+/* The real checkbox is kept (it is what the keyboard and a screen reader
+   use) but taken out of the layout. It has to stay inside its own label: an
+   absolutely placed box with no positioned parent is measured from the page,
+   escapes the scrolling column, and makes the whole page scroll. */
+.toggle { position: relative; display: flex; align-items: center; gap: var(--s3); min-height: var(--hit); cursor: pointer; }
 .toggle input { position: absolute; opacity: 0; pointer-events: none; }
 .toggle i { position: relative; width: 40px; height: 24px; flex: none; border-radius: var(--r); background: var(--field); transition: background-color var(--m2) ease; }
 .toggle i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: var(--r-sm); background: #fff; transition: transform var(--m2) var(--ease-out); }
-.toggle input:checked + i { background: var(--green); }
+.toggle:hover i { background: var(--text-2); }
+.toggle input:checked + i, .toggle:hover input:checked + i { background: var(--green); }
 .toggle input:checked + i::after { transform: translateX(16px); }
 .toggle input:focus-visible + i { outline: 2px solid var(--ring); outline-offset: 2px; }
 .toggle span { flex: 1; font-size: var(--t-sm); font-weight: 500; }
@@ -607,14 +642,19 @@ input[type=range] { width: 100%; height: 32px; accent-color: var(--accent-strong
 
 /* One line that adds anything. Labelled above; the example is the placeholder. */
 .quickadd-label { display: block; margin-bottom: var(--s1); font-size: var(--t-sm); font-weight: 500; }
-.quickadd { display: flex; gap: var(--s2); margin-bottom: var(--s4); }
+.quickadd { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s4); }
 .quickadd input { flex: 1; min-width: 0; }
+/* What is wrong goes under the row, not between the field and its button. */
+.quickadd .field-error { order: 3; flex-basis: 100%; margin: 0; }
+.quickadd + .form-success:not(:empty) { margin-top: calc(var(--s2) * -1); margin-bottom: var(--s4); }
 
 .daypick { display: flex; flex-wrap: wrap; gap: var(--s2); }
 .daypick label { position: relative; }
 .daypick input { position: absolute; inset: 0; opacity: 0; }
 .daypick span { display: grid; place-items: center; min-width: var(--hit); min-height: var(--hit); padding: 0 var(--s2); border: 1px solid var(--line-strong); border-radius: var(--r); font-size: var(--t-sm); font-weight: 500; transition: background-color var(--m2) ease, border-color var(--m2) ease; }
-.daypick input:checked + span { border-color: var(--text); background: var(--text); color: var(--bg); }
+.daypick label { cursor: pointer; }
+.daypick label:hover span { background: var(--surface-2); }
+.daypick input:checked + span, .daypick label:hover input:checked + span { border-color: var(--text); background: var(--text); color: var(--bg); }
 .daypick input:focus-visible + span { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* ------------------------------------------------------------ overlays */
@@ -676,6 +716,7 @@ dialog.sheet.confirm .grab { display: none; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
 .toast button { position: relative; padding: 0; border: 0; background: none; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
 .toast button::after { content: ""; position: absolute; inset: -12px -8px; }
+.toast button:hover { text-decoration-thickness: 2px; }
 
 /* ---------------------------------------------------------- onboarding */
 
@@ -715,14 +756,18 @@ dialog.sheet.confirm .grab { display: none; }
 .integration.danger .ic { background: var(--red-soft); color: var(--red); }
 .page-foot { display: flex; justify-content: center; gap: var(--s4); margin-top: var(--s6); font-size: var(--t-sm); }
 .page-foot a { position: relative; color: var(--text-2); }
+.page-foot a:hover, .signin-foot a:hover { color: var(--text); }
 .streak-ic { --c: var(--amber); }
 .chev { display: grid; place-items: center; color: var(--muted); }
 .status { display: inline-flex; align-items: center; gap: var(--s1); color: var(--green); font-size: var(--t-sm); font-weight: 500; }
 .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .code { padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2); font: 600 var(--t-h2)/1.2 var(--mono); letter-spacing: .12em; text-align: center; }
 
-.skeleton { width: 60%; height: 12px; border-radius: var(--r-sm); background: var(--surface-3); }
-.skeleton + .skeleton { width: 40%; }
+/* Stands in for lines of text that are on their way. It breathes slowly so it
+   reads as "coming", not as an empty grey box. */
+.skeleton { width: 60%; height: 12px; border-radius: var(--r-sm); background: var(--surface-3); animation: wait 1.2s ease-in-out infinite alternate; }
+.skeleton + .skeleton { width: 40%; animation-delay: 150ms; }
+@keyframes wait { from { opacity: .45; } to { opacity: 1; } }
 
 /* Shown from the first paint until the app has read its state. It waits a
    beat before appearing, so a fast start never flashes it. */
@@ -730,8 +775,17 @@ dialog.sheet.confirm .grab { display: none; }
 .boot-mark { width: 28px; height: 28px; border-radius: var(--r); background: var(--accent); opacity: 0; animation: boot 900ms ease-in-out 200ms infinite alternate; }
 @keyframes boot { from { opacity: .3; } to { opacity: .9; } }
 
+/* Scripts off: the planner cannot draw anything, so it says so and points at
+   the pages that are plain text. It covers the loading mark. */
+.no-script { position: fixed; inset: 0; z-index: 1; display: grid; align-content: center; justify-items: start; gap: var(--s3); max-width: 560px; margin: 0 auto; padding: var(--s6); background: var(--bg); }
+.no-script h1 { font-size: var(--t-h1); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
+.no-script p { color: var(--text-2); }
+.no-script .ways { display: flex; flex-wrap: wrap; gap: 0 var(--s6); }
+.no-script .ways a { display: inline-flex; align-items: center; min-height: var(--hit); }
+
 .demo-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--s1) var(--s3); padding: var(--s2) var(--s4); background: var(--text); color: var(--bg); font-size: var(--t-sm); text-align: center; }
 .demo-bar a { position: relative; color: inherit; font-weight: 500; }
+.demo-bar a:hover { text-decoration-thickness: 2px; }
 .demo-bar a::after, .page-foot a::after, .signin-foot a::after { content: ""; position: absolute; inset: -12px -4px; }
 body.embedded .demo-bar { display: none; }
 
@@ -772,6 +826,8 @@ body.embedded .demo-bar { display: none; }
 details.instructions { padding: 0; }
 details.instructions summary { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: var(--s3) var(--s4); font-size: var(--t-sm); font-weight: 500; cursor: pointer; list-style: none; }
 details.instructions summary::-webkit-details-marker { display: none; }
+details.instructions summary { transition: background-color var(--m2) ease; }
+details.instructions summary:hover { background: var(--surface-2); }
 details.instructions summary svg { color: var(--muted); transition: transform var(--m2) ease; }
 details.instructions[open] summary svg { transform: rotate(90deg); }
 details.instructions .body { padding: 0 var(--s4) var(--s4); color: var(--text-2); font-size: var(--t-sm); max-width: 75ch; }
@@ -780,6 +836,8 @@ details.instructions .body p + p { margin-top: var(--s2); }
 .guide-actions .btn { flex: 1; }
 
 .mic { display: grid; place-items: center; width: 88px; height: 88px; margin: var(--s2) auto var(--s3); border: 0; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.mic { transition: background-color var(--m2) ease; }
+.mic:hover { background: var(--accent-hover); }
 .mic svg { width: 32px; height: 32px; }
 .mic.rec { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .6; } }
@@ -856,7 +914,7 @@ dialog.palette[open] { animation: pop-in var(--m2) var(--ease-out); }
 .palette-search:focus-within { box-shadow: inset 0 -2px 0 var(--ring); }
 .palette .results { max-height: 52vh; padding: var(--s2); overflow-y: auto; }
 .palette .res { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: var(--hit); padding: var(--s2) var(--s3); border: 0; border-radius: var(--r); background: none; text-align: left; }
-.palette .res[aria-selected="true"] { background: var(--surface-2); }
+.palette button.res:hover, .palette .res[aria-selected="true"] { background: var(--surface-2); }
 .palette .res .t { font-size: var(--t-sm); font-weight: 500; }
 .palette .res .m { color: var(--text-2); font-size: var(--t-sm); }
 .palette .res .ic { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: var(--r); background: var(--surface-2); color: var(--text-2); }
@@ -876,10 +934,18 @@ dialog.palette[open] { animation: pop-in var(--m2) var(--ease-out); }
 .signin-or::before, .signin-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .signin-choices { display: grid; gap: var(--s2); margin: var(--s4) 0 var(--s3); }
 .signin .hint { margin-top: var(--s2); }
+.signin-more { display: flex; flex-wrap: wrap; gap: var(--s3) var(--s6); margin-top: var(--s4); }
 .signin-foot { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); margin-top: var(--s8); font-size: var(--t-sm); }
 .signin-foot a, .signin a { position: relative; color: var(--text-2); }
 
 /* ---------------------------------------------------- assignment rows */
+
+/* In a long list the name of the group you are in stays at the top while
+   its rows scroll under it, then leaves with the last of them. */
+.section.group { margin-top: var(--s4); }
+/* Sticky offsets are measured from inside main's padding, so the heading is
+   pulled up by that much to sit flush under the header. */
+.section.group > .section-head { position: sticky; top: calc(var(--pad-top) * -1); z-index: var(--z-sticky); margin: 0; padding: var(--s2) 0; background: var(--bg); }
 
 .task { border-bottom: 1px solid var(--line); }
 .task:last-child { border-bottom: 0; }
@@ -920,4 +986,6 @@ dialog.palette[open] { animation: pop-in var(--m2) var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   .boot-mark { opacity: .6; animation: none; }
+  .skeleton { animation: none; opacity: .7; }
+  .btn[aria-busy="true"]::before, .link[aria-busy="true"]::before { display: none; }
 }

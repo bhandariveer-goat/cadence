@@ -1,0 +1,11 @@
+# Everything a visitor can read, a crawler can read.
+#
+# The planner (/app) and its demo (/demo) are not blocked here on purpose.
+# They ask to stay out of search results with a tag in their own HTML,
+# and a crawler can only see that tag if it is allowed to fetch the page.
+# The stylesheets and scripts under /src are open so pages can be drawn.
+
+User-agent: *
+Disallow: /api/
+
+Sitemap: https://cadenceaiplanning.netlify.app/sitemap.xml

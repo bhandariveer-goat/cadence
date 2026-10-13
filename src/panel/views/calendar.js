@@ -36,7 +36,7 @@ export function viewCalendar() {
 
     <label class="quickadd-label" for="calendar-add">Add to your calendar</label>
     <form class="quickadd" data-form="calendar-add">
-      <input type="text" id="calendar-add" name="text" placeholder="Dentist Thursday at 3" autocomplete="off">
+      <input type="text" id="calendar-add" name="text" placeholder="Dentist Thursday at 3" autocomplete="off" required data-error="Type what to add first, for example: Dentist Thursday at 3.">
       <button class="btn primary" type="submit">Add to calendar</button>
     </form>
 
