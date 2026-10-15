@@ -30,6 +30,7 @@ places listed, so running it twice in a row changes nothing.
 
 Uses only the standard library, so it runs anywhere python3 does.
 """
+import base64
 import datetime
 import html
 import json
@@ -119,10 +120,27 @@ def js_string(text, key):
     return re.sub(r'\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)', _unescape, raw).strip()
 
 
+def is_secret_key(key):
+    """The same test as isSecretKey() in src/config.js: a key that must never
+    be in a browser. Supabase's secret keys start with sb_secret_; the older
+    kind is a token whose contents name a role other than "anon"."""
+    key = key.strip()
+    if key.lower().startswith('sb_secret_'):
+        return True
+    parts = key.split('.')
+    if len(parts) != 3 or not key.startswith('eyJ'):
+        return False
+    try:
+        body = parts[1].replace('-', '+').replace('_', '/')
+        return json.loads(base64.b64decode(body + '=' * (-len(body) % 4))).get('role') != 'anon'
+    except (ValueError, AttributeError):
+        return True
+
+
 def config():
     text = js_source(read('src/config.js'))
     field = lambda key: js_string(text, key)
-    url, key = field('supabaseUrl'), field('supabaseAnonKey')
+    url, key = field('supabaseUrl'), field('supabaseKey')
     return {
         'domain': re.sub(r'^https?://', '', field('domain')).strip('/'),
         'operator': field('operator'),
@@ -130,7 +148,9 @@ def config():
         'reply': field('replyWithin'),
         'visits': bool(re.search(r'\bcountVisits:\s*true\b', text)),
         # The same test as cloudConfigured() in src/config.js.
-        'cloud': bool(re.match(r'(https://.+|http://localhost(:\d+)?/.+)', url)) and len(key) > 20,
+        'cloud': bool(re.match(r'(https://.+|http://localhost(:\d+)?/.+)', url)) and len(key) > 20 and not is_secret_key(key),
+        'supabase_url': url,
+        'supabase_key': key,
     }
 
 

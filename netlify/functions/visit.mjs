@@ -16,8 +16,9 @@
 //
 // Environment variables (Netlify > Project configuration > Environment
 // variables), the same two the assistant uses:
-//   SUPABASE_URL          required
-//   SUPABASE_ANON_KEY     required
+//   SUPABASE_URL     required
+//   SUPABASE_KEY     required: the project's publishable key (or, on an older
+//                    project, its anon key). SUPABASE_ANON_KEY is read too.
 
 const LABEL = /^[a-z0-9_-]{0,40}$/;
 const done = (status) => new Response(null, { status, headers: { 'cache-control': 'no-store' } });
@@ -37,8 +38,11 @@ export default async (req) => {
   if (fetchSite && fetchSite !== 'same-origin') return done(403);
 
   const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
-  const anon = process.env.SUPABASE_ANON_KEY;
+  const anon = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
   if (!supabaseUrl || !anon) return done(503);
+  // A publishable key goes in the apikey header and nowhere else. The older
+  // anon key is a token, and the database expects to see it as one as well.
+  const asToken = anon.startsWith('eyJ') ? { authorization: `Bearer ${anon}` } : {};
 
   // The body is three short labels. Anything larger is not one of ours.
   let body;
@@ -56,7 +60,7 @@ export default async (req) => {
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/count_visit`, {
       method: 'POST',
-      headers: { apikey: anon, authorization: `Bearer ${anon}`, 'content-type': 'application/json' },
+      headers: { apikey: anon, ...asToken, 'content-type': 'application/json' },
       body: JSON.stringify({ p_source: source, p_medium: medium, p_campaign: campaign })
     });
     if (!res.ok) return done(502);

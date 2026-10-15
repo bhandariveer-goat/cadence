@@ -164,7 +164,7 @@ export async function commitmentEditor(existing = null, { kind = null, afterSave
     </details>
 
     ${app.sync?.available ? `<label class="toggle mb2"><input type="checkbox" name="share" ${draft.share ? 'checked' : ''}><i></i>
-      <span>Share check-ins with my crew<small>Partners and clubs see that you showed up</small></span></label>` : ''}
+      <span>Share check-ins with my crew<small>Your partners see each check-in, with its note and how it went. So does the club it is for, if it has one.</small></span></label>` : ''}
 
     ${app.S.sources?.google?.push ? `<label class="toggle mb2"><input type="checkbox" name="pushToGoogle" ${draft.pushToGoogle ? 'checked' : ''}><i></i>
       <span>Add to Google Calendar<small>Its scheduled blocks appear on your real calendar</small></span></label>` : ''}

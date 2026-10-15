@@ -98,7 +98,7 @@ export function ring({ pct = 0, color = 'var(--k-activity)', size = 64, stroke =
 
 /** Initials in a circle. People are told apart by name, not by a colour. */
 export function avatar(person = {}, size = 36) {
-  const initials = String(person.name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const initials = String(person?.name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   const type = size < 34 ? 12 : size < 50 ? 14 : 16;
   return `<span class="avatar" style="width:${size}px;height:${size}px;font-size:${type}px">${esc(initials)}</span>`;
 }

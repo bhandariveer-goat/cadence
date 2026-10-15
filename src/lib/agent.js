@@ -6,7 +6,7 @@
 // rest of the week rebuilt around a short evening. This file turns sentences
 // like that into the operations in lib/agentops.js, entirely offline.
 //
-// With an Anthropic key or a signed-in account, lib/agentllm.js asks Claude
+// With an Anthropic key or a signed-in account, lib/agentllm.js asks a model
 // instead and gets the same operations back; this is what runs for everyone
 // else, and what runs when that call fails.
 //

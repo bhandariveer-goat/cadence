@@ -221,7 +221,7 @@ for page in ('privacy.html', 'terms.html'):
 # Counting visits is a claim on the privacy page. Either it is off, or the
 # pieces it needs exist: the function, the table, and a database to write to.
 counting = bool(re.search(r'countVisits:\s*true', config))
-cloud_set = bool(field('supabaseUrl')) and bool(field('supabaseAnonKey'))
+cloud_set = bool(field('supabaseUrl')) and bool(field('supabaseKey')) and not stamp_pages.is_secret_key(field('supabaseKey'))
 check('Visit counting is off, or everything it needs is in place',
       not counting or (cloud_set and (ROOT / 'netlify/functions/visit.mjs').is_file() and 'count_visit' in read('supabase/schema.sql')),
       'site.countVisits is true but the Supabase project is not configured in src/config.js')
@@ -374,8 +374,173 @@ foot = lambda name: re.findall(r'href="/?([^"]*)"', (re.search(r'<nav class="foo
 check('Every public page ends with the same links', all(foot(name) == foot('index.html') and len(foot(name)) == 5 for name in PUBLIC_PAGES),
       '; '.join(f'{name}: {foot(name)}' for name in PUBLIC_PAGES if foot(name) != foot('index.html')))
 
+# ------------------------------------------------------------- the database
+# Accounts and saved plans live in a Supabase project. Nothing here talks to
+# it; these compare what the app asks the database for with what
+# supabase/schema.sql sets up, because the file takes away every default
+# grant, and a table it does not give back answers "permission denied".
+key = field('supabaseKey')
+check('Supabase is set up completely or not at all', bool(field('supabaseUrl')) == bool(key),
+      'src/config.js has one of supabaseUrl and supabaseKey but not the other')
+check('The Supabase key in src/config.js is the public one', not stamp_pages.is_secret_key(key),
+      'supabaseKey is a secret or service_role key. Take it out, and rotate it in Supabase: it has been in a file')
+
+schema = without_comments(re.sub(r'--[^\n]*', '', read('supabase/schema.sql')))
+tables = set(re.findall(r'create table if not exists (\w+)', schema)) | set(re.findall(r'create or replace view (\w+)', schema))
+granted, granted_columns, granted_table_wide = {}, {}, {}
+for actions, names in re.findall(r'grant ((?:select|insert|update|delete|\([^)]*\)|[ ,])+?) on ([\w, \n]+?) to authenticated;', schema):
+    for name in re.findall(r'\w+', names):
+        granted.setdefault(name, set()).update(re.findall(r'select|insert|update|delete', actions))
+        granted_table_wide.setdefault(name, set()).update(re.findall(r'(select|insert|update|delete)(?! \()', actions))
+        for action, columns in re.findall(r'(select|insert|update|delete) \(([^)]*)\)', actions):
+            granted_columns.setdefault((name, action), set()).update(re.findall(r'\w+', columns))
+# What points at what, to tell whether a request that reads two tables at once
+# says clearly enough which link between them it means.
+table_bodies = dict(re.findall(r'create table if not exists (\w+) \((.*?)\n\);', schema, re.S))
+foreign = {t: dict(re.findall(r'^\s*(\w+) \w+[^,\n]*?\breferences (?:auth\.)?(\w+)', body, re.M)) for t, body in table_bodies.items()}
+primary = {}
+for t, body in table_bodies.items():
+    composite = re.search(r'primary key \(([^)]*)\)', body)
+    primary[t] = set(re.findall(r'\w+', composite.group(1))) if composite else set(re.findall(r'^\s*(\w+) [^,\n]*\bprimary key', body, re.M))
+
+
+def links_between(a, b):
+    """Every way the API could join table a to table b: a column of one that
+    points at the other, or a third table whose key points at both."""
+    direct = [f'{a}_{c}_fkey' for c, to in foreign.get(a, {}).items() if to == b] + [f'{b}_{c}_fkey' for c, to in foreign.get(b, {}).items() if to == a]
+    through = [j for j in table_bodies if j not in (a, b)
+               and any(to == a and c in primary[j] for c, to in foreign[j].items())
+               and any(to == b and c in primary[j] for c, to in foreign[j].items())]
+    return direct, through
+
+
+functions = set(re.findall(r'create or replace function (\w+)\(', schema))
+runnable = set()
+for names in re.findall(r'grant execute on function([^;]+?)to (?:anon, )?authenticated;', schema, re.S):
+    runnable |= set(re.findall(r'(\w+)\(', names))
+
+app_js = ''.join(without_comments(p.read_text(encoding='utf-8')) for p in shipped_js())
+asked = set(re.findall(r'''rest\(\s*[`'"]([a-z_]+)''', app_js)) - {'rpc'}
+called = set(re.findall(r'''rpc\(\s*['"]([a-z_]+)['"]''', app_js)) | set(re.findall(r'rpc/([a-z_]+)', app_js))
+NEEDS = {'GET': 'select', 'POST': 'insert', 'PATCH': 'update', 'DELETE': 'delete'}
+
+missing = sorted(t for t in asked if t not in tables)
+check('Every table the app asks for is made in supabase/schema.sql', not missing, ', '.join(missing))
+
+
+def calls_to_the_database(source):
+    """Each rest('table...', {...}) in the app, as (table, the whole call)."""
+    for found in re.finditer(r'''rest\(\s*[`'"]([a-z_]+)''', source):
+        depth, at = 0, found.start() + len('rest')
+        while at < len(source):
+            depth += source[at] == '('
+            depth -= source[at] == ')'
+            at += 1
+            if depth == 0:
+                break
+        if found.group(1) != 'rpc':
+            yield found.group(1), source[found.start():at]
+
+
+def top_level_parts(text):
+    """Split an object literal's inside at the commas between its fields, not
+    the ones inside calls such as slice(0, 200) or quoted text."""
+    parts, depth, quote, start = [], 0, '', 0
+    for i, ch in enumerate(text):
+        if quote:
+            quote = '' if ch == quote and text[i - 1] != '\\' else quote
+        elif ch in '\'"`':
+            quote = ch
+        elif ch in '([{':
+            depth += 1
+        elif ch in ')]}':
+            depth -= 1
+        elif ch == ',' and depth == 0:
+            parts.append(text[start:i]); start = i + 1
+    return parts + [text[start:]]
+
+
+refused, unclear = [], []
+for table, call in calls_to_the_database(app_js):
+    if table not in tables:
+        continue
+    method = (re.search(r"method:\s*'(\w+)'", call) or [None, 'GET'])[1]
+    needs = {NEEDS[method]}
+    if method == 'GET' or 'return=representation' in call or (method in ('PATCH', 'DELETE') and '?' in call):
+        needs.add('select')                                # reading back, or finding the row by a filter
+    if 'merge-duplicates' in call:
+        needs.add('update')                                # an upsert writes over the row when it exists
+    for action in sorted(needs - granted.get(table, set())):
+        refused.append(f'{method} {table} needs {action}')
+    body = re.search(r'body:\s*\{([^{}]*)\}', call)
+    sent = {m.group(1) for part in top_level_parts(body.group(1)) if (m := re.match(r'\s*(\w+)', part))} if body else set()
+    action = NEEDS[method]
+    only = granted_columns.get((table, action))
+    if action in ('insert', 'update') and only is not None and action not in granted_table_wide.get(table, set()):
+        refused += [f'{method} {table} sets {c}, which is not granted' for c in sorted(sent - only)]
+    # Tables read along with this one: select=...,other(...) or name:other!link(...)
+    for other, hint in re.findall(r'[,=](?:\w+:)?(\w+)(?:!(\w+))?\(', (re.search(r'select=([^&`\'"]*)', call) or [None, ''])[1]):
+        if 'select' not in granted.get(other, set()):
+            refused.append(f'{table} reads {other}, which is not granted')
+        direct, through = links_between(table, other)
+        if hint and hint not in direct:
+            unclear.append(f'{table} to {other}: no link called {hint}')
+        if not hint and len(direct) + len(through) != 1:
+            unclear.append(f'{table} to {other}: {len(direct) + len(through)} links ({", ".join(direct + through)}), name one')
+check('Every request the app makes is one the database grants', not refused and any(True for _ in calls_to_the_database(app_js)), '; '.join(refused[:5]))
+check('Every request that reads two tables says which link joins them', not unclear, '; '.join(unclear[:5]))
+hidden_tables = {'agent_usage', 'visit_counts'}
+exposed = sorted(t for t in hidden_tables if t in granted)
+check('The two counting tables are granted to nobody', not exposed and hidden_tables <= tables, ', '.join(exposed))
+to_anyone = [' '.join(g.split()) for g in re.findall(r'grant [^;]*\bto\b[^;]*\banon\b[^;]*;', schema)]
+ALLOWED_TO_ANYONE = {'grant usage on schema public to anon, authenticated;', 'grant execute on function count_visit(text, text, text) to anon, authenticated;'}
+check('Nothing in the database is granted to people who are not signed in, except the visit counter',
+      set(to_anyone) == ALLOWED_TO_ANYONE, '; '.join(g for g in to_anyone if g not in ALLOWED_TO_ANYONE))
+uncalled = sorted(f for f in called if f not in functions or f not in runnable)
+check('Every database function the app calls exists and may be run', not uncalled, ', '.join(uncalled))
+policies = re.findall(r'create policy ("[^"]+") on (\w+)', schema)
+not_dropped = [f'{n} on {t}' for n, t in policies if f'drop policy if exists {n} on {t};' not in schema]
+check('supabase/schema.sql can be run a second time', bool(policies) and not not_dropped and 'create table if not exists' in schema
+      and not re.search(r'^\s*create (?!or replace |table if not exists |index if not exists |extension if not exists |policy |trigger )\w', schema, re.M)
+      and 'drop trigger if exists on_auth_user_created on auth.users;' in schema
+      and all(f'drop constraint if exists {c};' in schema.split(f'add constraint {c} ')[0] for c in re.findall(r'add constraint (\w+) ', schema)),
+      '; '.join(not_dropped[:4]) or 'something is created without "if not exists" or "or replace"')
+self_reading = sorted({f'{name} on {table}' for name, table, body in re.findall(r'create policy ("[^"]+") on (\w+)(.*?);', schema, re.S)
+                       if re.search(rf'\bfrom {table}\b', body)})
+check('No policy reads its own table (Postgres refuses every request to such a table)', not self_reading, '; '.join(self_reading))
+undropped_triggers = [f'{name} on {table}' for name, table in re.findall(r'create trigger (\w+) (?:before|after) \w+ on ([\w.]+)', schema)
+                      if f'drop trigger if exists {name} on {table};' not in schema]
+check('Every trigger is dropped before it is made, so the file runs twice', not undropped_triggers, ', '.join(undropped_triggers))
+unprotected = sorted(t for t in re.findall(r'create table if not exists (\w+)', schema) if f'alter table {t} enable row level security;' not in schema)
+check('Every table has row level security switched on', not unprotected, ', '.join(unprotected))
+check('A profile row is made with every account', 'after insert on auth.users' in schema and 'handle_new_user' in schema)
+for fn in ('netlify/functions/agent.mjs', 'netlify/functions/visit.mjs'):
+    check(f'{fn} reads the key under its new name and its old one', 'process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY' in read(fn))
+
+# ------------------------------------------------------------ the assistant
+# The server function can send what students type to Google (Gemini) or
+# Anthropic (Claude). The privacy page has to say so, and the Gemini path has
+# to stay off until the owner says billing is on: the privacy page promises
+# Google's paid terms, under which students' messages are not used to improve
+# Google's products.
+agent_fn = read('netlify/functions/agent.mjs')
+privacy_text = read('privacy.html')
+says_who = {
+    'Google': 'generativelanguage.googleapis.com' in read('src/lib/gemini.js'),
+    'Anthropic': 'api.anthropic.com' in read('src/lib/agentspec.js'),
+}
+model_of = {'Google': 'Gemini', 'Anthropic': 'Claude'}
+unnamed = [who for who, used in says_who.items() if used and not (
+    f'{model_of[who]}, an AI model made by {who}' in privacy_text
+    and re.search(rf'<tr><td>{who}</td><td>[^<]*\bassistant\b', privacy_text, re.I))]
+check('The privacy page names both companies the assistant can send messages to', not unnamed,
+      'missing the sentence or the row in the table of companies for: ' + ', '.join(unnamed))
+check('The Gemini assistant stays off until the plan is chosen and the privacy page says what that means',
+      "process.env.GEMINI_TIER" in agent_fn and re.search(r"gemini \? \(tier === 'free' \|\| tier === 'paid' \? 'gemini' : null\)", agent_fn) is not None
+      and 'may read it' in privacy_text)
+
 # ------------------------------------------------------------------ secrets
-secret = re.compile(r'sk-ant-[A-Za-z0-9_-]{8,}|service_role|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.|AIza[0-9A-Za-z_-]{20,}|GOCSPX-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY')
+secret = re.compile(r'sk-ant-[A-Za-z0-9_-]{8,}|service_role|sb_secret_[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]*|AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{30,}|GOCSPX-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY')
 leaks = []
 for p in list(ROOT.rglob('*')):
     if not p.is_file() or '.git' in p.parts or p.suffix in ('.png', '.ico', '.zip') or p.name == 'prelaunch_check.py':
@@ -387,6 +552,10 @@ for p in list(ROOT.rglob('*')):
     for m in secret.finditer(text):
         # schema.sql and the config comment mention service_role in order to warn against it.
         if m.group(0) == 'service_role' and p.name in ('schema.sql', 'config.js', 'README.md', 'LAUNCH.md'):
+            continue
+        # The older kind of Supabase key is a token. The public one ("anon") is
+        # meant to be in src/config.js; any other token, anywhere, is a leak.
+        if m.group(0).startswith('eyJ') and p.name == 'config.js' and not stamp_pages.is_secret_key(m.group(0)):
             continue
         leaks.append(f'{p.relative_to(ROOT)}: {m.group(0)[:16]}')
 check('Nothing that looks like a secret is committed', not leaks, '; '.join(leaks[:4]))

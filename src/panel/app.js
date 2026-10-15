@@ -83,7 +83,7 @@ function renderApp() {
     // Signed out, or signed in with an unanswered "which plan?": both are the sign-in screen.
     // Adding an email to an account that already exists on this device shows
     // the same screen, without signing that account out first.
-    const gate = !signedIn() || planConflict() || app.signin?.upgrading ? 'signin' : (!S.profile.onboarded && !teacher) ? 'onboarding' : null;
+    const gate = !signedIn() || planConflict() || app.signin?.upgrading || app.signin?.step === 'name' ? 'signin' : (!S.profile.onboarded && !teacher) ? 'onboarding' : null;
 
     $('#demo-bar').hidden = !DEMO || EMBEDDED;
     if (DEMO) $('#demo-exit').href = signin.pageUrl('app.html');
@@ -327,4 +327,4 @@ document.addEventListener('cadence:act', (e) => {
   if (fn) fn({ dataset: { act, ...rest } });
 });
 
-boot();
+boot().then(() => { if (app.linkProblem) { toast(app.linkProblem); app.linkProblem = null; } });

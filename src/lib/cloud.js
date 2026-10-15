@@ -1,7 +1,9 @@
 // Accounts and sync.
 //
-// Signing in is an email and a six-digit code (Supabase's one-time passcode),
-// so there is no password to forget or leak. Once signed in, the plan is kept
+// Signing in is an email and the code Supabase sends to it (a one-time
+// passcode), so there is no password to forget or leak. Where a project's
+// email carries a link instead of a code, opening the link signs in too (see
+// sessionFromLink). Once signed in, the plan is kept
 // in one row that only its owner can read (see supabase/schema.sql), which is
 // what lets the Chrome extension and the website show the same week: the
 // extension can read Canvas, the website can't, and the row is how what one
@@ -13,6 +15,40 @@
 import { DEFAULT_STATE } from './store.js';
 
 const OFFLINE = 'Could not reach your account. Check your connection.';
+
+// What Supabase's sign-in service says when it refuses, in words for the
+// person at the screen. Keyed by its error_code; anything not listed is shown
+// as the service worded it.
+const AUTH_ERRORS = {
+  over_email_send_rate_limit: 'Too many sign-in emails were asked for just now. Wait a few minutes, then try again.',
+  over_request_rate_limit: 'Too many tries in a row. Wait a minute, then try again.',
+  email_address_not_authorized: 'This copy of Cadence cannot send email to that address yet. Whoever runs it has to finish setting up its email. Until then, start with just a name below.',
+  email_address_invalid: 'That email address was not accepted. Check it for a typo.',
+  otp_expired: 'That code is wrong or has run out. Check it, or send a new one.',
+  otp_disabled: 'Email sign-in is switched off for this copy of Cadence.',
+  signup_disabled: 'New accounts are switched off for this copy of Cadence.',
+  email_provider_disabled: 'Email sign-in is switched off for this copy of Cadence.'
+};
+const authMessage = (data, status) => AUTH_ERRORS[data.error_code]
+  || (status === 429 ? AUTH_ERRORS.over_request_rate_limit : '')
+  || data.msg || data.error_description || data.message || `Sign-in failed (${status})`;
+
+/**
+ * What a sign-in link leaves in the address when it is opened: either a
+ * session, or the reason there is none. Returns null when the address holds
+ * neither, which is every ordinary visit.
+ */
+export function sessionFromLink(hash) {
+  const q = new URLSearchParams(String(hash || '').replace(/^#/, ''));
+  if (q.get('access_token') && q.get('refresh_token')) {
+    return { access_token: q.get('access_token'), refresh_token: q.get('refresh_token'), expires_in: Number(q.get('expires_in')) || 3600 };
+  }
+  if (q.get('error') || q.get('error_code')) {
+    // A link can be used once and lasts an hour; either way the fix is the same.
+    return { error: 'That sign-in link has run out or was already used. Ask for a new email.' };
+  }
+  return null;
+}
 
 /** The account's copy is not the version this device last saw. */
 export class PlanChanged extends Error {
@@ -34,7 +70,7 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
     try { res = await fetch(`${base}/auth/v1/${path}`, { method: 'POST', headers: headers(false), body: JSON.stringify(body) }); }
     catch { throw Object.assign(new Error(OFFLINE), { offline: true }); }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw Object.assign(new Error(data.msg || data.error_description || data.message || `Sign-in failed (${res.status})`), { status: res.status });
+    if (!res.ok) throw Object.assign(new Error(authMessage(data, res.status)), { status: res.status, code: data.error_code || '' });
     return data;
   }
 
@@ -101,8 +137,13 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
     token: fresh,
     rest,
 
-    /** Step one: email a six-digit code. */
-    sendCode: (email) => authCall('otp', { email, create_user: true }).then(() => ({ sent: true })),
+    /**
+     * Step one: email a code. `returnTo` is where a sign-in link should come
+     * back to, for projects whose email carries a link; it has to be on the
+     * project's list of allowed addresses or Supabase uses its own default.
+     */
+    sendCode: (email, returnTo = '') => authCall(`otp${returnTo ? `?redirect_to=${encodeURIComponent(returnTo)}` : ''}`, { email, create_user: true })
+      .then(() => ({ sent: true })),
 
     /** Step two: trade the code for a session. */
     async verify(email, code, name) {
@@ -115,12 +156,33 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
       return current;
     },
 
+    /**
+     * The other way in: a session handed over by a sign-in link. The link
+     * says nothing about whose it is, so the account is asked before the
+     * session is kept; a token that Supabase does not vouch for is dropped.
+     */
+    async adoptLink(link, { onlyFor = null } = {}) {
+      let res;
+      try { res = await fetch(`${base}/auth/v1/user`, { headers: { apikey: anonKey, authorization: `Bearer ${link.access_token}` } }); }
+      catch { throw Object.assign(new Error(OFFLINE), { offline: true }); }
+      const user = await res.json().catch(() => ({}));
+      if (!res.ok || !user.id) throw new Error('That sign-in link did not work. Ask for a new email.');
+      // A link for one account must not quietly take over a browser that is
+      // signed in to another: the plan on screen would be saved over theirs.
+      if (onlyFor && user.id !== onlyFor) throw new Error('This browser is signed in to a different account. Sign out here first, then open the link again.');
+      return keep({ ...link, user });
+    },
+
+    /** The name partners and clubs see. */
+    setName: (name) => rest('profiles', { method: 'POST', body: { id: current.user.id, name }, prefer: 'resolution=merge-duplicates' }),
+
     async signOut() {
       const token = current?.access_token;
       current = null;
       onSession(null);
       if (token) {
-        try { await fetch(`${base}/auth/v1/logout`, { method: 'POST', headers: { apikey: anonKey, authorization: `Bearer ${token}` } }); } catch { /* already signed out locally */ }
+        // scope=local: signing out here leaves the person's other devices signed in.
+        try { await fetch(`${base}/auth/v1/logout?scope=local`, { method: 'POST', headers: { apikey: anonKey, authorization: `Bearer ${token}` } }); } catch { /* already signed out locally */ }
       }
     },
 

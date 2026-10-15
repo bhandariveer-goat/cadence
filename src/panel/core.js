@@ -10,7 +10,7 @@ import { runAll, applyResults, pushGoogle, SOURCE_META, sourceEvents } from '../
 import * as canvas from '../lib/canvas.js';
 import * as ai from '../lib/ai.js';
 import { createSync } from '../lib/sync.js';
-import { createCloud, adopt, hasSubstance } from '../lib/cloud.js';
+import { createCloud, adopt, hasSubstance, sessionFromLink } from '../lib/cloud.js';
 import { schoolBlocks } from '../lib/daymodel.js';
 import { CONFIG, cloudConfigured } from '../config.js';
 import { weekProgress, settleStreak, showUpStreak, sessionMinutes, isFixed, weekStart } from '../lib/habits.js';
@@ -113,6 +113,12 @@ canvas.setTransport((req) => ask('cadence:canvas', { req }));
 // ------------------------------------------------------------- lifecycle
 
 export async function boot() {
+  // Someone opening a sign-in link arrives with the session in the address.
+  // It is read and taken out of the address before anything else happens, so
+  // it is not left in the address bar or in the browser's history.
+  const link = !DEMO && STANDALONE ? sessionFromLink(location.hash) : null;
+  if (link) history.replaceState(history.state, '', location.pathname + location.search);
+
   app.S = await loadState();
   if (DEMO) await seedDemo({ onlyIfStale: true });
   if (insideCanvas) app.ctx = await ask('cadence:context');
@@ -120,12 +126,26 @@ export async function boot() {
 
   if (!DEMO && cloudConfigured()) {
     app.cloud = createCloud({
-      url: CONFIG.supabaseUrl, anonKey: CONFIG.supabaseAnonKey, session: app.S.cloud?.session || null,
+      url: CONFIG.supabaseUrl, anonKey: CONFIG.supabaseKey, session: app.S.cloud?.session || null,
       onSession: (session) => persist((st) => { st.cloud.session = session; }, { recalc: false, edit: false })
     });
   }
   rebuildSync();
   if (app.cloud) watchAccount();
+  if (link && app.cloud) await arriveByLink(link);
+  // The same thing arriving on a page that is already open (the link's
+  // address pasted into this tab) changes only the part after the #, which
+  // does not reload the page, so it is watched for.
+  if (app.cloud && STANDALONE) {
+    window.addEventListener('hashchange', async () => {
+      const late = sessionFromLink(location.hash);
+      if (!late) return;
+      history.replaceState(history.state, '', location.pathname + location.search);
+      await arriveByLink(late);
+      render();
+      if (signedIn() && app.cloud.signedIn) syncDown();
+    });
+  }
 
   // Plans are time-sensitive and streaks depend on yesterday: settle both on open.
   app.S = await update((st) => { settleStreak(st, new Date()); recompute(st); return st; });
@@ -209,10 +229,44 @@ export async function signInLocal(name) {
   }, { recalc: false });
 }
 
-/** Step two of email sign-in. Decides what happens to a plan already on this device. */
+/** Step two of email sign-in, with the code from the email. */
 export async function signInCloud(email, code, name) {
   if (!app.cloud) throw new Error('Email sign-in is not set up for this copy of Cadence');
   await app.cloud.verify(email, code, name);
+  return finishCloudSignIn(name);
+}
+
+/**
+ * Step two the other way: the email had a link in it and this is where it
+ * led. The session is already made; what is left is the same as with a code,
+ * except that nobody has typed a name, so it is asked for if none is known.
+ */
+async function arriveByLink(link) {
+  // Signed out, the reason goes on the sign-in screen. Signed in, that screen
+  // is not showing, so it is handed to the app to say once it has drawn.
+  const fail = (message) => { if (signedIn()) app.linkProblem = message; else app.signin = { step: 'start', error: message, errorFor: 'email' }; };
+  if (link.error) return fail(link.error);
+  try {
+    // Already signed in here with an email: the link may only be for that account.
+    const mine = app.S.account?.mode === 'cloud' && app.cloud.signedIn ? app.S.account.id : null;
+    await app.cloud.adoptLink(link, { onlyFor: mine });
+    const { conflict, remote } = await finishCloudSignIn('');
+    app.signin = conflict ? { step: 'conflict', remote, email: app.cloud.user()?.email || '' }
+      : app.S.account?.name ? null : { step: 'name' };
+  } catch (e) { fail(e.message); }
+}
+
+/** Give the account the name its owner wants to be called. */
+export async function nameAccount(name) {
+  const clean = String(name || '').trim().slice(0, 60);
+  if (!clean) throw new Error('Enter a name for Cadence to call you.');
+  await persist((st) => { st.account.name = clean; st.profile.name = clean; }, { recalc: false });
+  // The profile row is what partners and clubs see; the plan does not wait on it.
+  try { await app.cloud?.setName(clean); } catch { /* written again the next time the name is saved */ }
+}
+
+/** Decides what happens to a plan already on this device, once the account is known. */
+async function finishCloudSignIn(name) {
   const user = app.cloud.user();
 
   // "Could not load your plan" is not "you have no plan". Treating it as one
@@ -223,7 +277,7 @@ export async function signInCloud(email, code, name) {
     try { remote = await app.cloud.pull(); break; } catch (e) {
       if (attempt < 2) { await new Promise((r) => setTimeout(r, 700)); continue; }
       await app.cloud.signOut();
-      throw new Error('That code worked, but your saved plan could not be loaded, so nothing was changed. Check your connection and ask for a new code.');
+      throw new Error('You were signed in, but your saved plan could not be loaded, so nothing was changed. Check your connection and sign in again.');
     }
   }
 

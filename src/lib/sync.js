@@ -5,9 +5,9 @@
 // accounts and a shared database, so this file hides the backend behind one
 // small adapter interface:
 //
-//   local     — single device, no account. Crew features show how to connect.
-//   demo      — simulated friends and clubs, for the demo page.
-//   supabase  — real accounts (email code sign-in) over Supabase's REST API.
+//   local     : single device, no account. Crew features show how to connect.
+//   demo      : simulated friends and clubs, for the demo page.
+//   supabase  : real accounts (email code sign-in) over Supabase's REST API.
 //               Plain fetch, because an MV3 extension can't load remote scripts.
 //               Schema + row-level security live in supabase/schema.sql.
 
@@ -170,7 +170,7 @@ function supabaseAdapter(cloud) {
     me: () => cloud.user(),
 
     feed: async () => {
-      const rows = await rest('checkins?select=id,user_id,title,kind,color,minutes,feel,note,at,profiles(name,color),kudos(from_user)&order=at.desc&limit=40');
+      const rows = await rest('checkins?select=id,user_id,title,kind,color,minutes,feel,note,at,profiles!checkins_user_id_fkey(name,color),kudos(from_user)&order=at.desc&limit=40');
       return rows.map((r) => ({
         id: r.id, who: { id: r.user_id, name: r.profiles?.name || 'Someone', color: r.profiles?.color || '#94a3b8' },
         title: r.title, kind: r.kind, color: r.color, minutes: r.minutes, feel: r.feel, note: r.note, at: r.at,
@@ -179,9 +179,10 @@ function supabaseAdapter(cloud) {
     },
     share: async (checkin, commitment) => {
       if (!commitment?.share) return;
+      // Kept inside the sizes the database accepts (supabase/schema.sql).
       await rest('checkins', { method: 'POST', body: {
-        title: commitment.title, kind: commitment.kind, color: commitment.color, club_id: commitment.clubId || null,
-        minutes: checkin.minutes, feel: checkin.feel, note: checkin.note || null, at: checkin.at
+        title: String(commitment.title || '').slice(0, 200), kind: commitment.kind, color: commitment.color, club_id: commitment.clubId || null,
+        minutes: Math.min(1440, checkin.minutes), feel: checkin.feel, note: checkin.note ? String(checkin.note).slice(0, 1000) : null, at: checkin.at
       } });
     },
     kudos: async (itemId) => {
@@ -192,19 +193,31 @@ function supabaseAdapter(cloud) {
     nudge: (toUser, message) => rest('nudges', { method: 'POST', body: { to_user: toUser, message } }),
     nudges: async () => {
       const rows = await rest(`nudges?select=id,message,at,seen,from:profiles!nudges_from_user_fkey(id,name,color)&to_user=eq.${uidOf()}&order=at.desc&limit=10`);
-      return rows.map((r) => ({ id: r.id, from: r.from, message: r.message, at: r.at, seen: r.seen }));
+      // A sender who is no longer connected cannot be seen any more, so their
+      // profile comes back empty; their nudge still shows, from "Someone".
+      return rows.map((r) => ({ id: r.id, from: r.from || { id: null, name: 'Someone' }, message: r.message, at: r.at, seen: r.seen }));
     },
     seenNudge: (id) => rest(`nudges?id=eq.${id}`, { method: 'PATCH', body: { seen: true } }),
 
     invite: async () => {
-      const code = `${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 5)}`.toUpperCase();
+      // Hard to guess (the browser's secure random source, about a trillion
+      // codes) and easy to read out: no I, O, 0 or 1.
+      const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const pick = (n) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (x) => letters[x % 32]).join('');
+      const code = `${pick(4)}-${pick(4)}`;
       await rest('invites', { method: 'POST', body: { code } });
       return { code };
     },
-    acceptInvite: (code) => rpc('accept_invite', { invite_code: String(code).trim().toUpperCase() }),
+    acceptInvite: async (code) => {
+      const id = await rpc('accept_invite', { invite_code: String(code).trim().toUpperCase() });
+      const [p] = await rest(`profiles?select=id,name&id=eq.${id}`).catch(() => []);
+      return { id, name: p?.name || '' };
+    },
     partners: async () => {
       const rows = await rest('partner_overview?select=*');
-      return rows.map((r) => ({ id: r.partner_id, name: r.name, color: r.color, since: r.since, sharing: r.sharing || [], weekPct: r.week_pct || 0, streak: r.streak || 0, lastAt: r.last_at }));
+      // week_pct is not worked out for partners yet (the target lives in each
+      // person's own plan), so it stays null and no ring is drawn for it.
+      return rows.map((r) => ({ id: r.partner_id, name: r.name, color: r.color, since: r.since, sharing: r.sharing || [], weekPct: r.week_pct ?? null, streak: r.streak || 0, lastAt: r.last_at }));
     },
 
     clubs: async () => {
@@ -220,11 +233,15 @@ function supabaseAdapter(cloud) {
         id, name: summary.name, kind: summary.kind, role: summary.role, code: summary.code, commitment: summary.commitment,
         memberCount: summary.member_count, teamPct: summary.team_pct || 0,
         members: members.map((m) => ({ id: m.user_id, name: m.name, color: m.color, weekPct: m.week_pct || 0, streak: m.streak || 0 })),
-        posts
+        posts: posts.map((p) => ({ ...p, from: p.from || { id: null, name: 'Someone' } }))
       };
     },
     createClub: ({ name, commitment, kind = 'club' }) => rpc('create_club', { club_name: name, club_kind: kind, club_commitment: commitment }),
-    joinClub: (code) => rpc('join_club', { club_code: String(code).trim().toUpperCase() }),
+    joinClub: async (code) => {
+      const id = await rpc('join_club', { club_code: String(code).trim().toUpperCase() });
+      const [c] = await rest(`clubs?select=id,name&id=eq.${id}`).catch(() => []);
+      return { id, name: c?.name || '' };
+    },
     shoutout: (clubId, text) => rest('club_posts', { method: 'POST', body: { club_id: clubId, text } })
   };
 }

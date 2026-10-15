@@ -1,7 +1,10 @@
 // POST /api/agent
 //
 // The assistant, for students who have not brought their own Anthropic key.
-// The key lives in this function's environment and never reaches a browser.
+// It runs on Google's Gemini when GEMINI_API_KEY is set (lib/gemini.js
+// translates the conversation both ways), and on Anthropic's Claude when only
+// ANTHROPIC_API_KEY is. Either key lives in this function's environment and
+// never reaches a browser.
 //
 // A request is accepted only when all of these hold:
 //   1. it carries a Supabase session token that Supabase itself confirms;
@@ -15,14 +18,23 @@
 // Environment variables, set in Netlify > Project configuration > Environment
 // variables (never in netlify.toml, which functions cannot read, and never in
 // the repository):
-//   ANTHROPIC_API_KEY     required
+//   GEMINI_API_KEY        the key from Google AI Studio. Used when set.
+//   GEMINI_TIER           "free" or "paid": which Google plan the key is on.
+//                         Must be set, so that using Gemini is a decision.
+//                         On the free plan Google may use what students type
+//                         to improve its products and people at Google may
+//                         read it; the privacy page says so.
+//   ANTHROPIC_API_KEY     used instead when there is no GEMINI_API_KEY
 //   SUPABASE_URL          required, same value as src/config.js
-//   SUPABASE_ANON_KEY     required, same value as src/config.js
+//   SUPABASE_KEY          required: the publishable key, same value as
+//                         supabaseKey in src/config.js (SUPABASE_ANON_KEY is
+//                         read too, for projects set up before the rename)
 //   AGENT_DAILY_LIMIT     optional, requests per account per day (default 60)
 //   AGENT_DAILY_TOTAL     optional, requests across all accounts per day
 //                         (default 1500); the ceiling on what a day can cost
 
 import { API_URL, API_VERSION, BETAS, requestBody, checkMessages } from '../../src/lib/agentspec.js';
+import { geminiUrl, geminiRequest, fromGemini } from '../../src/lib/gemini.js';
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -37,10 +49,13 @@ export default async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json(405, { error: 'Use POST.' });
 
-  const key = process.env.ANTHROPIC_API_KEY;
+  const gemini = process.env.GEMINI_API_KEY;
+  const anthropic = process.env.ANTHROPIC_API_KEY;
+  const tier = String(process.env.GEMINI_TIER || '').trim().toLowerCase();
+  const provider = gemini ? (tier === 'free' || tier === 'paid' ? 'gemini' : null) : anthropic ? 'anthropic' : null;
   const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
-  const anon = process.env.SUPABASE_ANON_KEY;
-  if (!key || !supabaseUrl || !anon) return json(503, { error: 'The assistant is not set up on this site yet.' });
+  const anon = process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY;
+  if (!provider || !supabaseUrl || !anon) return json(503, { error: 'The assistant is not set up on this site yet.' });
 
   const auth = req.headers.get('authorization') || '';
   if (!/^Bearer\s+\S+/.test(auth)) return json(401, { error: 'Sign in to use the assistant.' });
@@ -79,25 +94,49 @@ export default async (req) => {
   if (mine > limit) return json(429, { error: 'That is the assistant\'s limit for today. Plain sentences still work.' });
   if (total > siteLimit) return json(429, { error: 'The assistant has reached its limit for today. Plain sentences still work.' });
 
+  return provider === 'gemini' ? askGemini(gemini, body.messages) : askClaude(anthropic, body.messages);
+};
+
+// "Busy" is worth telling apart from "broken", so the client can say which.
+// The upstream error body is never passed on: it can describe the account.
+const failed = (status) => {
+  const busy = [429, 503, 529].includes(status);
+  return json(busy ? 429 : 502, { error: busy ? 'The assistant is busy. Try again in a moment.' : 'The assistant had a problem. Try again.' });
+};
+
+async function askClaude(key, messages) {
   let upstream;
   try {
     upstream = await fetch(API_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': API_VERSION, 'anthropic-beta': BETAS },
-      body: JSON.stringify(requestBody(body.messages))
+      body: JSON.stringify(requestBody(messages))
     });
   } catch {
     return json(502, { error: 'The assistant could not be reached. Try again.' });
   }
-
   const text = await upstream.text();
-  if (!upstream.ok) {
-    // Pass the status through so the client can tell "busy" from "broken",
-    // but not the upstream error body, which can describe the account.
-    const status = [429, 529].includes(upstream.status) ? 429 : 502;
-    return json(status, { error: status === 429 ? 'The assistant is busy. Try again in a moment.' : 'The assistant had a problem. Try again.' });
-  }
+  if (!upstream.ok) return failed(upstream.status);
   return new Response(text, { status: 200, headers: { ...CORS, 'content-type': 'application/json', 'cache-control': 'no-store' } });
-};
+}
+
+async function askGemini(key, messages) {
+  let upstream;
+  try {
+    // The key goes in a header, not the address, so it never appears in a log of URLs.
+    upstream = await fetch(geminiUrl(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify(geminiRequest(messages))
+    });
+  } catch {
+    return json(502, { error: 'The assistant could not be reached. Try again.' });
+  }
+  if (!upstream.ok) return failed(upstream.status);
+  const data = await upstream.json().catch(() => null);
+  const reply = fromGemini(data);
+  if (reply.stop_reason === 'error') return failed(502);
+  return json(200, reply);
+}
 
 export const config = { path: '/api/agent' };

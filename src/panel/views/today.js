@@ -61,7 +61,7 @@ function summaryLine() {
 function nudgeBanner(n) {
   return `<div class="nudge-banner">
     ${avatar(n.from, 40)}
-    <div class="grow"><div class="card-title">${esc(n.from.name.split(' ')[0])} nudged you</div>
+    <div class="grow"><div class="card-title">${esc((n.from?.name || 'Someone').split(' ')[0])} nudged you</div>
       <div class="card-sub mt0">${esc(n.message)}</div></div>
     <button class="btn small soft" data-act="seen-nudge" data-id="${n.id}">Mark as read</button>
   </div>`;

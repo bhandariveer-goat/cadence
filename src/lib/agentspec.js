@@ -151,14 +151,16 @@ export function requestBody(messages) {
 }
 
 // What a conversation with this assistant can legitimately contain. A student's
-// turn is text or tool results; the model's turn is whatever the API returned.
+// turn is text or tool results; the model's turn is whatever the API returned
+// (for Gemini, also its own parts, kept for their signatures: lib/gemini.js).
 // Anything else (an image or document fetched from a URL, say) is refused, so
 // the endpoint cannot be used to run up cost on things the assistant never does.
 const USER_BLOCKS = {
   text: ['type', 'text'],
   tool_result: ['type', 'tool_use_id', 'content', 'is_error']
 };
-const ASSISTANT_BLOCKS = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use', 'fallback']);
+const ASSISTANT_BLOCKS = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use', 'fallback', 'gemini']);
+const TOOL_NAMES = new Set(TOOLS.map((t) => t.name));
 
 /** Is this a list of messages we are willing to forward? Returns a reason when it is not. */
 export function checkMessages(messages) {
@@ -181,6 +183,9 @@ export function checkMessages(messages) {
           if (b.type === 'tool_result' && (typeof b.content !== 'string' || typeof b.tool_use_id !== 'string')) return 'a tool result needs an id and text content';
         } else if (!ASSISTANT_BLOCKS.has(b.type)) {
           return `content of type ${b.type} is not accepted`;
+        } else if (b.type === 'gemini') {
+          const bad = checkGeminiBlock(b);
+          if (bad) return bad;
         }
       }
     } else {
@@ -190,5 +195,31 @@ export function checkMessages(messages) {
   }
   if (chars > LIMITS.maxChars) return 'This conversation is too long. Start a new one.';
   if (messages[0].role !== 'user') return 'the first message must be from the user';
+  return null;
+}
+
+/**
+ * Is this "gemini" block, sent back by a browser, one Cadence could have made?
+ * Returns a reason when it is not. It stops a request from smuggling in parts
+ * the assistant never uses, such as a file for Gemini to fetch.
+ */
+function checkGeminiBlock(b) {
+  if (Object.keys(b).some((k) => k !== 'type' && k !== 'parts') || !Array.isArray(b.parts)) return 'a gemini block has only parts';
+  for (const p of b.parts) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return 'each part must be an object';
+    for (const k of Object.keys(p)) {
+      if (!['text', 'thought', 'thoughtSignature', 'functionCall'].includes(k)) return `a part may not have ${k}`;
+    }
+    if ('text' in p && typeof p.text !== 'string') return 'text must be a string';
+    if ('thought' in p && p.thought !== true) return 'thought must be true';
+    if ('thoughtSignature' in p && typeof p.thoughtSignature !== 'string') return 'a signature must be a string';
+    if ('functionCall' in p) {
+      const c = p.functionCall;
+      if (!c || typeof c !== 'object' || Object.keys(c).some((k) => !['id', 'name', 'args'].includes(k))) return 'a function call has only an id, a name and args';
+      if (!TOOL_NAMES.has(c.name)) return `there is no tool called ${c.name}`;
+      if ('id' in c && typeof c.id !== 'string') return 'a function call id must be a string';
+      if (!c.args || typeof c.args !== 'object' || Array.isArray(c.args)) return 'function call args must be an object';
+    }
+  }
   return null;
 }

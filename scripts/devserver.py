@@ -159,12 +159,21 @@ class Handler(SimpleHTTPRequestHandler):
         query = urlparse(self.path).query
 
         if path == '/auth/v1/otp':
-            if '@' not in str(body.get('email', '')):
-                return self._json(422, {'msg': 'Unable to validate email address: invalid format'})
+            email = str(body.get('email', ''))
+            if '@' not in email:
+                return self._json(422, {'error_code': 'validation_failed', 'msg': 'Unable to validate email address: invalid format'})
+            # Two addresses stand in for the two ways a real project refuses:
+            # its built-in email only reaches the project's own team, and it
+            # sends only a couple of emails an hour.
+            if email.startswith('outsider@'):
+                return self._json(400, {'code': 400, 'error_code': 'email_address_not_authorized', 'msg': 'Email address not authorized'})
+            if email.startswith('toomany@'):
+                return self._json(429, {'code': 429, 'error_code': 'over_email_send_rate_limit', 'msg': 'email rate limit exceeded'})
             return self._json(200, {})
         if path == '/auth/v1/verify':
-            if not str(body.get('token', '')).isdigit() or len(str(body.get('token'))) != 6:
-                return self._json(403, {'msg': 'Token has expired or is invalid'})
+            token = str(body.get('token', ''))
+            if not token.isdigit() or not 6 <= len(token) <= 10 or token.startswith('000'):
+                return self._json(403, {'code': 403, 'error_code': 'otp_expired', 'msg': 'Token has expired or is invalid'})
             return self._json(200, self._session(body.get('email')))
         if path == '/auth/v1/token':
             old = str(body.get('refresh_token', '')).replace('ref_', '', 1)

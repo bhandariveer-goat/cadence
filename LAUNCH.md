@@ -53,29 +53,206 @@ to match what the code does, but they are a draft: have an adult you trust (a
 parent, a teacher, ideally someone who knows the law where you live) read them
 before they go live, especially the age section and the liability section.
 
-## 3. Email sign-in and sync (optional, but the login is local-only without it)
+## 3. Accounts in Supabase: sign-in, and every plan saved
 
-1. Create a project at supabase.com.
-2. SQL editor → paste all of `supabase/schema.sql` → Run.
-3. Authentication → Providers → Email → enabled. Then Authentication → Email
-   templates → Magic Link: make sure the template includes `{{ .Token }}`.
-4. Project settings → API: copy the Project URL and the `anon` `public` key
-   into `src/config.js` (`supabaseUrl`, `supabaseAnonKey`). Do not copy the
-   `service_role` key anywhere.
-5. Sign in on the site with your own email and check the code arrives.
+Without this step an account is a name kept in one browser. With it, people
+sign in with an email, and their account, their plan and everything in Crew
+are stored in a Supabase project that you own, so the extension and the
+website show the same week.
 
-## 4. The assistant with Claude (optional)
+**Done on 2026-10-13:** the project exists and the database is set up. It
+is called `cadence` (`bfflfqtgqdlhtvwspynv`, region West US, free plan) in
+your Supabase organization, `supabase/schema.sql` has been run on it, and
+its address and publishable key are in `src/config.js`. What is left is 3b and
+3c. The steps below say how it was done, for setting up another copy.
 
-Without this the assistant still reads plain sentences on the device.
+### 3a. The project and the database
 
-1. Get an API key at console.anthropic.com and set a monthly spend limit there.
-2. Netlify → Project configuration → Environment variables → add
-   `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`. Scope: Functions.
-3. Redeploy. Sign in with an email, open the assistant, and send a message.
-4. Decide on `AGENT_DAILY_LIMIT` (default 60 per account per day) and
-   `AGENT_DAILY_TOTAL` (default 1500 across all accounts per day). Every
-   request costs money on your Anthropic account; the second number is the
-   most a single day can cost, whatever anyone does.
+1. Create a project at supabase.com. The free plan is enough to start. Pick
+   the region closest to your users. It asks for a database password: save it
+   in a password manager; Cadence never needs it.
+2. SQL editor → New query → paste all of `supabase/schema.sql` → Run. If it
+   asks you to confirm because the query drops things, confirm: it only drops
+   and remakes its own policies and trigger, never a table or anything
+   saved. It should end with "Success. No rows returned". The file makes the tables,
+   the rules that keep one person's plan from another's, and the permissions
+   the app needs. Supabase projects differ in what they allow by default, so
+   the file's last section sets that exactly. It is safe to run again
+   whenever the file changes.
+3. Connect (top of the project) or Project settings → API keys. Copy two
+   things into `src/config.js`:
+   - the Project URL (`https://xxxx.supabase.co`) into `supabaseUrl`
+   - the **publishable** key (starts with `sb_publishable_`) into
+     `supabaseKey`. On an older project the same thing is called the `anon`
+     key and starts with `eyJ`.
+
+   Never copy the **secret** key (`sb_secret_`) or the `service_role` key
+   anywhere in this folder. `src/config.js` is public. Cadence refuses to
+   turn accounts on if it finds one of those there, and the pre-launch check
+   fails.
+4. Run `python3 scripts/stamp_pages.py`. The homepage has a sentence about
+   signing in that is only shown once accounts exist.
+
+### 3b. Where a sign-in may return to
+
+Authentication → URL Configuration:
+
+- Site URL: `https://cadenceaiplanning.netlify.app/app` (your own domain
+  instead, once you have one).
+- Redirect URLs: add `https://cadenceaiplanning.netlify.app/**`. While you
+  test on this computer also add `http://localhost:8123/**`.
+
+When you move to a custom domain (step 1), change both. A sign-in link that
+points anywhere not on this list is sent to the Site URL instead.
+
+### 3c. The sign-in email
+
+**Decided:** until launch, Supabase's built-in email, which only you can
+receive. At launch, Resend, sending from your own domain, with a code in
+every email. Resend's free plan is 3,000 emails a month and 100 a day, which
+is far more than sign-ins need: a person gets an email only when they sign
+in on a new device or after signing out.
+
+Authentication → Sign In / Providers → Email must be enabled (it is by
+default). Cadence has no passwords: it asks Supabase to email the person, and
+the email holds a six-digit code, a link, or both. A code or link works once
+and for an hour, and a person can ask for a new email once a minute.
+
+**Out of the box, only you can sign in.** Supabase's built-in email is for
+testing. It delivers only to the email addresses of people in your Supabase
+organization (at first, just the address you signed up to Supabase with),
+and sends at most two emails an hour. Anyone else who tries is told, in
+Cadence, that the project cannot email their address yet. That is enough to
+try everything yourself, on the website, by pressing the link in the email.
+
+**For anyone else to sign in, connect Resend.** Do step 1 (the domain) first;
+Resend will only send from a domain you have proved you own.
+
+1. Make an account at resend.com. Domains → Add Domain → use a part of your
+   domain just for this, such as `mail.yourdomain.com`. Add the DNS records it
+   shows at the place you bought the domain, then Verify.
+2. Resend → Integrations → Supabase → connect, and pick the `cadence` project
+   and that domain. It fills in Supabase's SMTP settings for you. (By hand
+   instead: Supabase → Authentication → Emails → SMTP Settings → Enable
+   custom SMTP; host `smtp.resend.com`, port 465, user `resend`, and a Resend
+   API key as the password. That key goes only into Supabase, never into
+   this folder. Sender: `Cadence <signin@mail.yourdomain.com>`.)
+
+Then, in Supabase:
+
+1. Authentication → Emails → Templates. Two templates are used, and both
+   need changing: **Confirm signup** goes to someone signing in for the first
+   time, **Magic Link** to someone who has signed in before. In each, make
+   the body say the code, for example:
+
+   ```
+   <h2>Your Cadence sign-in code</h2>
+   <p>{{ .Token }}</p>
+   <p>Type it into Cadence. It works once.</p>
+   ```
+
+   `{{ .Token }}` is the six-digit code. You can keep the link
+   (`{{ .ConfirmationURL }}`) as well; Cadence accepts either. On the free
+   plan the templates can only be edited once custom SMTP is on.
+2. Authentication → Rate Limits. With your own email service the limit
+   starts at 30 emails an hour, which is enough to begin with. Raise it
+   before a whole class signs in during the same lesson.
+3. Add Resend to the table of other companies in `privacy.html` (it is
+   given each person's email address and the email, so it can deliver it),
+   change that page's "Last updated" date, and do step 9.
+
+**The extension needs the code.** A link opens the website and signs in
+there; it cannot sign in the panel inside Canvas. Until the emails carry a
+code, sign in on the website, and use the extension with a name only.
+
+### 3d. Check it
+
+1. Open `/app` on the site, enter your own email, and sign in with what
+   arrives. Add an assignment.
+2. Supabase → Table editor → `planner_state`: one row, yours. Authentication
+   → Users: you.
+3. Open the site in a different browser, sign in with the same email, and
+   the assignment should be there.
+4. Account → Delete my data, then look again: the row and the user are gone.
+
+If signing in works but the plan does not save, and the browser's console
+shows "permission denied for table", step 2 was skipped or failed part of
+the way: run `schema.sql` again and read its output.
+
+Supabase → Advisors → Security Advisor lists some warnings, and they are
+expected:
+
+- "Signed-In Users Can Execute SECURITY DEFINER Function" for
+  `accept_invite`, `create_club`, `join_club`, `club_members_progress`,
+  `my_club_overview`, `bump_agent_usage`, `delete_my_account`, `is_connected`
+  and `my_club_ids`, and "Public Can Execute" for `count_visit`. These are
+  the functions the app calls on purpose; each checks who is asking.
+- "RLS Enabled No Policy" for `agent_usage` and `visit_counts`. Nobody may
+  touch those tables except through their functions; no policy is the point.
+
+Anything else there is new and worth reading.
+
+### What is and is not kept in Supabase
+
+Kept: the email address, the name, the plan (assignments, activities, times
+you are busy, settings, check-ins), and Crew (partners, clubs, shared
+check-ins, kudos, nudges, posts). Supabase also keeps its own log of
+sign-ins with the IP address and browser of each (Authentication → Audit
+Logs); the privacy page says so.
+
+Never sent there, on purpose: an Anthropic key someone adds, their Google
+Calendar connection and its events, and their Canvas feed link. Those are
+credentials or other people's data, and they stay on the device where they
+were set up. `portable()` in `src/lib/cloud.js` is what leaves them out.
+
+## 4. The assistant with Gemini (optional)
+
+Without this the assistant still reads plain sentences on the device. With it,
+anyone signed in with an email gets an AI model that understands whatever they
+type and changes the plan through the same steps they could take themselves.
+
+**Read this first.** Google's Gemini API terms say the API is for people 18
+and over, and may not be part of a service "directed towards or ... likely to
+be accessed by individuals under the age of 18". Cadence is made for
+high-school students. Using Gemini here was a deliberate choice, and Google
+could switch the key off because of it. The server function still supports
+Claude, whose maker allows products used by people under 18 when they add
+safeguards: remove `GEMINI_API_KEY` and set `ANTHROPIC_API_KEY` to switch,
+with no change to the code.
+
+1. **Optional, and better for students:** aistudio.google.com → Projects. In
+   your key's project, press **Set up billing**. On the paid plan Google says
+   it does not use what students type to improve its products. On the free
+   plan, which you chose to start with, Google may use it and people at Google
+   may read it, and the privacy page says so. Free also has lower rate
+   limits, so a class using it at once may see "busy".
+2. If you do turn billing on: AI Studio → Spend → Monthly spend cap → Edit
+   spend cap. New accounts pay in advance (Prepay), which limits spending to
+   the credit bought.
+3. Netlify → Project configuration → Environment variables, scope Functions:
+   - `GEMINI_API_KEY`: the key. Paste it there and nowhere else: not into a
+     file in this folder, not into a chat or an email. The pre-launch check
+     fails if anything shaped like a Google key appears in the code.
+   - `GEMINI_TIER`: `free` while the key has no billing, `paid` once it does.
+     Without it the assistant stays off, so using Gemini is always a choice.
+     The privacy page is written for the free plan, which is the worse case
+     and so stays true after you upgrade.
+   - `SUPABASE_URL` and `SUPABASE_KEY`: the same Project URL and publishable
+     key as in `src/config.js` (step 3).
+4. Redeploy (Deploys → Trigger deploy). Sign in on the website with your
+   email, open the assistant and send "I have dinner at 6 then I want to
+   work". The reply should come in a few seconds and the plan should change.
+   If it answers the way it did before, the on-device reader answered: check
+   the three variables and that the deploy finished.
+5. Decide on `AGENT_DAILY_LIMIT` (default 60 per account per day) and
+   `AGENT_DAILY_TOTAL` (default 1500 across all accounts per day). The second
+   is the most requests a single day can make, whatever anyone does.
+
+The model is `gemini-3.8-flash`, named in `src/lib/gemini.js`.
+
+To use Claude instead, do the same with `ANTHROPIC_API_KEY` (from
+console.anthropic.com, with a monthly spend limit set there) in place of the
+two Gemini variables, and change the privacy page's assistant section to match.
 
 ## 5. The Chrome extension
 
@@ -142,7 +319,7 @@ purpose:
 1. Do step 3 first; the counts are kept in the same Supabase project. If you
    ran `schema.sql` before this section existed, run it again. It is safe to
    run twice.
-2. Netlify → Environment variables: `SUPABASE_URL` and `SUPABASE_ANON_KEY`,
+2. Netlify → Environment variables: `SUPABASE_URL` and `SUPABASE_KEY`,
    scope Functions (the same two the assistant uses).
 3. In `src/config.js` set `site.countVisits` to `true`, and deploy.
 4. Open the site once from a labelled link, for example

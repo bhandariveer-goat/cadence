@@ -36,7 +36,7 @@ export function viewCrew() {
         <span class="name text-2">Invite</span>
       </button>
     </div>
-    ${!partners.length ? '<p class="hint">Partners see your weekly rings and can nudge you. You see theirs.</p>' : ''}`}
+    ${!partners.length ? '<p class="hint">Partners see the check-ins you share and can nudge you. You see theirs.</p>' : ''}`}
 
     <div class="section">
       <div class="section-head"><h2>${teacher ? 'Your groups' : 'Clubs'}</h2><button class="link" data-act="club-join">Join with a code</button></div>
@@ -58,7 +58,7 @@ function connectCrew(teacher) {
       ? "Set a team goal, see who's keeping up each week, and cheer people on, without chasing anyone."
       : 'Invite a friend, join your team or club, and cheer each other on. People who know someone is watching show up more.'}</p>
     <div class="card left mt4 stack">
-      ${[[I.users, 'Partners', 'See each other\'s weekly rings and send a nudge'],
+      ${[[I.users, 'Partners', 'See each other\'s check-ins and send a nudge'],
         [I.trophy, 'Clubs', 'Team goals with a shared ring toward the big event'],
         [I.thumb, 'Kudos', 'One tap to say "I saw that"'],
         [I.lock, 'You choose', 'Only the activities you share are visible to them']].map(([ic, t, m]) => `
@@ -72,7 +72,7 @@ function connectCrew(teacher) {
 
 function personTile(p) {
   return `<button class="person" data-act="open-person" data-id="${p.id}">
-    ${ring({ pct: p.weekPct || 0, size: 56, stroke: 4, inner: avatar(p, 44), label: `${p.name}: ${Math.round((p.weekPct || 0) * 100)}% this week` })}
+    ${p.weekPct == null ? avatar(p, 56) : ring({ pct: p.weekPct, size: 56, stroke: 4, inner: avatar(p, 44), label: `${p.name}: ${Math.round(p.weekPct * 100)}% this week` })}
     <span class="name">${esc(p.name.split(' ')[0])}</span>
     ${p.streak ? `<span class="streak">${svg(I.flame, 11)}${p.streak}</span>` : ''}
   </button>`;
@@ -198,7 +198,7 @@ async function openPerson(id) {
   if (!p) return;
   const messages = ['Practice tonight?', "You've got this", "Let's both check in by 9", 'Proud of you this week'];
   const res = await sheet(`
-    <div class="sheet-hero">${ring({ pct: p.weekPct || 0, size: 64, stroke: 5, inner: avatar(p, 48) })}
+    <div class="sheet-hero">${p.weekPct == null ? avatar(p, 64) : ring({ pct: p.weekPct, size: 64, stroke: 5, inner: avatar(p, 48) })}
       <div class="grow"><h2 class="m0">${esc(p.name)}</h2><div class="text-2 small">Partners since ${esc(p.since || 'recently')}${p.streak ? ` · ${svg(I.flame, 12)} ${p.streak}-day streak` : ''}</div></div></div>
     <div class="card soft small mb4">Sharing: <b>${esc((p.sharing || []).join(', ') || 'nothing yet')}</b>${p.lastAt ? ` · last check-in ${ago(p.lastAt)}` : ''}</div>
     <div class="q mt0">Send a nudge</div>
@@ -218,7 +218,7 @@ async function invitePartner() {
     <div class="code">${esc(code)}</div>
     <button type="button" class="btn soft block mt3" data-copy="${esc(code)}">${svg(I.copy, 16)} Copy code</button>
     <div class="q">Have a friend's code?</div>
-    <div class="row gap2"><input type="text" class="code-input" name="code" placeholder="MAYA-7K2" autocomplete="off" spellcheck="false" aria-label="Partner code">
+    <div class="row gap2"><input type="text" class="code-input" name="code" placeholder="K7Q2-XM4P" autocomplete="off" spellcheck="false" aria-label="Partner code">
       <button class="btn primary" name="op" value="accept">Add partner</button></div>
     <div class="actions"><button class="btn ghost" value="cancel">Close</button></div>`);
   if (res?.get('op') !== 'accept') return;
@@ -231,7 +231,7 @@ async function invitePartner() {
 
 async function joinClub() {
   const res = await sheet(`<h2>Join a club or class</h2><p class="lead">Your leader or teacher has the code.</p>
-    <label class="field"><span>Code</span><input type="text" class="code-input" name="code" placeholder="ROBO-7Q" autocomplete="off" spellcheck="false"></label>
+    <label class="field"><span>Code</span><input type="text" class="code-input" name="code" placeholder="ROBOT-K7Q2XM" autocomplete="off" spellcheck="false"></label>
     <div class="actions"><button class="btn ghost" value="cancel">Cancel</button><button class="btn primary" name="op" value="join">Join club</button></div>`);
   if (!res) return;
   try {
@@ -254,7 +254,7 @@ async function createClub() {
     <label class="field"><span>Weekly goal</span><input type="text" name="goal" placeholder="Practice rounds, build nights, research check-ins…" maxlength="50"></label>
     <label class="field"><span>Times per week</span><input type="number" name="sessions" min="1" max="7" value="2"></label>
     <div class="two">
-      <label class="field"><span>Working toward <span class="muted">(optional)</span></span><input type="text" name="eventLabel" placeholder="Regionals"></label>
+      <label class="field"><span>Working toward <span class="muted">(optional)</span></span><input type="text" name="eventLabel" placeholder="Regionals" maxlength="40"></label>
       <label class="field"><span>Date</span><input type="date" name="eventDate"></label>
     </div>
     <div class="actions"><button class="btn ghost" value="cancel">Cancel</button><button class="btn primary" name="op" value="create">Create</button></div>`, {

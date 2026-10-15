@@ -2,17 +2,28 @@
 // it: nothing is shown, and no sample data is loaded, until Cadence knows whose
 // week this is.
 //
-// Two kinds of account. With an email, a six-digit code signs you in and the
-// plan follows you between the extension and the website. Without one, the
-// account is a name kept in this browser; it is honest about that limit and
-// can be upgraded to an email later.
+// Two kinds of account. With an email, a code from that email signs you in
+// and the plan is kept in your account, so it follows you between the
+// extension and the website. Without one, the account is a name kept in this
+// browser; it is honest about that limit and can be upgraded to an email later.
 
-import { app, render, signInLocal, signInCloud, resolvePlanConflict, planConflict, insideCanvas, STANDALONE } from '../core.js';
+import { app, render, signInLocal, signInCloud, nameAccount, resolvePlanConflict, planConflict, insideCanvas, STANDALONE } from '../core.js';
+import { CONFIG, cloudConfigured } from '../../config.js';
 import { svg, I, esc, toast, flash } from '../ui.js';
-import { cloudConfigured } from '../../config.js';
 import { ART } from './parts.js';
 
 export const pageUrl = (page) => new URL(`../../../${page}`, import.meta.url).href;
+
+// Codes are six digits unless whoever runs the project chose longer ones.
+const CODE = /^\d{6,10}$/;
+
+/**
+ * Where a sign-in link should lead, for a project whose email carries a link
+ * instead of a code: this app, on the website. Inside the extension that is
+ * the website's address, if this copy of Cadence has been told what it is.
+ */
+const returnAddress = () => (/^https?:$/.test(location.protocol) ? pageUrl('app')
+  : CONFIG.site?.domain ? `https://${CONFIG.site.domain}/app` : '');
 
 function draft() {
   app.signin ||= {};
@@ -44,13 +55,29 @@ export function viewSignIn() {
     </div>`;
   }
 
+  // Signed in by opening the link in the email, so nobody has typed a name yet.
+  if (d.step === 'name') {
+    return `<div class="signin">
+      <h1>You are signed in</h1>
+      <p class="lead">One thing is missing: what should Cadence call you?</p>
+      <form class="signin-form" data-form="signin-name" autocomplete="on">
+        <label class="field"><span>Your name</span>
+          <input type="text" name="name" value="${esc(d.name || '')}" maxlength="60" autocomplete="given-name" required data-error="Enter a name for Cadence to call you."></label>
+        ${d.error ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
+        <button class="btn primary block" type="submit">Start planning</button>
+      </form>
+    </div>`;
+  }
+
   if (d.step === 'code') {
     return `<div class="signin">
       <h1>Check your email</h1>
-      <p class="lead">We sent a six-digit code to <b>${esc(d.email)}</b>. It can take a minute to arrive.</p>
+      <p class="lead">We sent a sign-in email to <b>${esc(d.email)}</b>. It can take a minute to arrive. If it has a code, type it here. ${STANDALONE
+        ? 'If it has a button instead, press it.'
+        : 'If it only has a button, pressing it signs you in on the website, not here: signing in here needs the code.'}</p>
       <form class="signin-form" data-form="signin-code" autocomplete="off">
         <label class="field"><span>Code</span>
-          <input type="text" class="code-input" name="code" value="${esc(d.code || '')}" inputmode="numeric" maxlength="6" autocomplete="one-time-code" spellcheck="false" placeholder="123456" required data-error="Enter the six-digit code from the email."></label>
+          <input type="text" class="code-input" name="code" value="${esc(d.code || '')}" inputmode="numeric" maxlength="10" autocomplete="one-time-code" spellcheck="false" placeholder="123456" required data-error="Enter the code from the email."></label>
         <label class="field"><span>Your name</span>
           <input type="text" name="name" value="${esc(d.name || d.canvasName || '')}" maxlength="60" autocomplete="given-name" required data-error="Enter a name for Cadence to call you."></label>
         ${d.error ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
@@ -58,7 +85,7 @@ export function viewSignIn() {
       </form>
       <p class="form-success" id="signin-status" role="status"></p>
       <p class="signin-more">
-        <button class="link" data-act="signin-resend" ${d.resending ? 'aria-busy="true"' : ''}>${d.resending ? 'Sending a new code…' : 'Send a new code'}</button>
+        <button class="link" data-act="signin-resend" ${d.resending ? 'aria-busy="true"' : ''}>${d.resending ? 'Sending a new email…' : 'Send a new email'}</button>
         <button class="link" data-act="signin-back">Use a different email</button>
       </p>
     </div>`;
@@ -77,9 +104,9 @@ export function viewSignIn() {
         <label class="field"><span>School or personal email</span>
           <input type="email" name="email" value="${esc(d.email || '')}" autocomplete="email" spellcheck="false" placeholder="you@school.org" required data-error="Enter an email like you@school.org."></label>
         ${d.error ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
-        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Sending…' : 'Email me a sign-in code'}</button>
+        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Sending…' : 'Send me a sign-in email'}</button>
       </form>
-      <p class="hint">No password. We send a six-digit code.</p>
+      <p class="hint">No password. We email that address a code or a link.</p>
       <button class="link mt4" data-act="signin-cancel">Go back without adding one</button>
     </div>`;
   }
@@ -94,7 +121,7 @@ export function viewSignIn() {
         <label class="field"><span>School or personal email</span>
           <input type="email" name="email" value="${esc(d.email || '')}" autocomplete="email" spellcheck="false" placeholder="you@school.org" required data-error="Enter an email like you@school.org."></label>
         ${d.error && d.errorFor === 'email' ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
-        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Sending…' : 'Email me a sign-in code'}</button>
+        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Sending…' : 'Send me a sign-in email'}</button>
       </form>
       <p class="hint">No password. The same account works in the Chrome extension and on the website, so they show the same week.</p>
       <div class="signin-or"><span>or</span></div>` : ''}
@@ -134,10 +161,15 @@ export const submitActions = {
     Object.assign(d, { email, busy: true, error: null, code: '' });
     render();
     try {
-      await app.cloud.sendCode(email);
+      await app.cloud.sendCode(email, returnAddress());
       Object.assign(d, { step: 'code', busy: false });
       render();
     } catch (e) { fail(e.message, 'email'); }
+  },
+
+  'signin-name': async (form, data) => {
+    try { await nameAccount(data.get('name')); app.signin = null; render(); }
+    catch (e) { fail(e.message, 'name'); }
   },
 
   'signin-code': async (form, data) => {
@@ -145,7 +177,7 @@ export const submitActions = {
     if (d.busy) return;
     const code = String(data.get('code') || '').replace(/\D/g, '');
     const name = String(data.get('name') || '').trim();
-    if (code.length !== 6) return fail('Enter the six-digit code from the email.', 'code');
+    if (!CODE.test(code)) return fail('Enter the code from the email. It is six digits, sometimes more.', 'code');
     Object.assign(d, { name, code, busy: true, error: null });
     render();
     try {
@@ -169,10 +201,10 @@ export const actions = {
     Object.assign(d, { resending: true, error: null, code: typed('code') ?? d.code, name: typed('name') ?? d.name });
     render();
     try {
-      await app.cloud.sendCode(d.email);
+      await app.cloud.sendCode(d.email, returnAddress());
       d.resending = false;
       render();
-      flash('signin-status', `A new code is on its way to ${d.email}. Use the newest one.`, 20000);
+      flash('signin-status', `A new email is on its way to ${d.email}. Use the newest one.`, 20000);
     } catch (e) {
       d.resending = false;
       fail(e.message, 'code');

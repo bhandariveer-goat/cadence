@@ -7,9 +7,10 @@
 // showing its work is not one to trust with a week.
 //
 // It always works: sentences are read offline (lib/agent.js). When the student
-// has their own Anthropic key, or is signed in on a site that runs the server
-// function, Claude does the reading instead (lib/agentllm.js) and the offline
-// reader is the fallback if that call fails.
+// is signed in on a site that runs the server function, a model does the
+// reading instead (Gemini or Claude, whichever the site is set up with), or
+// Claude does when the student has added their own Anthropic key
+// (lib/agentllm.js). The offline reader is the fallback if that call fails.
 
 import { app, restore, go, DEMO } from '../core.js';
 import { respond } from '../../lib/agent.js';
@@ -31,16 +32,16 @@ function starters() {
   return ['How is my week?', 'Robotics Monday and Wednesday 3:45 to 5:30', 'Bio test Friday, takes 2 hours', 'Am I free Thursday evening?'];
 }
 
-/** Which way to reach Claude, if any. */
+/** Which way to reach a model, if any. `kind` says which, so a conversation never mixes the two. */
 function transport() {
   const S = app.S;
   if (DEMO) return null;
-  if (aiAvailable(S.settings)) return directTransport(S.settings.apiKey);
+  if (aiAvailable(S.settings)) return Object.assign(directTransport(S.settings.apiKey), { kind: 'own key' });
   if (S.account?.mode === 'cloud' && app.cloud?.signedIn) {
     const endpoint = /^https?:/.test(CONFIG.agentEndpoint) ? CONFIG.agentEndpoint
       : /^https?:$/.test(location.protocol) ? new URL(CONFIG.agentEndpoint, location.origin).href
         : CONFIG.site.domain ? `https://${CONFIG.site.domain}${CONFIG.agentEndpoint}` : null;
-    if (endpoint) return proxyTransport(endpoint, () => app.cloud.token());
+    if (endpoint) return Object.assign(proxyTransport(endpoint, () => app.cloud.token()), { kind: 'site' });
   }
   return null;
 }
@@ -116,8 +117,10 @@ async function send(text) {
   const via = transport();
   if (via) {
     try {
-      // A long conversation is restarted rather than trimmed.
-      if (a.messages.length > 30) a.messages = [];
+      // A long conversation is restarted rather than trimmed, and so is one
+      // that was with the other model: each keeps parts the other cannot read.
+      if (a.messages.length > 30 || a.via !== via.kind) a.messages = [];
+      a.via = via.kind;
       const r = await converse({ text: clean, state: before, messages: a.messages, send: via, now });
       const diff = r.next ? diffPlans(before, r.next, now) : null;
       result = {

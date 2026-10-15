@@ -89,46 +89,79 @@ There are two ways a sentence becomes operations:
 1. **On the device** (`lib/agent.js`). Rules that read times, ranges, weekday
    lists, recurrence, amounts of work, "then go to sleep", cancellations,
    moves and questions. Always available, no network.
-2. **With Claude** (`lib/agentllm.js`, model `claude-opus-5-5`). A tool-use
-   loop: Claude calls tools, the browser runs each against a working copy of
-   the plan and returns what actually changed, and nothing is saved until the
-   turn ends. Used when the student adds their own Anthropic key, or is signed
-   in with an email on a site that runs the server function. If the call fails
-   for any reason the on-device reader answers instead.
+2. **With a model** (`lib/agentllm.js`). A tool-use loop: the model calls
+   tools, the browser runs each against a working copy of the plan and returns
+   what actually changed, and nothing is saved until the turn ends. Signed in
+   on a site that runs the server function, the model is Google's Gemini
+   (`gemini-3.8-flash`); with the student's own Anthropic key, it is Claude
+   (`claude-opus-5-5`), straight from the browser. Every message goes to the
+   model when one is available. If the call fails for any reason the
+   on-device reader answers instead.
 
-What Claude is sent is listed in `privacy.html`. Events from Google Calendar
+What the model is sent is listed in `privacy.html`. Events from Google Calendar
 are sent as a time with no title.
 
 ### The server function
 
-`netlify/functions/agent.mjs` holds the Anthropic key so it never reaches a
+`netlify/functions/agent.mjs` holds the model's key so it never reaches a
 browser. It accepts a request only with a Supabase session that Supabase
 confirms, counts it against a per-account daily limit and a site-wide daily
-limit kept in Postgres, and forwards only `messages`: the model, the instructions and the tools are fixed
-in `lib/agentspec.js`.
+limit kept in Postgres, and forwards only `messages`: the model, the
+instructions and the tools are fixed in `lib/agentspec.js` and
+`lib/gemini.js`.
+
+The browser speaks one conversation format whichever model answers.
+`lib/gemini.js` turns it into a Gemini `generateContent` request and turns
+the reply back. Gemini's reply also travels in its own block, untouched,
+because Gemini attaches signatures to its tool calls and refuses a later
+request that does not return them exactly; `checkMessages` refuses any such
+block that holds something Cadence never sends (a file for Gemini to fetch,
+say). `generateContent` rather than the newer Interactions API, which
+Google's own documentation calls a beta whose schema may change.
+
+Using Gemini for a site students use goes against Google's Gemini API terms,
+which set a minimum age of 18; see `LAUNCH.md`, step 4.
 
 Set these in Netlify → Project configuration → Environment variables (never in
 `netlify.toml`, which functions cannot read, and never in this repository):
 
 | Variable | |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | required |
+| `GEMINI_API_KEY` | the key from Google AI Studio. When it is set, Gemini answers |
+| `GEMINI_TIER` | `free` or `paid`: which Google plan the key is on. Must be set for Gemini to run. The privacy page is written for the free plan (Google may use and read messages) |
+| `ANTHROPIC_API_KEY` | used instead when there is no `GEMINI_API_KEY` |
 | `SUPABASE_URL` | required, same as `src/config.js` |
-| `SUPABASE_ANON_KEY` | required, same as `src/config.js` |
-| `AGENT_DAILY_LIMIT` | optional, default 60 requests per account per day |
+| `SUPABASE_KEY` | required: the publishable key, same as `supabaseKey` in `src/config.js` (`SUPABASE_ANON_KEY` is still read, for a set-up made before the rename) |
+| `AGENT_DAILY_LIMIT` | optional, default 60 requests per account per day. The database stops counting an account at 61 (so one account cannot use up the day for everyone), so a higher limit also needs that number raised in `bump_agent_usage()` |
 | `AGENT_DAILY_TOTAL` | optional, default 1500 requests per day across all accounts |
 
 ## Accounts and sync
 
-Without any setup, an account is a name kept in the browser. To add email
-sign-in, so the extension and the website show the same plan:
+Without any setup, an account is a name kept in the browser. With a Supabase
+project behind it, people sign in with an email and their account, plan and
+Crew are stored there, so the extension and the website show the same plan.
+`LAUNCH.md`, step 3, is the full set-up. In short:
 
 1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor.
-2. Authentication → Providers → Email: enabled. Edit the Magic Link email
-   template to include `{{ .Token }}` so students get a six-digit code.
-3. Put the project URL and the anon key in `src/config.js`. The anon key is
-   public by design; row level security is what protects the data. Never put
-   the `service_role` key anywhere in this repository.
+   The file can be run again at any time. It makes the tables, the row level
+   security policies, a profile row for every new account, and the grants.
+   Supabase projects differ in what they grant by default (many grant every
+   table to everyone, people not signed in included), so the file takes all
+   of that away and gives each table back only the actions its policies
+   allow. Someone who is not signed in can reach nothing.
+2. Put the project URL and the publishable key (`sb_publishable_...`, or the
+   `anon` key on an older project) in `src/config.js`. That key is public by
+   design. The secret key and the `service_role` key must never be anywhere
+   in this repository; `cloudConfigured()` refuses one, and so does the
+   pre-launch check.
+3. Sign-in has no password. Supabase emails a code, a link, or both, and
+   Cadence accepts either: a code is typed in, a link returns to `/app` with
+   the session in the address, which is read and removed before anything else
+   runs (`sessionFromLink` in `lib/cloud.js`). Supabase's built-in email only
+   reaches the project's own team and is limited to two an hour, so signing
+   in anyone else needs a custom SMTP service, and so does editing the
+   templates to show the code (`{{ .Token }}`, in both Confirm signup and
+   Magic Link). The extension can only use a code.
 
 Sync is one row per account holding the plan (`lib/cloud.js`). It leaves out
 credentials and everything fetched from a connected calendar: the Anthropic
@@ -343,9 +376,25 @@ Tested in a browser against the code in this repository:
 - The planner, the day model, and every sentence in the assistant's on-device
   reader, including undo.
 - Sign-in, sync between two devices, and what sync leaves out, against the mock
-  backend in `scripts/devserver.py`.
+  backend in `scripts/devserver.py`. Sign-in by a code of six digits and of
+  eight, a wrong code, and a code that has run out. Sign-in by a link: the
+  session is taken out of the address, a new account is asked for a name, a
+  link that has run out says so, a link for a different account is refused
+  while someone else is signed in, and a link pasted into a page that is
+  already open works. The two refusals a new Supabase project gives (an
+  address it may not email yet, and too many emails) each show a sentence a
+  person can act on. A secret key in `src/config.js` leaves accounts off.
 - The server function's checks (auth, limit, body validation, what it forwards)
   with Anthropic stubbed out.
+- The assistant on Gemini, end to end with Google and Supabase stood in for:
+  the app's own loop, through the real server function, to a stand-in for
+  Gemini that refuses a request whose signatures do not come back exactly, as
+  Google's does. Two tool calls in one reply, the plan changed by both, the
+  answer shown; a follow-up sending the whole history with every signature;
+  the key only in a header; a busy, a broken and a malformed reply each
+  falling back with a plain message and no detail from Google; the assistant
+  staying off without `GEMINI_TIER`; and a block smuggling in a file part
+  or an unknown tool refused.
 - The Claude tool loop with a scripted model: message order, echoing replies
   unchanged, tool results, rollback on failure.
 - The public pages and the app at phone and desktop widths, light and dark:
@@ -370,15 +419,47 @@ Tested in a browser against the code in this repository:
 - The pre-launch check itself, against 42 deliberately altered copies of the
   site: 39 broken in one way each (a dead link, a missing canonical, a
   duplicate title, an em dash written as an entity, and so on), which it
-  caught, and 3 changed harmlessly, which it let pass.
+  caught, and 3 changed harmlessly, which it let pass. Its database checks
+  against 40 more: 36 broken (a table not granted, an action or a column
+  missing from a grant, the app setting a column it may not, something
+  granted to people who are not signed in, a secret key, a link between two
+  tables not named, a policy that reads its own table, a policy, trigger or
+  limit that would stop the file running twice), and 4 fine (the real
+  project's key, an older anon key, the grants in another order, nothing set).
+- The live Supabase project (October 2026). `schema.sql` was run on it
+  twice, the second time over the first, and what the project holds was
+  compared with the file byte for byte. Three test accounts then went
+  through everything the app does and everything it must not allow, as the
+  API would run it, in transactions that were rolled back: 43 checks, all
+  passing (each plan private, saves refused over a newer version, invites
+  working once, check-ins and nudges only within someone's crew, a stranger
+  seeing nothing in any table, account deletion removing the account,
+  profile and plan). Over HTTP with the public key, every table and account
+  function refused someone who is not signed in, and the crew feed's old
+  request failed on the live API exactly as the fix expected.
+- Three independent reviewers then attacked the live database and the code
+  that talks to it, each from one side (privacy, abuse, and whether every
+  request returns what the code reads). What they found was fixed: a check-in
+  meant for one club showed in every club its author was in; any member could
+  post as the club; one leader could break Crew for all members with a bad
+  weekly target; nothing limited size or how many a day; one account could
+  use up the assistant for everyone; future-dated check-ins counted forever;
+  an invite came back to life when its user deleted their account; the team
+  ring left out the person looking; joining a club did not open it; and
+  signing out on one device signed out every device. 40 further checks on the
+  live database cover each fix, and the original 32 still pass.
 - `scripts/stamp_pages.py` with an empty address, a name with an apostrophe,
   an accent and an ampersand in it, and a setting that was commented out.
 
 Not yet run against the real services, because that needs accounts and keys
 only the owner can create:
 
-- A live Supabase project (sign-in emails, the SQL in `schema.sql`).
-- A live Anthropic key (the assistant actually talking to Claude).
+- A real sign-in email arriving in a real inbox, and a real session in the
+  app. The database side of the live project is tested (above); the email
+  side needs the owner's own inbox.
+- A live Gemini key or a live Anthropic key: the assistant actually talking
+  to Gemini or Claude. The Gemini request was written from Google's reference
+  for `generateContent` (October 2026) but has only met the stand-in.
 - A Netlify deploy of the functions.
 - Google Calendar with a real OAuth client.
 - `count_visit()` in a real Postgres (it has only been read, not run).
@@ -415,7 +496,8 @@ src/lib/daymodel.js                      free time and load, per date
 src/lib/scheduler.js, priority.js        the planner
 src/lib/agent.js                         reading sentences on the device
 src/lib/agentops.js                      the operations, the plan diff, the answers
-src/lib/agentspec.js, agentllm.js        Claude: instructions, tools, the loop
+src/lib/agentspec.js, agentllm.js        the model's instructions, tools, the loop
+src/lib/gemini.js                        the conversation in and out of Gemini
 src/lib/cloud.js                         sign-in and sync
 src/lib/sources/                         Canvas feed, Google Calendar, sync runner
 supabase/schema.sql                      database tables and security policies

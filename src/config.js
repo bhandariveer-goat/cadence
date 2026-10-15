@@ -1,19 +1,28 @@
 // The few values that belong to whoever runs this copy of Cadence, in one
 // place. Everything here is public by design: a Supabase project URL and its
-// "anon" key are meant to ship in front-end code (row-level security is what
-// protects the data), and nothing secret is ever read from this file. Secrets
-// such as the Anthropic API key live in the host's environment variables and
-// are only read by netlify/functions/agent.mjs.
+// publishable key are meant to ship in front-end code (the grants and
+// row-level security in supabase/schema.sql are what protect the data), and
+// nothing secret is ever read from this file. Secrets such as the Anthropic
+// API key live in the host's environment variables and are only read by
+// netlify/functions/agent.mjs.
 //
 // Leave the Supabase fields empty and Cadence still works: people get an
 // account that lives in their browser, with no email sign-in and no sync
-// between the extension and the website.
+// between the extension and the website. Fill both in (LAUNCH.md, step 3)
+// and accounts, sign-in and every plan are kept in that Supabase project.
 
 export const CONFIG = {
-  // https://<project>.supabase.co  (Supabase > Project settings > API)
-  supabaseUrl: '',
-  // The public anon key from the same page. Never the service_role key.
-  supabaseAnonKey: '',
+  // https://<project>.supabase.co  (Supabase > Project settings > Data API,
+  // or the Connect button at the top of the project)
+  supabaseUrl: 'https://bfflfqtgqdlhtvwspynv.supabase.co',
+  // The PUBLISHABLE key from Project settings > API keys. It starts with
+  // sb_publishable_. On an older project it is the "anon" key instead, a long
+  // string starting with eyJ.
+  //
+  // Never the secret key (sb_secret_...) and never the service_role key:
+  // those can read and change everyone's data, and this file is public.
+  // Cadence refuses to start its accounts with one of those here.
+  supabaseKey: 'sb_publishable_t8_eRCeul71LRLpSFMmwyA_KLGJNmHU',
 
   // Where the assistant sends requests when the student has no key of their
   // own. Served by netlify/functions/agent.mjs on the website; the extension
@@ -46,5 +55,24 @@ export const CONFIG = {
   }
 };
 
+/**
+ * Is this key one that must never be in a browser? Supabase's secret keys
+ * start with sb_secret_; the older kind is a token whose contents name the
+ * role "service_role". Either one bypasses every rule that keeps one
+ * person's plan from another's.
+ */
+export function isSecretKey(key) {
+  const k = String(key || '').trim();
+  if (/^sb_secret_/i.test(k)) return true;
+  const parts = k.split('.');
+  if (parts.length !== 3 || !k.startsWith('eyJ')) return false;
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return payload.role !== 'anon';
+  } catch { return true; }               // a token that cannot be read is not trusted
+}
+
 // https everywhere, except a local mock (scripts/devserver.py --mock) while developing.
-export const cloudConfigured = () => /^(https:\/\/.+|http:\/\/localhost(:\d+)?\/.+)/.test(CONFIG.supabaseUrl) && CONFIG.supabaseAnonKey.length > 20;
+export const cloudConfigured = () => /^(https:\/\/.+|http:\/\/localhost(:\d+)?\/.+)/.test(CONFIG.supabaseUrl)
+  && String(CONFIG.supabaseKey || '').length > 20
+  && !isSecretKey(CONFIG.supabaseKey);

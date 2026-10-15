@@ -1,16 +1,19 @@
-// The assistant, when Claude is doing the reading.
+// The assistant, when a model is doing the reading.
 //
-// Claude gets the student's message with the current plan attached, and a set
+// The model (Claude, or Gemini through the site's server function) gets the
+// student's message with the current plan attached, and a set
 // of tools (lib/agentspec.js) that map one to one onto the operations in
 // lib/agentops.js. It calls tools; this file runs each one against a working
-// copy of the plan and hands back what actually changed, so what Claude says
+// copy of the plan and hands back what actually changed, so what the model says
 // is grounded in the real result. Nothing is saved until the turn ends, and
 // then it is saved once, which keeps undo a single step.
 //
 // Two ways to reach the model, same code after that:
 //   direct  the student's own Anthropic key, sent from this browser
-//   proxy   netlify/functions/agent.mjs, which holds the site's key and
-//           accepts only a signed-in account
+//   proxy   netlify/functions/agent.mjs, which holds the site's key (Gemini,
+//           or Claude) and accepts only a signed-in account. For Gemini it
+//           translates both ways (lib/gemini.js), so replies arrive here in
+//           the same shape either way.
 //
 // The conversation is append-only. Earlier turns are never edited or trimmed;
 // when it gets long a new one is started. Each reply is echoed back exactly as
