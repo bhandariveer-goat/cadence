@@ -314,7 +314,11 @@ export async function converse({ text, state, messages, send, now = new Date() }
               finalDiff = again.diff;
               applied.push({ ...later, summary: describe(later, working, now) });
               const asked = did.find((op) => op.kind === 'day')?.until || opt.limit_now;
-              moved = { asked_until: asked || null, planned_until: opt.stay_up_until, because: opt.to_finish };
+              const names = opt.to_finish.join(' and ');
+              moved = {
+                asked_until: asked || null, planned_until: opt.stay_up_until, because: opt.to_finish,
+                what_happened: `The student asked to stop at ${asked ? twelve(asked) : 'their usual time'}. ${names} ${opt.to_finish.length > 1 ? 'are' : 'is'} due by tomorrow and would not fit, so Cadence moved tonight's stop time to ${twelve(opt.stay_up_until)}, and the plan now fits ${opt.to_finish.length > 1 ? 'them' : 'it'}. Their limit was NOT kept. Tell them this kindly, and that they can keep ${asked ? twelve(asked) : 'their time'} instead with the button.`
+              };
               ownChips = [`OK, until ${twelve(opt.stay_up_until)}`, 'Only do the most urgent one', asked ? `Keep my ${twelve(asked)} limit` : 'Keep my limit'];
             }
           }
