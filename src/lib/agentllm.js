@@ -21,8 +21,9 @@
 
 import { API_URL, API_VERSION, BETAS, LIMITS, requestBody, checkMessages } from './agentspec.js';
 import { simulate, describe, planView, freeOn, clockOf, dayWord } from './agentops.js';
-import { dateKey } from './util.js';
+import { dateKey, addDays, startOfDay } from './util.js';
 import { KINDS } from './habits.js';
+import { workWindows, overrideFor } from './daymodel.js';
 
 export class AssistantUnavailable extends Error {}
 
@@ -139,6 +140,40 @@ export function toOps(name, input, state, now) {
   }
 }
 
+/**
+ * Schoolwork due by the end of tomorrow that does not fit before the point
+ * where the student said they would stop tonight. Returns null when there is
+ * none; otherwise the latest time they would need to work until for it to fit
+ * (tried in 15-minute steps up to 2am), or stay_up_until null when even that
+ * is not enough. The planner itself always keeps a limit the student set;
+ * this is what lets the assistant tell them honestly what it would take.
+ */
+export function stayUpOption(state, now = new Date()) {
+  const today = dateKey(now);
+  const endOfTomorrow = +addDays(startOfDay(now), 2);
+  const dueSoon = (st) => (st.plan?.unplaced || []).filter((u) => !u.commitmentId && u.due && +new Date(u.due) < endOfTomorrow);
+  const short = dueSoon(state);
+  if (!short.length) return null;
+  const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + m; };
+  // A Date, not the YYYY-MM-DD key: these read a bare key as midnight UTC,
+  // which is the evening before across the Americas.
+  const o = overrideFor(state, now) || {};
+  const win = workWindows(state, now)[0];
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let from = Math.max(nowMin, win ? (toMin(win.end) <= 300 ? toMin(win.end) + 1440 : toMin(win.end)) : nowMin);
+  from = Math.ceil((from + 1) / 15) * 15;
+  const missing = short.reduce((a, u) => a + (u.missingMin || 0), 0);
+  for (let m = from; m <= 26 * 60; m += 15) {
+    const until = `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const op = { kind: 'day', dates: [today], until, ...(Number.isFinite(o.budgetMin) ? { budgetMin: o.budgetMin + missing } : {}) };
+    const { next } = simulate(state, [op], now);
+    if (!dueSoon(next).length) {
+      return { stay_up_until: until, to_finish: short.map((u) => u.title), limit_now: win?.end || null, ...(op.budgetMin ? { minutes_tonight: op.budgetMin } : {}) };
+    }
+  }
+  return { stay_up_until: null, to_finish: short.map((u) => u.title), limit_now: win?.end || null, note: 'Does not fit even working until 2am' };
+}
+
 /** What a change did, in the words the model should repeat back. */
 function outcome(diff, now) {
   return {
@@ -198,7 +233,8 @@ export async function converse({ text, state, messages, send, now = new Date() }
   const applied = [];
   let chips = [];
 
-  messages.push({ role: 'user', content: `<plan>${JSON.stringify(planView(working, now))}</plan>\n\n${String(text).slice(0, 2000)}` });
+  const tonight = stayUpOption(working, now);
+  messages.push({ role: 'user', content: `<plan>${JSON.stringify({ ...planView(working, now), ...(tonight ? { if_staying_up: tonight } : {}) })}</plan>\n\n${String(text).slice(0, 2000)}` });
 
   try {
     for (let turn = 0; turn < LIMITS.maxTurns; turn++) {
@@ -244,7 +280,8 @@ export async function converse({ text, state, messages, send, now = new Date() }
         if (!did.length) { results.push({ type: 'tool_result', tool_use_id: call.id, content: 'Nothing changed: that could not be applied as given.', is_error: true }); continue; }
         working = next;
         for (const op of did) applied.push({ ...op, summary: describe(op, working, now) });
-        results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify({ applied: did.map((op) => describe(op, working, now)), ...outcome(diff, now) }) });
+        const realistic = stayUpOption(working, now);
+        results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify({ applied: did.map((op) => describe(op, working, now)), ...outcome(diff, now), ...(realistic ? { if_staying_up: realistic } : {}) }) });
       }
       messages.push({ role: 'user', content: results });
     }

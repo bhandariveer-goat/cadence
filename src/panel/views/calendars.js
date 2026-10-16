@@ -3,7 +3,7 @@
 
 import { app, persist, refreshSources, pushGoogleBlocks, back, insideCanvas, undoTo } from '../core.js';
 import { pushedItems } from '../../lib/replanner.js';
-import { SOURCE_META, canvasFeed, google } from '../../lib/sources/sources.js';
+import { SOURCE_META, canvasFeed, google, looksLikeGoogleIcs } from '../../lib/sources/sources.js';
 import { fmtMinutes } from '../../lib/util.js';
 import { svg, I, esc, sheet, toast, ago, plural } from '../ui.js';
 
@@ -11,6 +11,7 @@ export function viewCalendars() {
   const S = app.S;
   const cf = S.sources.canvasFeed;
   const g = S.sources.google;
+  const gf = S.sources.googleFeed || {};
   const auto = S.autoSync || {};
 
   return `
@@ -34,6 +35,14 @@ export function viewCalendars() {
     </div>` : ''}
 
     ${sourceCard({
+      id: 'googleFeed', icon: I.cal, color: '#3b82f6', cfg: gf,
+      title: 'Google Calendar link',
+      sub: gf.enabled ? `${plural((gf.events || []).length, 'event')} · read only` : 'Paste one link and your Google events count as busy time. Works on the website and on phones',
+      primary: gf.enabled ? 'Change link' : 'Add Google Calendar link',
+      action: 'google-feed-sheet'
+    })}
+
+    ${sourceCard({
       id: 'google', icon: I.cal, color: '#3b82f6', cfg: g,
       title: 'Google Calendar',
       sub: g.enabled ? `${esc(g.email || 'Connected')} · ${plural((g.events || []).length, 'event')} · ${plural((g.selected || []).length || (g.calendars || []).length, 'calendar')}`
@@ -43,7 +52,7 @@ export function viewCalendars() {
     })}
 
     ${!google.available() ? `<div class="card soft small">
-      <b>Google sync needs the Chrome extension.</b> On the website the browser blocks these requests. Your plan, activities and manual <code>.ics</code> imports all still work here.
+      <b>Signing in to Google needs the Chrome extension,</b> and is only needed to add Cadence's blocks to your Google Calendar. To plan around your Google events here, use the Google Calendar link above.
     </div>` : ''}
 
     ${g.enabled ? pushCard(g) : ''}
@@ -169,6 +178,41 @@ async function canvasFeedSheet() {
   }
   await persist((st) => { st.sources.canvasFeed = { ...st.sources.canvasFeed, url, enabled: true, error: null }; }, { recalc: false });
   await refreshSources({ only: 'canvasFeed' });
+}
+
+// --------------------------------------------------------- Google link
+
+async function googleFeedSheet() {
+  const cfg = app.S.sources.googleFeed || {};
+  const res = await sheet(`
+    <h2>Google Calendar link</h2>
+    <p class="lead">Your Google events count as busy time, and Cadence plans your work around them. It can read your calendar, not change it.</p>
+    <div class="card soft small mb4">
+      <b>Where to find it</b>
+      <div class="muted">On a computer, open Google Calendar → Settings (the gear) → click your calendar on the left → Integrate calendar → copy <b>Secret address in iCal format</b>.</div>
+    </div>
+    <label class="field"><span>Google Calendar link</span>
+      <input type="text" name="url" value="${esc(cfg.url || '')}" placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics" autocomplete="off" spellcheck="false"></label>
+    <p class="hint up">Treat this like a password. Anyone with the link can see your calendar.</p>
+    <p class="hint">It updates on its own about every 20 minutes while Cadence is open. Cadence's server fetches it for you and keeps nothing.</p>
+    <div class="actions">
+      ${cfg.url ? '<button class="btn soft danger" name="op" value="remove">Remove link</button>' : '<button class="btn ghost" value="cancel">Cancel</button>'}
+      <button class="btn primary" name="op" value="save">Save and sync</button>
+    </div>`);
+  if (!res) return;
+
+  if (res.get('op') === 'remove') {
+    const snap = structuredClone(app.S);
+    await persist((st) => { st.sources.googleFeed = { ...st.sources.googleFeed, enabled: false, url: '', events: [], assignments: [], error: null }; });
+    return toast('Google Calendar link removed', undoTo(snap));
+  }
+  const url = String(res.get('url') || '').trim().replace(/^webcal:/i, 'https:');
+  if (!url) return toast('Paste the link first');
+  if (!looksLikeGoogleIcs(url)) {
+    return toast('That isn\'t the secret iCal address. It starts with https://calendar.google.com/calendar/ical/ and ends in basic.ics');
+  }
+  await persist((st) => { st.sources.googleFeed = { ...(st.sources.googleFeed || {}), url, enabled: true, error: null }; }, { recalc: false });
+  await refreshSources({ only: 'googleFeed' });
 }
 
 // ------------------------------------------------------------------ Google
@@ -302,6 +346,7 @@ export const actions = {
   }, { recalc: false }).then(() => pushGoogleBlocks({ quiet: true })),
   'open-calendars': async () => { const { push } = await import('../core.js'); push('calendars'); },
   'canvas-feed-sheet': () => canvasFeedSheet(),
+  'google-feed-sheet': () => googleFeedSheet(),
   'google-connect': () => googleConnect(),
   'google-calendars-sheet': () => googleCalendarsSheet(),
   'source-refresh': (el) => refreshSources({ only: el.dataset.id }),
@@ -313,7 +358,8 @@ export const actions = {
     if (!res) return;
     await persist((st) => {
       const keep = id === 'google' ? { clientId: st.sources.google.clientId } : {};
-      st.sources[id] = { ...st.sources[id], ...keep, enabled: false, events: [], assignments: [], error: null, accessToken: null, expiresAt: 0 };
+      const link = id === 'googleFeed' ? { url: '' } : {};
+      st.sources[id] = { ...st.sources[id], ...keep, ...link, enabled: false, events: [], assignments: [], error: null, accessToken: null, expiresAt: 0 };
     });
     toast('Disconnected');
   },

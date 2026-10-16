@@ -485,6 +485,13 @@ function feedFetch() {
   return feedThroughServer(new URL('/api/canvas-feed', location.origin).href, siteToken);
 }
 
+/** Cadence's server, for the website and the extension alike (Google Calendar links). */
+function serverFetch() {
+  if (!cloudConfigured()) return null;
+  const base = /^https?:$/.test(location.protocol) ? location.origin : CONFIG.site?.domain ? `https://${CONFIG.site.domain}` : null;
+  return base ? feedThroughServer(`${base}/api/canvas-feed`, siteToken) : null;
+}
+
 /**
  * The extension's background worker re-syncs calendars on a timer. An open
  * website tab does the same itself, once a minute checking whether they are
@@ -779,7 +786,8 @@ export async function refreshSources({ only = null, quiet = false } = {}) {
     // saved to the account, so refreshing them is not an edit.
     const results = await runAll(app.S, {
       saveGoogle: (t) => persist((st) => { Object.assign(st.sources.google, t); }, { recalc: false, edit: false }),
-      feedFetch: feedFetch()
+      feedFetch: feedFetch(),
+      serverFetch: serverFetch()
     }, { only });
 
     await persist((st) => {

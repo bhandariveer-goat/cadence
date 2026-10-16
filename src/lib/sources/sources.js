@@ -7,11 +7,35 @@
 
 import * as canvasFeed from './canvasFeed.js';
 import * as google from './googleCalendar.js';
+import { parseICS } from '../calendar.js';
 
 export const SOURCE_META = {
   canvasFeed: { label: 'Canvas calendar feed', short: 'Canvas' },
-  google: { label: 'Google Calendar', short: 'Google' }
+  google: { label: 'Google Calendar', short: 'Google' },
+  googleFeed: { label: 'Google Calendar link', short: 'Google Calendar link' }
 };
+
+/** Does this look like Google Calendar's secret iCal address? */
+export const looksLikeGoogleIcs = (url) => /^(https|webcal):\/\/calendar\.google\.com\/calendar\/ical\/[^/]+\/(private-[a-z0-9]+|public)\/basic\.ics$/i.test(String(url || '').trim());
+
+/**
+ * Fetch a Google Calendar iCal address (through Cadence's server) and turn it
+ * into busy time. Events marked "free" in Google are left out, and so are
+ * their descriptions: only the title and time are kept, on this device.
+ */
+async function fetchGoogleFeed(url, horizonDays, fetchImpl) {
+  const res = await fetchImpl(url);
+  if (!res.ok) {
+    let why = '';
+    try { why = (await res.json()).error || ''; } catch { /* not from Cadence's server */ }
+    throw new Error(why || `Google Calendar answered ${res.status}`);
+  }
+  const text = await res.text();
+  if (!text.includes('BEGIN:VCALENDAR')) throw new Error("That link didn't return a calendar");
+  return parseICS(text, { horizonDays })
+    .filter((e) => !e.transparent)
+    .map((e) => ({ ...e, id: `gfeed_${e.id}`, source: 'googleFeed', description: '', url: '' }));
+}
 
 export function emptySource() {
   return { enabled: false, events: [], assignments: [], lastSync: null, error: null, syncing: false };
@@ -22,7 +46,7 @@ const ok = (state, id) => !!state.sources?.[id]?.enabled;
 // A source that can't fetch on its own — a Canvas feed that came from an
 // uploaded file rather than a link — stays enabled but sits out automatic
 // runs, so autosync never marks it failed.
-const runnable = (state, id) => (id === 'canvasFeed' ? !!state.sources?.canvasFeed?.url : true);
+const runnable = (state, id) => (id === 'canvasFeed' || id === 'googleFeed' ? !!state.sources?.[id]?.url : true);
 
 /**
  * Run one source. Throws on failure; the caller records the error so the
@@ -37,6 +61,12 @@ export async function runSource(id, state, deps = {}) {
     if (!cfg.url) throw new Error('No Canvas feed URL saved');
     const { assignments, events } = await canvasFeed.fetchCanvasFeed(cfg.url, { horizonDays: horizon, ...(deps.feedFetch ? { fetchImpl: deps.feedFetch } : {}) });
     return { assignments, events };
+  }
+
+  if (id === 'googleFeed') {
+    if (!cfg.url) throw new Error('No Google Calendar link saved');
+    if (!deps.serverFetch) throw new Error('Google Calendar links need Cadence\'s server, which this copy is not set up with');
+    return { assignments: [], events: await fetchGoogleFeed(cfg.url, horizon, deps.serverFetch) };
   }
 
   if (id === 'google') {

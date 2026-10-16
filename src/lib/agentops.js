@@ -512,7 +512,7 @@ export function planView(state, now = new Date(), days = 7) {
       // Events that came from Google Calendar are passed on as a time with no
       // title: Cadence needs to plan around them, the model doesn't need to
       // know what they are.
-      .map((b) => ({ id: b.id, title: b.source === 'google' ? 'Busy' : b.title, date: dateKey(new Date(b.start)), start: hm(b.start), end: hm(b.end) })).slice(0, 80),
+      .map((b) => ({ id: b.id, title: b.source === 'google' || b.source === 'googleFeed' ? 'Busy' : b.title, date: dateKey(new Date(b.start)), start: hm(b.start), end: hm(b.end) })).slice(0, 80),
     plannedWork: sessions.map((s) => ({ item: s.taskId || s.commitmentId, title: s.title, date: dateKey(new Date(s.start)), start: hm(s.start), minutes: s.minutes })),
     perDay: (state.plan?.days || []).filter((d) => d.date >= today && d.date < until).map((d) => ({ date: d.date, plannedMinutes: d.minutes, school: isSchoolDay(state, noon(d.date)) })),
     doesNotFit: (state.plan?.unplaced || []).map((u) => ({ title: u.title, minutes: u.missingMin, due: u.due || null }))

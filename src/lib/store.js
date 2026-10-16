@@ -59,6 +59,9 @@ export const DEFAULT_STATE = {
   // blanks the others; see lib/sources/sources.js.
   sources: {
     canvasFeed: { enabled: false, url: '', events: [], assignments: [], lastSync: null, lastTry: null, error: null },
+    // Google Calendar's "secret address in iCal format": read-only busy time,
+    // fetched through Cadence's server (netlify/functions/canvas-feed.mjs).
+    googleFeed: { enabled: false, url: '', events: [], assignments: [], lastSync: null, lastTry: null, error: null },
     google: {
       enabled: false, clientId: '', email: '', accessToken: null, expiresAt: 0, scopes: [],
       calendars: [], selected: [], push: false, pushCalendarId: 'primary', pushed: {},

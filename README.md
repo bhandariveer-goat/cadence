@@ -202,6 +202,18 @@ by default). Inside Canvas the session-based sync also runs and adds
 what the feed cannot carry: submission status, points, instructions, rubrics.
 A downloaded `.ics` file can be imported instead from the account screen.
 
+### Google Calendar link (no setup)
+
+1. Google Calendar on a computer → Settings → click the calendar →
+   **Integrate calendar** → copy **Secret address in iCal format**.
+2. Cadence → your account → **Calendars** → **Add Google Calendar link**.
+
+Read only: events count as busy time; events marked free are left out, and
+only titles and times are kept, on the device. The link goes through
+`netlify/functions/canvas-feed.mjs` (website and extension alike), which
+fetches the calendar and keeps nothing. Writing Cadence's blocks into Google
+Calendar still needs the signed-in connection below, in the extension.
+
 ### Google Calendar: what you must do in Google Cloud Console
 
 Google requires an OAuth client, and only you can create it:
