@@ -70,7 +70,7 @@ export function viewCalendars() {
     </div>
 
     <div class="card soft small mt4">
-      <b>Where this goes:</b> Cadence reads these calendars straight from your browser. Your Canvas feed link, your Google token and your Google Calendar events stay on this device. Assignments that come from Canvas become part of your plan.
+      <b>Where this goes:</b> Your Canvas feed link, your Google token and your Google Calendar events stay on this device and are not saved to your account. On the website, Cadence's server fetches the Canvas feed for you each time it updates and keeps nothing. Assignments that come from Canvas become part of your plan.
     </div>`;
 }
 
@@ -147,7 +147,7 @@ async function canvasFeedSheet() {
     <label class="field"><span>Feed link</span>
       <input type="text" name="url" value="${esc(cfg.url || '')}" placeholder="https://school.instructure.com/feeds/calendars/user_….ics" autocomplete="off" spellcheck="false"></label>
     <p class="hint up">Treat this like a password. Anyone with the link can read your Canvas calendar.</p>
-    <p class="hint">Can't reach the link? Download the calendar and use <b>You → Import a calendar file</b> instead.</p>
+    <p class="hint">It updates on its own about every 20 minutes while Cadence is open.</p>
     <div class="actions">
       ${cfg.url ? '<button class="btn soft danger" name="op" value="remove">Remove feed</button>' : '<button class="btn ghost" value="cancel">Cancel</button>'}
       <button class="btn primary" name="op" value="save">Save and sync</button>

@@ -82,7 +82,7 @@
     <li>Your activities, their schedules, and your check-ins, including any notes you write on them.</li>
     <li>Calendar events you add, your school hours, roughly when you sleep, and any one-day changes you make.</li>
     <li>Your settings, including whether you chose the light or dark theme and whether you have dismissed the notice about storage.</li>
-    <li>If you add them: an Anthropic API key, a Google Calendar access token, and your Canvas calendar feed link. These three never leave your device except to reach the service they belong to.</li>
+    <li>If you add them: an Anthropic API key, a Google Calendar access token, and your Canvas calendar feed link. These three are never saved to your account, and leave your device only to reach the service they belong to, with one exception: on the website, your Canvas feed link goes to Cadence's server, which fetches your calendar from Canvas, hands it straight back to your browser, and keeps neither. (A browser does not let a website read another site's calendar itself. The Chrome extension can, so it does not use Cadence's server for this.)</li>
   </ul>
   <p>If you use Cadence without an email, this is the only place your plan exists. Clearing your browser's site data, or choosing Delete my data in your account, erases it.</p>
 
@@ -126,7 +126,7 @@
   <h2 id="who-else-handles-your-data">Who else handles your data</h2>
   <table>
     <tr><th>Company</th><th>What for</th><th>What it handles</th></tr>
-    <tr><td>Netlify</td><td>Hosts this website, the assistant's server function, and the contact form</td><td>Ordinary web requests, including your IP address, as any web host does. A message you send from the contact page, with the IP address and browser it came from, which it checks for spam with Akismet</td></tr>
+    <tr><td>Netlify</td><td>Hosts this website, its server functions (the assistant, and fetching your Canvas feed on the website), and the contact form</td><td>Ordinary web requests, including your IP address, as any web host does. Your Canvas feed link and calendar, passing through and not kept, if you add the feed on the website. A message you send from the contact page, with the IP address and browser it came from, which it checks for spam with Akismet</td></tr>
     <tr><td>Supabase</td><td>Email sign-in and the account database</td><td>If you sign in with an email: what is listed under "In your account", and its log of sign-ins. If you use the assistant with only a name: a hidden account that is a random ID</td></tr>
     <tr><td>Anthropic</td><td>The assistant, if you add your own Anthropic key</td><td>What is listed under "The assistant, and AI"</td></tr>
     <tr><td>Google</td><td>The assistant (Gemini). Sign-in emails, which are sent from a Gmail account that belongs to Cadence. Google Calendar, if you connect it. Speech to text in Chrome, if you use the microphone</td><td>What is listed under "The assistant, and AI". Your email address and the sign-in email sent to it, if you sign in with an email. Calendar requests you have allowed. Audio you speak into the microphone button</td></tr>

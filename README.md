@@ -190,7 +190,15 @@ open tab checks for changes when it comes back into view and once a minute.
 2. Cadence → your account → **Calendars** → **Add feed link**.
 
 That link works like a password, so it is only ever shown masked and is not
-synced to the account. Inside Canvas the session-based sync also runs and adds
+synced to the account. The extension fetches the feed itself; a browser will
+not let the website read another site's calendar, so on the website
+`netlify/functions/canvas-feed.mjs` fetches it and hands it straight back,
+keeping nothing. That function needs a Supabase session (an email account or
+the hidden anonymous one), only fetches https addresses whose path is
+`/feeds/calendars/<name>.ics` on a named host, follows redirects only to
+addresses that pass the same test, and returns only a calendar of at most
+5 MB. An open website tab re-syncs on the Calendars setting (every 20 minutes
+by default). Inside Canvas the session-based sync also runs and adds
 what the feed cannot carry: submission status, points, instructions, rubrics.
 A downloaded `.ics` file can be imported instead from the account screen.
 

@@ -10,7 +10,8 @@ import { runAll, applyResults, pushGoogle, SOURCE_META, sourceEvents } from '../
 import * as canvas from '../lib/canvas.js';
 import * as ai from '../lib/ai.js';
 import { createSync } from '../lib/sync.js';
-import { createCloud, adopt, hasSubstance, sessionFromLink } from '../lib/cloud.js';
+import { createCloud, adopt, hasSubstance, sessionFromLink, anonymousToken } from '../lib/cloud.js';
+import { feedThroughServer } from '../lib/sources/canvasFeed.js';
 import { schoolBlocks } from '../lib/daymodel.js';
 import { CONFIG, cloudConfigured } from '../config.js';
 import { weekProgress, settleStreak, showUpStreak, sessionMinutes, isFixed, weekStart } from '../lib/habits.js';
@@ -132,6 +133,7 @@ export async function boot() {
   }
   rebuildSync();
   if (app.cloud) watchAccount();
+  if (STANDALONE) watchSources();
   if (link && app.cloud) await arriveByLink(link);
   // The same thing arriving on a page that is already open (the link's
   // address pasted into this tab) changes only the part after the #, which
@@ -462,6 +464,39 @@ async function askWhich() {
  * this one comes back into view and once a minute while it stays there; a
  * save still waiting on its timer goes out when the tab is hidden.
  */
+/**
+ * A session for Cadence's server functions: the account's, when signed in
+ * with an email, or else a hidden anonymous one (the database lets it do
+ * nothing but be counted; see supabase/schema.sql).
+ */
+let anonymousTokens = null;
+export function siteToken() {
+  if (app.cloud?.signedIn) return app.cloud.token();
+  anonymousTokens ||= anonymousToken({ url: CONFIG.supabaseUrl, key: CONFIG.supabaseKey });
+  return anonymousTokens();
+}
+
+/**
+ * How this copy fetches a Canvas feed: the extension directly (it has host
+ * permissions), the website through Cadence's server.
+ */
+function feedFetch() {
+  if (!/^https?:$/.test(location.protocol) || !cloudConfigured()) return null;
+  return feedThroughServer(new URL('/api/canvas-feed', location.origin).href, siteToken);
+}
+
+/**
+ * The extension's background worker re-syncs calendars on a timer. An open
+ * website tab does the same itself, once a minute checking whether they are
+ * due (the setting under Calendars, every 20 minutes by default).
+ */
+function watchSources() {
+  setInterval(() => {
+    if (document.visibilityState !== 'visible' || !app.S?.profile?.onboarded || app.sourcesSyncing) return;
+    if (sourcesStale()) refreshSources({ quiet: true });
+  }, 60000);
+}
+
 function watchAccount() {
   const look = () => {
     if (document.visibilityState !== 'visible' || !app.cloud?.signedIn || planConflict()) return;
@@ -743,7 +778,8 @@ export async function refreshSources({ only = null, quiet = false } = {}) {
     // Connected calendars belong to this device and are not part of what is
     // saved to the account, so refreshing them is not an edit.
     const results = await runAll(app.S, {
-      saveGoogle: (t) => persist((st) => { Object.assign(st.sources.google, t); }, { recalc: false, edit: false })
+      saveGoogle: (t) => persist((st) => { Object.assign(st.sources.google, t); }, { recalc: false, edit: false }),
+      feedFetch: feedFetch()
     }, { only });
 
     await persist((st) => {

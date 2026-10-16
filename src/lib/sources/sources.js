@@ -35,7 +35,7 @@ export async function runSource(id, state, deps = {}) {
 
   if (id === 'canvasFeed') {
     if (!cfg.url) throw new Error('No Canvas feed URL saved');
-    const { assignments, events } = await canvasFeed.fetchCanvasFeed(cfg.url, { horizonDays: horizon });
+    const { assignments, events } = await canvasFeed.fetchCanvasFeed(cfg.url, { horizonDays: horizon, ...(deps.feedFetch ? { fetchImpl: deps.feedFetch } : {}) });
     return { assignments, events };
   }
 

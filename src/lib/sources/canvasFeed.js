@@ -93,18 +93,34 @@ export function parseCanvasFeed(text, { horizonDays = 120 } = {}) {
 }
 
 /**
- * Fetch and parse the feed. Only works where cross-origin fetch is allowed —
- * the extension (host permissions) or a proxy; on the plain website the
- * browser blocks it and the caller should fall back to file import.
+ * Fetch and parse the feed. The extension fetches it directly (it has host
+ * permissions); the website passes a fetchImpl from feedThroughServer, because
+ * a browser will not let a website read another site's calendar.
  */
 export async function fetchCanvasFeed(url, { horizonDays = 120, fetchImpl = fetch } = {}) {
   if (!url) throw new Error('No Canvas feed URL saved yet');
   const res = await fetchImpl(url.replace(/^webcal:/i, 'https:'), { credentials: 'omit' });
-  if (!res.ok) throw new Error(`Canvas feed returned ${res.status}`);
+  if (!res.ok) {
+    let why = '';
+    try { why = (await res.json()).error || ''; } catch { /* Canvas itself, not Cadence's server */ }
+    throw new Error(why || `Canvas feed returned ${res.status}`);
+  }
   const text = await res.text();
   if (!text.includes('BEGIN:VCALENDAR')) throw new Error("That URL didn't return a calendar");
   return parseCanvasFeed(text, { horizonDays });
 }
+
+/**
+ * A fetchImpl for the website: asks Cadence's server (netlify/functions/
+ * canvas-feed.mjs) to fetch the feed and hand it back.
+ * @param {string} endpoint       the server function's address
+ * @param {() => Promise<string>} getToken  a Supabase session token
+ */
+export const feedThroughServer = (endpoint, getToken) => async (url) => fetch(endpoint, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', authorization: `Bearer ${await getToken()}` },
+  body: JSON.stringify({ url })
+});
 
 /**
  * Does this .ics text come from Canvas? A downloaded Canvas feed has to go
