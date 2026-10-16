@@ -21,9 +21,16 @@
 
 import { SYSTEM, TOOLS } from './agentspec.js';
 
-// The newest stable Flash model. A fixed name rather than gemini-flash-latest,
-// which Google moves to each new release on its own.
-export const GEMINI_MODEL = 'gemini-3.8-flash';
+// Google's low-latency model, with tool calls. It answers in a few seconds,
+// which matters because Netlify stops a free-plan function after 10, and its
+// free-tier allowance is larger than gemini-3.8-flash's, which ran out after a
+// handful of messages. A fixed name rather than an alias such as
+// gemini-flash-latest, which Google moves to each new release on its own. The
+// site can choose another with the GEMINI_MODEL environment variable.
+export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+
+/** How much the model thinks first. Flash-Lite allows "minimal" (fastest); full Flash refuses it. */
+export const thinkingFor = (model) => (/flash-lite/.test(model) ? 'MINIMAL' : 'LOW');
 export const geminiUrl = (model = GEMINI_MODEL) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
@@ -32,7 +39,7 @@ export const geminiUrl = (model = GEMINI_MODEL) =>
 const DECLARATIONS = TOOLS.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.input_schema }));
 
 /** The full request body. Only the conversation comes from a client. */
-export function geminiRequest(messages) {
+export function geminiRequest(messages, model = GEMINI_MODEL) {
   return {
     systemInstruction: { parts: [{ text: SYSTEM }] },
     contents: toContents(messages),
@@ -40,7 +47,7 @@ export function geminiRequest(messages) {
     // VALIDATED: the model may answer in words or call a tool, and a tool call
     // is held to its schema.
     toolConfig: { functionCallingConfig: { mode: 'VALIDATED' } },
-    generationConfig: { maxOutputTokens: 8192, thinkingConfig: { thinkingLevel: 'LOW' } }
+    generationConfig: { maxOutputTokens: 8192, thinkingConfig: { thinkingLevel: thinkingFor(model) } }
   };
 }
 

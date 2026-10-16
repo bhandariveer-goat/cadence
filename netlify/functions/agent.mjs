@@ -24,6 +24,7 @@
 //                         On the free plan Google may use what students type
 //                         to improve its products and people at Google may
 //                         read it; the privacy page says so.
+//   GEMINI_MODEL          optional, another Gemini model (default in lib/gemini.js)
 //   ANTHROPIC_API_KEY     used instead when there is no GEMINI_API_KEY
 //   SUPABASE_URL          required, same value as src/config.js
 //   SUPABASE_KEY          required: the publishable key, same value as
@@ -34,7 +35,7 @@
 //                         (default 1500); the ceiling on what a day can cost
 
 import { API_URL, API_VERSION, BETAS, requestBody, checkMessages } from '../../src/lib/agentspec.js';
-import { geminiUrl, geminiRequest, fromGemini } from '../../src/lib/gemini.js';
+import { GEMINI_MODEL, geminiUrl, geminiRequest, fromGemini } from '../../src/lib/gemini.js';
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -121,17 +122,28 @@ async function askClaude(key, messages) {
 }
 
 async function askGemini(key, messages) {
+  const wanted = String(process.env.GEMINI_MODEL || '').trim();
+  const model = /^gemini-[a-z0-9.-]+$/.test(wanted) ? wanted : GEMINI_MODEL;
+  // Netlify stops a free-plan function after 10 seconds and sends the browser
+  // a page of HTML. Giving up just before that sends a reason instead.
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), 9000);
   let upstream;
   try {
     // The key goes in a header, not the address, so it never appears in a log of URLs.
-    upstream = await fetch(geminiUrl(), {
+    upstream = await fetch(geminiUrl(model), {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify(geminiRequest(messages))
+      body: JSON.stringify(geminiRequest(messages, model)),
+      signal: stop.signal
     });
   } catch {
-    return json(502, { error: 'The assistant could not be reached. Try again.' });
+    clearTimeout(timer);
+    return stop.signal.aborted
+      ? json(504, { error: 'The assistant took too long to answer.' })
+      : json(502, { error: 'The assistant could not be reached. Try again.' });
   }
+  clearTimeout(timer);
   if (!upstream.ok) return failed(upstream.status);
   const data = await upstream.json().catch(() => null);
   const reply = fromGemini(data);

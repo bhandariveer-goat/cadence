@@ -121,6 +121,7 @@ async function send(text) {
   let result = null;
 
   const via = transport();
+  let fellBack = '';
   if (via) {
     try {
       // A long conversation is restarted rather than trimmed, and so is one
@@ -133,12 +134,19 @@ async function send(text) {
         text: r.text, ops: r.ops, next: r.next, chips: r.chips, list: [],
         moved: diff ? diff.moved.filter((m) => m.to.length).map((m) => `${m.title}: ${m.to.map((k) => dayWord(k, now)).join(', ')}`) : []
       };
-    } catch {
-      // No key, a spent limit, a network drop: the sentence still gets read.
+    } catch (e) {
+      // A spent limit, a slow answer, a network drop: the sentence still gets
+      // read on the device, and the reply says so.
       result = null;
+      fellBack = /busy|limit/i.test(e?.message || '') ? 'The AI is busy right now.'
+        : /too long/i.test(e?.message || '') ? 'The AI took too long to answer.'
+          : 'The AI could not be reached.';
     }
   }
-  if (!result) result = respond(clean, before, now);
+  if (!result) {
+    result = respond(clean, before, now);
+    if (fellBack) result = { ...result, text: `${result.text}\n\n${fellBack} This was read on your device instead, so try again in a minute for a fuller answer.` };
+  }
 
   const snapshot = result.next ? structuredClone(before) : null;
   if (result.next) await restore(result.next);

@@ -261,7 +261,7 @@ with no change to the code.
    is the most requests a single day can make, whatever anyone does,
    including people making many hidden accounts.
 
-The model is `gemini-3.8-flash`, named in `src/lib/gemini.js`.
+The model is `gemini-3.5-flash-lite`, named in `src/lib/gemini.js`: fast enough for Netlify's 10-second limit, and with a larger free allowance than `gemini-3.8-flash`, which ran out after a few messages. To try another, set `GEMINI_MODEL` in Netlify (for example `gemini-3.8-flash`, which is smarter but slower and needs billing to be usable).
 
 To use Claude instead, do the same with `ANTHROPIC_API_KEY` (from
 console.anthropic.com, with a monthly spend limit set there) in place of the

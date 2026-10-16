@@ -93,7 +93,7 @@ There are two ways a sentence becomes operations:
    tools, the browser runs each against a working copy of the plan and returns
    what actually changed, and nothing is saved until the turn ends. Signed in
    on a site that runs the server function, the model is Google's Gemini
-   (`gemini-3.8-flash`); with the student's own Anthropic key, it is Claude
+   (`gemini-3.5-flash-lite`, chosen for speed: Netlify stops a free-plan function after 10 seconds); with the student's own Anthropic key, it is Claude
    (`claude-opus-5-5`), straight from the browser. Every message goes to the
    model when one is available. If the call fails for any reason the
    on-device reader answers instead.
@@ -136,6 +136,7 @@ Set these in Netlify → Project configuration → Environment variables (never 
 | --- | --- |
 | `GEMINI_API_KEY` | the key from Google AI Studio. When it is set, Gemini answers |
 | `GEMINI_TIER` | `free` or `paid`: which Google plan the key is on. Must be set for Gemini to run. The privacy page is written for the free plan (Google may use and read messages) |
+| `GEMINI_MODEL` | optional, another Gemini model; the default is in `lib/gemini.js` |
 | `ANTHROPIC_API_KEY` | used instead when there is no `GEMINI_API_KEY` |
 | `SUPABASE_URL` | required, same as `src/config.js` |
 | `SUPABASE_KEY` | required: the publishable key, same as `supabaseKey` in `src/config.js` (`SUPABASE_ANON_KEY` is still read, for a set-up made before the rename) |
