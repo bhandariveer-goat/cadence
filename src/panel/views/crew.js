@@ -170,7 +170,7 @@ export function viewClub() {
       ${c.posts.map((p) => `<div class="feed-card"><div class="feed-head">${avatar(p.from, 34)}<div class="grow"><div class="t">${esc(p.from?.name || 'Leader')}</div><div class="m">${ago(p.at)}</div></div></div>
         <div class="feed-body"><div class="feed-note">${esc(p.text)}</div></div></div>`).join('')}</div>` : ''}
 
-    ${leader ? '' : `<button class="btn ghost danger block mt4" data-act="club-leave">Leave ${c.kind === 'class' ? 'class' : 'club'}</button>`}`;
+    <button class="btn ghost danger block mt4" data-act="club-leave">Leave ${c.kind === 'class' ? 'class' : 'club'}</button>`;
 }
 
 async function loadClub(id) {
@@ -227,8 +227,12 @@ async function endPartnership(p) {
 async function leaveClub() {
   const club = app.clubDetail?.[app.clubId];
   if (!club) return;
+  const leading = club.role === 'leader';
+  const what = !leading ? 'The club stops seeing your progress and check-ins. To come back, you need its code again.'
+    : club.kind === 'class' ? 'You lead this class, so leaving deletes it for everyone in it.'
+      : 'You lead this club. It passes to the member who joined first, or is deleted if no one else is in it.';
   const ok = await sheet(`<h2>Leave ${esc(club.name)}?</h2>
-    <p class="lead">The club stops seeing your progress and check-ins. To come back, you need its code again.</p>
+    <p class="lead">${what}</p>
     <div class="actions"><button class="btn ghost" value="cancel">Stay</button><button class="btn danger-solid" name="op" value="leave">Leave</button></div>`);
   if (!ok) return;
   try {

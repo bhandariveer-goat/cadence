@@ -256,7 +256,8 @@ function supabaseAdapter(cloud) {
       return { id, name: c?.name || '' };
     },
     shoutout: (clubId, text) => rest('club_posts', { method: 'POST', body: { club_id: clubId, text } }),
-    leaveClub: (clubId) => rest(`club_members?club_id=eq.${clubId}&user_id=eq.${uidOf()}`, { method: 'DELETE' }),
+    // Through the database, so a leader's club passes to the next member (leave_club in schema.sql).
+    leaveClub: (clubId) => rpc('leave_club', { target: clubId }),
     removeMember: (clubId, userId) => rest(`club_members?club_id=eq.${clubId}&user_id=eq.${userId}`, { method: 'DELETE' }),
     endPartnership: (partnerId) => {
       // Each pair is stored once, with the smaller id first (accept_invite).

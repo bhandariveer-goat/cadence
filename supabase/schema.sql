@@ -408,6 +408,34 @@ end $$;
 
 -- A leader can give the club a new code when the old one has spread too far.
 -- The old code stops working at once; people already in the club stay in.
+-- Leaving a club, for members and leaders alike. A leader's club passes to
+-- the member who joined it earliest; a class (whose leader is the teacher),
+-- or a club with no one else in it, is removed, as when a leader deletes
+-- their account.
+create or replace function leave_club(target uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare club_kind text; heir uuid;
+begin
+  if auth.uid() is null or anonymous_account() then raise exception 'Sign in with an email to use clubs'; end if;
+  if not exists (select 1 from club_members where club_id = target and user_id = auth.uid()) then
+    raise exception 'You are not in that club';
+  end if;
+  select kind into club_kind from clubs where id = target and leader = auth.uid();
+  if found then
+    if club_kind = 'club' then
+      select user_id into heir from club_members
+      where club_id = target and user_id <> auth.uid() order by joined_at, user_id limit 1;
+    end if;
+    if heir is null then
+      delete from clubs where id = target;
+      return;
+    end if;
+    update clubs set leader = heir where id = target;
+    update club_members set role = 'leader' where club_id = target and user_id = heir;
+  end if;
+  delete from club_members where club_id = target and user_id = auth.uid();
+end $$;
+
 create or replace function rotate_club_code(target uuid) returns text
 language plpgsql security definer set search_path = public as $$
 declare
@@ -689,14 +717,14 @@ grant select on partner_overview to authenticated;
 -- Functions. A new function can be run by anyone until that is taken away,
 -- so it is taken away from everyone first and then given to who needs it.
 revoke execute on function
-  my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid),
+  my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid), leave_club(uuid),
   club_members_progress(uuid, timestamptz), my_club_overview(timestamptz),
   bump_agent_usage(), delete_my_account(), count_visit(text, text, text), handle_new_user(), club_sessions(jsonb),
   limit_per_day(), anonymous_account()
   from public, anon, authenticated;
 
 grant execute on function
-  my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid),
+  my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid), leave_club(uuid),
   club_members_progress(uuid, timestamptz), my_club_overview(timestamptz),
   bump_agent_usage(), delete_my_account(), anonymous_account()
   to authenticated;
