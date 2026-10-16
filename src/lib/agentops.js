@@ -238,6 +238,11 @@ const APPLY = {
       if (isTime(op.startAt)) next.startAt = op.startAt;
       if (isTime(op.until)) { next.until = op.until; if (op.untilAuto) next.untilAuto = true; else delete next.untilAuto; }
       if (op.note) next.note = String(op.note).slice(0, 80);
+      // "Keep my 10pm limit": the assistant stops moving tonight later to fit
+      // what is due tomorrow (lib/agentllm.js). A new limit without it lets
+      // the assistant be realistic again.
+      if (op.kept === true) next.kept = true;
+      else if (op.kept === false || op.off || isTime(op.until) || Number.isFinite(op.budgetMin)) delete next.kept;
       state.dayOverrides[k] = next;
     }
   },

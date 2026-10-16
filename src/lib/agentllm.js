@@ -78,6 +78,7 @@ export function toOps(name, input, state, now) {
       if (isTime(i.start_at)) op.startAt = pad2(i.start_at);
       if (isTime(i.until)) op.until = pad2(i.until);
       if (Object.keys(op).length === 2) return { error: 'nothing to change: give budget_minutes, start_at, until, off or clear' };
+      if (i.keep_limit === true) op.kept = true;
       return { ops: [op] };
     }
     case 'set_school': {
@@ -174,6 +175,14 @@ export function stayUpOption(state, now = new Date()) {
   return { stay_up_until: null, to_finish: short.map((u) => u.title), limit_now: win?.end || null, note: 'Does not fit even working until 2am' };
 }
 
+/** "23:30" as "11:30pm", for reply buttons. */
+function twelve(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  const suffix = h >= 12 && h < 24 ? 'pm' : 'am';
+  const hour = h % 12 || 12;
+  return m ? `${hour}:${String(m).padStart(2, '0')}${suffix}` : `${hour}${suffix}`;
+}
+
 /** What a change did, in the words the model should repeat back. */
 function outcome(diff, now) {
   return {
@@ -232,6 +241,7 @@ export async function converse({ text, state, messages, send, now = new Date() }
   let working = state;
   const applied = [];
   let chips = [];
+  let ownChips = null;          // set when Cadence moved tonight later: always offer to keep the student's time
 
   const tonight = stayUpOption(working, now);
   messages.push({ role: 'user', content: `<plan>${JSON.stringify({ ...planView(working, now), ...(tonight ? { if_staying_up: tonight } : {}) })}</plan>\n\n${String(text).slice(0, 2000)}` });
@@ -264,7 +274,7 @@ export async function converse({ text, state, messages, send, now = new Date() }
           text: tidy(said) || 'Done.',
           ops: applied,
           next: changed ? working : null,
-          chips: chips.map((c) => ({ label: c, text: c })),
+          chips: (ownChips || chips).map((c) => ({ label: c, text: c })),
           diff: null
         };
       }
@@ -280,8 +290,33 @@ export async function converse({ text, state, messages, send, now = new Date() }
         if (!did.length) { results.push({ type: 'tool_result', tool_use_id: call.id, content: 'Nothing changed: that could not be applied as given.', is_error: true }); continue; }
         working = next;
         for (const op of did) applied.push({ ...op, summary: describe(op, working, now) });
-        const realistic = stayUpOption(working, now);
-        results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify({ applied: did.map((op) => describe(op, working, now)), ...outcome(diff, now), ...(realistic ? { if_staying_up: realistic } : {}) }) });
+
+        // Not a yes-man: a time to stop tonight that leaves schoolwork due
+        // tomorrow undone is moved later, unless the student insisted on it.
+        let moved = null;
+        let finalDiff = diff;
+        const tonight = dateKey(now);
+        const limitsTonight = did.some((op) => op.kind === 'day' && (op.dates || []).includes(tonight) && !op.clear && !op.kept);
+        if (limitsTonight && !overrideFor(working, now)?.kept) {
+          const opt = stayUpOption(working, now);
+          if (opt?.stay_up_until) {
+            const later = { kind: 'day', dates: [tonight], until: opt.stay_up_until, ...(opt.minutes_tonight ? { budgetMin: opt.minutes_tonight } : {}) };
+            const again = simulate(working, [later], now);
+            if (again.applied.length) {
+              working = again.next;
+              finalDiff = again.diff;
+              applied.push({ ...later, summary: describe(later, working, now) });
+              const asked = did.find((op) => op.kind === 'day')?.until || opt.limit_now;
+              moved = { asked_until: asked || null, planned_until: opt.stay_up_until, because: opt.to_finish };
+              ownChips = [`OK, until ${twelve(opt.stay_up_until)}`, 'Only do the most urgent one', asked ? `Keep my ${twelve(asked)} limit` : 'Keep my limit'];
+            }
+          }
+        }
+        const realistic = moved ? null : stayUpOption(working, now);
+        results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify({
+          applied: did.map((op) => describe(op, working, now)), ...outcome(finalDiff, now),
+          ...(moved ? { moved_later: moved } : {}), ...(realistic ? { if_staying_up: realistic } : {})
+        }) });
       }
       messages.push({ role: 'user', content: results });
     }

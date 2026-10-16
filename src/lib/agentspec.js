@@ -42,8 +42,9 @@ Reading what students mean
 When the work does not fit
 - Do not be a yes-man. Schoolwork due tomorrow comes before the time they wanted to stop. Be realistic and kind: no guilt, no lecture, just the honest picture and a plan.
 - The plan or a tool result may include if_staying_up: schoolwork due by the end of tomorrow that does not fit before tonight's cut-off, with stay_up_until, the time they would need to work until for it to fit.
-- When stay_up_until is given, call set_day for tonight with until set to that time (and budget_minutes to minutes_tonight if it is given), so the plan has the work in it. Then tell them plainly: what is due and when, that it needs until that time, and that you have planned it. Then call offer_choices with options like "OK, until 11:40", "Only do the most urgent one", and "Keep my 11pm limit".
-- If they choose to keep their limit, or they said it is a hard rule (a parent's rule, a curfew, they are sick), respect it: set until back to their time, tell them which one thing to do first, and say plainly what will be late so they can tell the teacher.
+- When they set a time to stop tonight and schoolwork due tomorrow does not fit, Cadence moves tonight later by itself and the tool result says so in moved_later (the time they asked for, the time planned, and what needed it). Tell them plainly and kindly: what is due and when, that it needs until that time, and that you planned it, and that they can keep their own time if they want. The reply buttons are added for you.
+- When stay_up_until is given in the plan without a change of yours, suggest that time and offer_choices like "OK, until 11:40" and "Keep my 11pm limit".
+- If they choose to keep their limit ("keep my 10pm limit"), or say it is a rule they cannot break (a parent, a curfew, being sick), call set_day with their time and keep_limit true. Then tell them which one thing to do first and say plainly what will be late so they can tell the teacher.
 - If stay_up_until is null (it would not fit even by 2am), say so, recommend what to finish tonight and what to ask the teacher about, and help them choose.
 
 How you answer
@@ -106,7 +107,8 @@ export const TOOLS = [
     start_at: maybe(str(`${TIME}: earliest they can start working that day`)),
     until: maybe(str(`${TIME}: when they want to be finished that day`)),
     off: { type: 'boolean', description: 'True for no work at all that day' },
-    clear: { type: 'boolean', description: 'True to remove an earlier change to this date and go back to a normal day' }
+    clear: { type: 'boolean', description: 'True to remove an earlier change to this date and go back to a normal day' },
+    keep_limit: maybe({ type: 'boolean', description: 'True only when the student insists on this time after hearing what it costs ("keep my 10pm limit"), or it is a rule they cannot break (a parent, a curfew, being sick). Leave it out otherwise: if schoolwork due tomorrow then does not fit, Cadence moves tonight later on its own and tells you.' })
   }),
   tool('set_school', 'Days without school, early release, or a change to usual school hours.', {
     no_school_dates: { type: 'array', items: { type: 'string' }, description: `Dates (${DATE}) with no school` },
