@@ -175,6 +175,8 @@ export function stayUpOption(state, now = new Date()) {
   return { stay_up_until: null, to_finish: short.map((u) => u.title), limit_now: win?.end || null, note: 'Does not fit even working until 2am' };
 }
 
+const INSISTS = /\b(keep (my|the|it|that)|stick (to|with)|no later|not later|nothing later|i have to (sleep|be in bed|go to bed)|i need to (sleep|be in bed) by|must (sleep|be in bed)|can'?t stay up|cannot stay up|not allowed|parents?|mom|dad|mum|curfew|sick|ill|hard (limit|stop)|my limit|that'?s final|no matter what)\b/i;
+
 /** "23:30" as "11:30pm", for reply buttons. */
 function twelve(hhmm) {
   const [h, m] = String(hhmm).split(':').map(Number);
@@ -239,6 +241,10 @@ export const proxyTransport = (endpoint, getToken) => async (messages) => parse(
 export async function converse({ text, state, messages, send, now = new Date() }) {
   const start = messages.length;
   let working = state;
+  // Whether the student, in their own words, insists on their time tonight.
+  // The model's keep_limit counts only then: left to itself it sets it on
+  // any stated bedtime, which made the assistant a yes-man again.
+  const insists = INSISTS.test(String(text));
   const applied = [];
   let chips = [];
   let ownChips = null;          // set when Cadence moved tonight later: always offer to keep the student's time
@@ -283,6 +289,7 @@ export async function converse({ text, state, messages, send, now = new Date() }
       const results = [];
       for (const call of calls) {
         const r = toOps(call.name, call.input, working, now);
+        if (!insists) for (const op of r.ops || []) delete op.kept;
         if (r.error) { results.push({ type: 'tool_result', tool_use_id: call.id, content: r.error, is_error: true }); continue; }
         if (r.chips) chips = r.chips;
         if (r.reply) { results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify(r.reply) }); continue; }
