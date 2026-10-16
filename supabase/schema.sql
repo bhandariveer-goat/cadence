@@ -21,7 +21,8 @@
 --             for that club. Sizes and daily counts are limited, so one
 --             account cannot crowd out or slow down everyone else.
 -- Someone who is not signed in ("anon") can reach nothing but the visit
--- counter's function.
+-- counter's function, and an anonymous account (for using the assistant with
+-- only a name) can do nothing but be counted.
 
 create extension if not exists pgcrypto;
 
@@ -218,6 +219,11 @@ drop policy if exists "see members of my clubs" on club_members;
 create policy "see members of my clubs" on club_members for select using (club_id in (select my_club_ids()));
 drop policy if exists "leave clubs" on club_members;
 create policy "leave clubs" on club_members for delete using (user_id = (select auth.uid()));
+-- A leader can take someone out of their club. This reads clubs, not
+-- club_members, so the policy does not read its own table.
+drop policy if exists "leaders remove members" on club_members;
+create policy "leaders remove members" on club_members for delete using (
+  club_id in (select id from clubs where leader = (select auth.uid())));
 
 -- Your partners see every check-in you share. A club sees only the check-ins
 -- for that club, so one club never sees what was meant for another.
@@ -250,6 +256,8 @@ drop policy if exists "nudge connections" on nudges;
 create policy "nudge connections" on nudges for insert with check (from_user = (select auth.uid()) and is_connected(to_user));
 drop policy if exists "mark nudges seen" on nudges;
 create policy "mark nudges seen" on nudges for update using (to_user = (select auth.uid()));
+drop policy if exists "clear my nudges" on nudges;
+create policy "clear my nudges" on nudges for delete using (to_user = (select auth.uid()));
 
 drop policy if exists "read club posts" on club_posts;
 create policy "read club posts" on club_posts for select using (club_id in (select my_club_ids()));
@@ -257,6 +265,51 @@ drop policy if exists "post in my clubs" on club_posts;              -- the earl
 drop policy if exists "leaders post updates" on club_posts;
 create policy "leaders post updates" on club_posts for insert with check (
   from_user = (select auth.uid()) and club_id in (select id from clubs where leader = (select auth.uid())));
+
+-- ------------------------------------------------------- anonymous accounts
+-- Someone using Cadence with only a name gets a hidden anonymous account
+-- (Supabase's anonymous sign-in), only so the assistant's server function can
+-- count their requests. Anonymous accounts use the same database role as
+-- everyone else, so each table also gets a restrictive policy: whatever the
+-- other policies allow, an anonymous account gets nothing. It cannot keep a
+-- plan, a profile name, check-ins or anything in Crew. It can only be counted
+-- by bump_agent_usage(), which runs with the database owner's rights.
+
+create or replace function anonymous_account() returns boolean
+language sql stable set search_path = public as $$
+  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false)
+$$;
+
+drop policy if exists "not for anonymous accounts" on profiles;
+create policy "not for anonymous accounts" on profiles as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on partnerships;
+create policy "not for anonymous accounts" on partnerships as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on invites;
+create policy "not for anonymous accounts" on invites as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on clubs;
+create policy "not for anonymous accounts" on clubs as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on club_members;
+create policy "not for anonymous accounts" on club_members as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on checkins;
+create policy "not for anonymous accounts" on checkins as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on kudos;
+create policy "not for anonymous accounts" on kudos as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on nudges;
+create policy "not for anonymous accounts" on nudges as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on club_posts;
+create policy "not for anonymous accounts" on club_posts as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
+drop policy if exists "not for anonymous accounts" on planner_state;
+create policy "not for anonymous accounts" on planner_state as restrictive to authenticated
+  using (not (select anonymous_account())) with check (not (select anonymous_account()));
 
 -- ------------------------------------------------------------ daily limits
 -- How many of each thing one account may add in a day. Checked as each row
@@ -307,7 +360,7 @@ create or replace function accept_invite(invite_code text) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare inviter uuid;
 begin
-  if auth.uid() is null then raise exception 'not signed in'; end if;
+  if auth.uid() is null or anonymous_account() then raise exception 'Sign in with an email to add a partner'; end if;
   delete from invites where code = invite_code and owner <> auth.uid() returning owner into inviter;
   if inviter is null then
     if exists (select 1 from invites where code = invite_code) then raise exception 'That''s your own invite code'; end if;
@@ -330,7 +383,7 @@ declare
   random_bytes bytea;
   suffix text;
 begin
-  if auth.uid() is null then raise exception 'not signed in'; end if;
+  if auth.uid() is null or anonymous_account() then raise exception 'Sign in with an email to start a club'; end if;
   if (select count(*) from clubs where leader = auth.uid() and created_at > now() - interval '1 day') >= 20 then
     raise exception 'That is as many new clubs as one person can start in a day';
   end if;
@@ -353,10 +406,43 @@ begin
   return new_club;
 end $$;
 
+-- A leader can give the club a new code when the old one has spread too far.
+-- The old code stops working at once; people already in the club stay in.
+create or replace function rotate_club_code(target uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare
+  letters constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  club_name text;
+  prefix text;
+  random_bytes bytea;
+  suffix text;
+  new_code text;
+begin
+  if auth.uid() is null or anonymous_account() then raise exception 'Sign in with an email to change a club code'; end if;
+  select name into club_name from clubs where id = target and leader = auth.uid();
+  if club_name is null then raise exception 'Only the club leader can change its code'; end if;
+  prefix := coalesce(nullif(upper(regexp_replace(left(club_name, 5), '[^A-Za-z]', '', 'g')), ''), 'CLUB');
+  for attempt in 1..5 loop
+    random_bytes := uuid_send(gen_random_uuid());
+    suffix := '';
+    for i in 0..5 loop
+      suffix := suffix || substr(letters, get_byte(random_bytes, i) % 32 + 1, 1);
+    end loop;
+    begin
+      update clubs set code = prefix || '-' || suffix where id = target returning code into new_code;
+      exit;
+    exception when unique_violation then
+      if attempt = 5 then raise; end if;
+    end;
+  end loop;
+  return new_code;
+end $$;
+
 create or replace function join_club(club_code text) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare target uuid;
 begin
+  if auth.uid() is null or anonymous_account() then raise exception 'Sign in with an email to join a club'; end if;
   select id into target from clubs where code = club_code;
   if target is null then raise exception 'No club with that code'; end if;
   insert into club_members (club_id, user_id) values (target, auth.uid()) on conflict do nothing;
@@ -469,6 +555,11 @@ begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
   -- Only today's counts are kept; earlier days are of no use and are removed.
   delete from agent_usage where day < current_date;
+  -- So are anonymous accounts not used for 30 days (Supabase does not remove
+  -- them itself). A browser whose account was removed simply gets a new one.
+  delete from auth.users
+  where is_anonymous and id <> auth.uid()
+    and coalesce(last_sign_in_at, created_at) < now() - interval '30 days';
   insert into agent_usage as u (user_id, day, count) values (auth.uid(), current_date, 1)
   on conflict (user_id, day) do update set count = u.count + 1 where u.count <= 60;
   select a.count into n from agent_usage a where a.user_id = auth.uid() and a.day = current_date;
@@ -585,6 +676,7 @@ grant insert (checkin_id) on kudos to authenticated;
 grant select on nudges to authenticated;
 grant insert (to_user, message) on nudges to authenticated;          -- sender and time are filled in by the database
 grant update (seen) on nudges to authenticated;                     -- a nudge can be marked read, not rewritten
+grant delete on nudges to authenticated;                            -- its recipient can clear it
 grant select on club_posts to authenticated;
 grant insert (club_id, text) on club_posts to authenticated;
 grant select, insert, update, delete on planner_state to authenticated;
@@ -597,16 +689,16 @@ grant select on partner_overview to authenticated;
 -- Functions. A new function can be run by anyone until that is taken away,
 -- so it is taken away from everyone first and then given to who needs it.
 revoke execute on function
-  my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text),
+  my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid),
   club_members_progress(uuid, timestamptz), my_club_overview(timestamptz),
   bump_agent_usage(), delete_my_account(), count_visit(text, text, text), handle_new_user(), club_sessions(jsonb),
-  limit_per_day()
+  limit_per_day(), anonymous_account()
   from public, anon, authenticated;
 
 grant execute on function
-  my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text),
+  my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid),
   club_members_progress(uuid, timestamptz), my_club_overview(timestamptz),
-  bump_agent_usage(), delete_my_account()
+  bump_agent_usage(), delete_my_account(), anonymous_account()
   to authenticated;
 
 -- The visit counter is the one thing a visitor without an account can call.

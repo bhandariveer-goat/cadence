@@ -161,6 +161,12 @@ Then, in Supabase:
    given each person's email address and the email, so it can deliver it),
    change that page's "Last updated" date, and do step 9.
 
+**What is set up now (2026-10-15):** sign-in emails go out through a Gmail
+account made for Cadence (Supabase → Authentication → Emails → SMTP Settings:
+`smtp.gmail.com`, port 587, an app password). The privacy page says so. A
+free Gmail sends about 500 emails a day, and some may land in spam. When you
+have a domain, switch to Resend as above and update the privacy page again.
+
 **The extension needs the code.** A link opens the website and signs in
 there; it cannot sign in the panel inside Canvas. Until the emails carry a
 code, sign in on the website, and use the extension with a name only.
@@ -239,14 +245,21 @@ with no change to the code.
      and so stays true after you upgrade.
    - `SUPABASE_URL` and `SUPABASE_KEY`: the same Project URL and publishable
      key as in `src/config.js` (step 3).
-4. Redeploy (Deploys → Trigger deploy). Sign in on the website with your
+4. So people using Cadence with only a name get the assistant too: Supabase →
+   Authentication → Sign In / Providers → **Allow anonymous sign-ins** → on,
+   and save. Each such browser gets a hidden account that the database lets do
+   nothing but be counted, so the daily limits apply to them too. Supabase's
+   Security Advisor then shows "Anonymous sign-ins enabled"; that is expected.
+   Unused ones are removed after 30 days.
+5. Redeploy (Deploys → Trigger deploy). Sign in on the website with your
    email, open the assistant and send "I have dinner at 6 then I want to
    work". The reply should come in a few seconds and the plan should change.
    If it answers the way it did before, the on-device reader answered: check
    the three variables and that the deploy finished.
-5. Decide on `AGENT_DAILY_LIMIT` (default 60 per account per day) and
+6. Decide on `AGENT_DAILY_LIMIT` (default 60 per account per day) and
    `AGENT_DAILY_TOTAL` (default 1500 across all accounts per day). The second
-   is the most requests a single day can make, whatever anyone does.
+   is the most requests a single day can make, whatever anyone does,
+   including people making many hidden accounts.
 
 The model is `gemini-3.8-flash`, named in `src/lib/gemini.js`.
 

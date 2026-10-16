@@ -231,6 +231,43 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
 }
 
 /**
+ * A hidden anonymous account for someone using Cadence with only a name, so
+ * the assistant's server function (netlify/functions/agent.mjs) can count
+ * their requests. It has a random id and nothing else: the database refuses it
+ * everything but being counted (supabase/schema.sql). It is kept in this
+ * browser only, apart from the plan, and is never used for sync.
+ * @returns {() => Promise<string>} a function that gives a current access token
+ */
+export function anonymousToken({ url, key, storage = globalThis.localStorage }) {
+  const base = String(url || '').replace(/\/+$/, '');
+  const SLOT = 'cadence.assistant-session';
+  const read = () => { try { return JSON.parse(storage?.getItem(SLOT) || 'null'); } catch { return null; } };
+  const write = (s) => { try { storage?.setItem(SLOT, JSON.stringify(s)); } catch { /* private window: kept for this page only */ } };
+  let held = null;
+  const keep = (data) => {
+    if (!data?.access_token || !data?.refresh_token) throw new Error('No session came back');
+    held = { access_token: data.access_token, refresh_token: data.refresh_token, expires_at: Date.now() + (Number(data.expires_in) || 3600) * 1000 };
+    write(held);
+    return held.access_token;
+  };
+  const post = async (path, body) => {
+    const res = await fetch(`${base}/auth/v1/${path}`, { method: 'POST', headers: { apikey: key, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.msg || data?.error_description || `The assistant could not start (${res.status})`);
+    return data;
+  };
+  let pending = null;
+  return () => (pending ||= (async () => {
+    const s = held || read();
+    if (s?.access_token && s.expires_at - 60000 > Date.now()) return s.access_token;
+    if (s?.refresh_token) {
+      try { return keep(await post('token?grant_type=refresh_token', { refresh_token: s.refresh_token })); } catch { /* removed or expired: start a new one */ }
+    }
+    return keep(await post('signup', { data: {} }));
+  })().finally(() => { pending = null; }));
+}
+
+/**
  * The part of a plan that should follow someone between devices.
  *
  * Left behind on purpose: the session itself, anything that is a credential

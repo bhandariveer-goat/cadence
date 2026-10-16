@@ -119,6 +119,13 @@ block that holds something Cadence never sends (a file for Gemini to fetch,
 say). `generateContent` rather than the newer Interactions API, which
 Google's own documentation calls a beta whose schema may change.
 
+Someone using Cadence with only a name reaches it through a hidden Supabase
+anonymous account (`anonymousToken` in `lib/cloud.js`), kept in the browser
+apart from the plan. Every table has a restrictive policy refusing anonymous
+accounts, and the Crew functions refuse them too, so all one can do is be
+counted by `bump_agent_usage()`, which also removes anonymous accounts unused
+for 30 days.
+
 Using Gemini for a site students use goes against Google's Gemini API terms,
 which set a minimum age of 18; see `LAUNCH.md`, step 4.
 

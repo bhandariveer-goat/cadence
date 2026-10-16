@@ -6,9 +6,10 @@
 // one tap puts everything back. An assistant that edits a calendar without
 // showing its work is not one to trust with a week.
 //
-// It always works: sentences are read offline (lib/agent.js). When the student
-// is signed in on a site that runs the server function, a model does the
-// reading instead (Gemini or Claude, whichever the site is set up with), or
+// It always works: sentences are read offline (lib/agent.js). On a site that
+// runs the server function, a model does the reading instead (Gemini or
+// Claude, whichever the site is set up with), for a student with an email
+// account or with only a name (through a hidden anonymous account), or
 // Claude does when the student has added their own Anthropic key
 // (lib/agentllm.js). The offline reader is the fallback if that call fails.
 
@@ -17,7 +18,8 @@ import { respond } from '../../lib/agent.js';
 import { converse, directTransport, proxyTransport } from '../../lib/agentllm.js';
 import { diffPlans, KIND_LABEL, dayWord } from '../../lib/agentops.js';
 import { aiAvailable } from '../../lib/ai.js';
-import { CONFIG } from '../../config.js';
+import { CONFIG, cloudConfigured } from '../../config.js';
+import { anonymousToken } from '../../lib/cloud.js';
 import { svg, I, esc, toast, $ } from '../ui.js';
 
 export function ensureAgent() {
@@ -37,14 +39,18 @@ function transport() {
   const S = app.S;
   if (DEMO) return null;
   if (aiAvailable(S.settings)) return Object.assign(directTransport(S.settings.apiKey), { kind: 'own key' });
-  if (S.account?.mode === 'cloud' && app.cloud?.signedIn) {
-    const endpoint = /^https?:/.test(CONFIG.agentEndpoint) ? CONFIG.agentEndpoint
-      : /^https?:$/.test(location.protocol) ? new URL(CONFIG.agentEndpoint, location.origin).href
-        : CONFIG.site.domain ? `https://${CONFIG.site.domain}${CONFIG.agentEndpoint}` : null;
-    if (endpoint) return Object.assign(proxyTransport(endpoint, () => app.cloud.token()), { kind: 'site' });
-  }
+  const endpoint = /^https?:/.test(CONFIG.agentEndpoint) ? CONFIG.agentEndpoint
+    : /^https?:$/.test(location.protocol) ? new URL(CONFIG.agentEndpoint, location.origin).href
+      : CONFIG.site.domain ? `https://${CONFIG.site.domain}${CONFIG.agentEndpoint}` : null;
+  if (!endpoint) return null;
+  if (S.account?.mode === 'cloud' && app.cloud?.signedIn) return Object.assign(proxyTransport(endpoint, () => app.cloud.token()), { kind: 'site' });
+  // With only a name: a hidden anonymous account lets the server count requests.
+  if (cloudConfigured()) return Object.assign(proxyTransport(endpoint, anonymous()), { kind: 'site' });
   return null;
 }
+
+let anonymousTokens = null;
+const anonymous = () => (anonymousTokens ||= anonymousToken({ url: CONFIG.supabaseUrl, key: CONFIG.supabaseKey }));
 
 // ------------------------------------------------------------------ view
 

@@ -487,6 +487,14 @@ for table, call in calls_to_the_database(app_js):
             unclear.append(f'{table} to {other}: no link called {hint}')
         if not hint and len(direct) + len(through) != 1:
             unclear.append(f'{table} to {other}: {len(direct) + len(through)} links ({", ".join(direct + through)}), name one')
+# A grant lets a request reach a table; a policy has to let it touch rows too,
+# or a delete or update quietly changes nothing.
+POLICY_FOR = {'select': 'select', 'insert': 'insert', 'update': 'update', 'delete': 'delete'}
+permissive = {(t, cmd) for t, cmd in re.findall(r'create policy "[^"]+" on (\w+) (?!as restrictive)(?:to \w+ )?for (\w+)', schema)}
+no_policy = sorted({f'{method} {table}' for table, call in calls_to_the_database(app_js) if table in tables
+                    for method in [(re.search(r"method:\s*'(\w+)'", call) or [None, 'GET'])[1]]
+                    if table not in ('partner_overview',) and (table, NEEDS[method]) not in permissive and (table, 'all') not in permissive})
+check('Every request the app makes has a policy that lets it change or see rows', not no_policy, '; '.join(no_policy[:5]))
 check('Every request the app makes is one the database grants', not refused and any(True for _ in calls_to_the_database(app_js)), '; '.join(refused[:5]))
 check('Every request that reads two tables says which link joins them', not unclear, '; '.join(unclear[:5]))
 hidden_tables = {'agent_usage', 'visit_counts'}
@@ -513,6 +521,9 @@ undropped_triggers = [f'{name} on {table}' for name, table in re.findall(r'creat
 check('Every trigger is dropped before it is made, so the file runs twice', not undropped_triggers, ', '.join(undropped_triggers))
 unprotected = sorted(t for t in re.findall(r'create table if not exists (\w+)', schema) if f'alter table {t} enable row level security;' not in schema)
 check('Every table has row level security switched on', not unprotected, ', '.join(unprotected))
+open_to_anonymous = sorted(t for t in re.findall(r'create table if not exists (\w+)', schema)
+                           if t in granted and f'create policy "not for anonymous accounts" on {t} as restrictive' not in schema)
+check('Hidden anonymous accounts can reach no table the app uses', not open_to_anonymous, ', '.join(open_to_anonymous))
 check('A profile row is made with every account', 'after insert on auth.users' in schema and 'handle_new_user' in schema)
 for fn in ('netlify/functions/agent.mjs', 'netlify/functions/visit.mjs'):
     check(f'{fn} reads the key under its new name and its old one', 'process.env.SUPABASE_KEY || process.env.SUPABASE_ANON_KEY' in read(fn))

@@ -2,7 +2,7 @@
 // showing up — with kudos (Strava's lightest possible reinforcement) and
 // nudges (Apple's "your friend just closed their rings").
 
-import { app, loadCrew, push, persist, render } from '../core.js';
+import { app, back, loadCrew, push, persist, render } from '../core.js';
 import { newCommitment } from '../../lib/habits.js';
 import { fmtMinutes } from '../../lib/util.js';
 import { svg, I, esc, avatar, ring, sheet, toast, ago, plural, daysUntil, KIND_ICON } from '../ui.js';
@@ -144,6 +144,7 @@ export function viewClub() {
         <div class="row between"><div><div class="card-title">Invite ${who}</div><div class="card-sub">They join with this code</div></div>
           <button class="btn small soft" data-copy="${esc(c.code)}">${svg(I.copy, 14)} Copy code</button></div>
         <div class="code mt3">${esc(c.code)}</div>
+        <button class="btn small ghost mt3" data-act="club-rotate">New code</button>
       </div>
       <div class="row gap2 mb3">
         <button class="btn soft grow" data-act="club-post">${svg(I.chat, 16)} Post an update</button>
@@ -161,12 +162,15 @@ export function viewClub() {
             <div class="m">${m.weekPct >= 1 ? 'Hit the goal' : m.weekPct > 0 ? 'Partway there' : 'Not yet this week'}${m.streak ? ` · ${svg(I.flame, 12)} ${m.streak}` : ''}</div></div>
           ${leader && m.weekPct < 1 ? `<button class="btn small ghost" data-act="club-nudge" data-id="${m.id}" data-name="${esc(m.name)}">${svg(I.bolt, 14)} Nudge</button>` : ''}
           ${ring({ pct: m.weekPct, color: 'var(--green)', size: 34, stroke: 4, label: `${m.name} this week` })}
+          ${leader ? `<button class="btn small ghost danger" data-act="club-remove" data-id="${m.id}" data-name="${esc(m.name)}">Remove</button>` : ''}
         </div>`).join('') || '<div class="item"><div class="grow small muted">No one else yet. Share the code.</div></div>'}
     </div>
 
     ${c.posts?.length ? `<div class="section"><div class="section-head"><h2>Updates</h2></div>
       ${c.posts.map((p) => `<div class="feed-card"><div class="feed-head">${avatar(p.from, 34)}<div class="grow"><div class="t">${esc(p.from?.name || 'Leader')}</div><div class="m">${ago(p.at)}</div></div></div>
-        <div class="feed-body"><div class="feed-note">${esc(p.text)}</div></div></div>`).join('')}</div>` : ''}`;
+        <div class="feed-body"><div class="feed-note">${esc(p.text)}</div></div></div>`).join('')}</div>` : ''}
+
+    ${leader ? '' : `<button class="btn ghost danger block mt4" data-act="club-leave">Leave ${c.kind === 'class' ? 'class' : 'club'}</button>`}`;
 }
 
 async function loadClub(id) {
@@ -203,10 +207,68 @@ async function openPerson(id) {
     <div class="card soft small mb4">Sharing: <b>${esc((p.sharing || []).join(', ') || 'nothing yet')}</b>${p.lastAt ? ` · last check-in ${ago(p.lastAt)}` : ''}</div>
     <div class="q mt0">Send a nudge</div>
     <div class="choices stacked">${messages.map((m) => `<button class="choice" name="msg" value="${esc(m)}">${esc(m)}</button>`).join('')}</div>
-    <div class="actions"><button class="btn ghost" value="cancel">Close</button></div>`);
+    <div class="actions"><button class="btn ghost danger" name="op" value="end">End partnership</button><button class="btn ghost" value="cancel">Close</button></div>`);
+  if (res?.get('op') === 'end') return endPartnership(p);
   if (!res?.get('msg')) return;
   try { await app.sync.nudge(p.id, res.get('msg')); toast(`Nudge sent to ${p.name.split(' ')[0]}`); }
   catch (e) { toast(e.message); }
+}
+
+async function endPartnership(p) {
+  const first = p.name.split(' ')[0];
+  const ok = await sheet(`<h2>End partnership with ${esc(first)}?</h2>
+    <p class="lead">You stop seeing each other's check-ins and cannot nudge each other. To connect again, one of you sends a new invite.</p>
+    <div class="actions"><button class="btn ghost" value="cancel">Keep partner</button><button class="btn danger-solid" name="op" value="end">End partnership</button></div>`);
+  if (!ok) return;
+  try { await app.sync.endPartnership(p.id); await loadCrew({ force: true }); toast(`You and ${first} are no longer partners`); }
+  catch (e) { toast(e.message); }
+}
+
+async function leaveClub() {
+  const club = app.clubDetail?.[app.clubId];
+  if (!club) return;
+  const ok = await sheet(`<h2>Leave ${esc(club.name)}?</h2>
+    <p class="lead">The club stops seeing your progress and check-ins. To come back, you need its code again.</p>
+    <div class="actions"><button class="btn ghost" value="cancel">Stay</button><button class="btn danger-solid" name="op" value="leave">Leave</button></div>`);
+  if (!ok) return;
+  try {
+    await app.sync.leaveClub(club.id);
+    delete app.clubDetail[club.id];
+    await loadCrew({ force: true });
+    back();
+    toast(`You left ${club.name}`);
+  } catch (e) { toast(e.message); }
+}
+
+async function removeMember(el) {
+  const club = app.clubDetail?.[app.clubId];
+  if (!club) return;
+  const name = el.dataset.name;
+  const ok = await sheet(`<h2>Remove ${esc(name)}?</h2>
+    <p class="lead">They leave ${esc(club.name)} and stop seeing its updates. They can join again with the code, so make a new code if you need to keep them out.</p>
+    <div class="actions"><button class="btn ghost" value="cancel">Cancel</button><button class="btn danger-solid" name="op" value="remove">Remove</button></div>`);
+  if (!ok) return;
+  try {
+    await app.sync.removeMember(club.id, el.dataset.id);
+    delete app.clubDetail[club.id];
+    render();
+    toast(`Removed ${name.split(' ')[0]}`);
+  } catch (e) { toast(e.message); }
+}
+
+async function rotateCode() {
+  const club = app.clubDetail?.[app.clubId];
+  if (!club) return;
+  const ok = await sheet(`<h2>Make a new code?</h2>
+    <p class="lead">The old code stops working. Everyone already in ${esc(club.name)} stays in.</p>
+    <div class="actions"><button class="btn ghost" value="cancel">Cancel</button><button class="btn primary" name="op" value="rotate">Make new code</button></div>`);
+  if (!ok) return;
+  try {
+    const code = await app.sync.rotateCode(club.id);
+    club.code = code;
+    render();
+    toast('New code ready');
+  } catch (e) { toast(e.message); }
 }
 
 async function invitePartner() {
@@ -303,6 +365,9 @@ export const actions = {
   'club-create': () => createClub(),
   'open-club': (el) => { push('club', { clubId: el.dataset.id }); },
   'club-post': () => postUpdate(),
+  'club-leave': () => leaveClub(),
+  'club-remove': (el) => removeMember(el),
+  'club-rotate': () => rotateCode(),
   'club-nudge': async (el) => {
     try { await app.sync.nudge(el.dataset.id, 'A reminder from your club: there is still time this week.'); toast(`Nudged ${el.dataset.name.split(' ')[0]}`); }
     catch (e) { toast(e.message); }

@@ -94,7 +94,7 @@
     <li>If you use Crew: check-ins for the activities you chose to share, kudos, nudges, and which partners and clubs you are connected to.</li>
     <li>A count of how many assistant requests your account made today, used only to enforce a daily limit. It is stored against an account ID, not your name or email, and is removed the following day.</li>
   </ul>
-  <p>Each plan is stored in a row that only its owner can read or change. To sign in, Cadence emails you a code, or a link that does the same thing. Cadence never has a password for you.</p>
+  <p>Each plan is stored in a row that only its owner can read or change. To sign in, Cadence emails you a code, or a link that does the same thing. That email is sent from a Gmail account that belongs to Cadence, so Google handles it on its way to you. Cadence never has a password for you.</p>
   <p>Supabase runs the sign-in, and it keeps its own log of sign-ins: the time, the account, and the IP address and browser the sign-in came from. The person who runs Cadence can see that log.</p>
 
   <h3 id="if-you-write-to-us">If you write to us</h3>
@@ -110,14 +110,15 @@
   <p>Cadence's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements. Google Calendar data is used only to show your calendar and plan around it. It is not used for advertising, not sold, and not used to train AI models. When the assistant uses Claude, events that came from Google Calendar are passed on as a time with no title.</p>
 
   <h2 id="the-assistant-and-ai">The assistant, and AI</h2>
-  <p>Without an email account and without an Anthropic key of your own, the assistant reads simple sentences on your own device, with nothing sent anywhere. It does the same if a reply from an AI model cannot be had.</p>
-  <p>If you are signed in with an email on a copy of Cadence that offers it, every message you send the assistant goes to Gemini, an AI model made by Google. If you add your own Anthropic key, it goes to Claude, an AI model made by Anthropic, instead. Each time you send a message, the following is sent to that company to produce the reply:</p>
+  <p>On a copy of Cadence that offers it, every message you send the assistant goes to Gemini, an AI model made by Google, whether you use Cadence with an email or with only a name. If you add your own Anthropic key, it goes to Claude, an AI model made by Anthropic, instead. Each time you send a message, the following is sent to that company to produce the reply:</p>
   <ul>
     <li>The message you typed.</li>
     <li>A summary of your week: the current date and time, your school hours and days off, your sleep times, any one-day changes you have made (such as a shorter evening), your open assignments (title, course, due date, time estimate), your activities with their schedules and how many times you have done each this week, your calendar events for the next seven days (title and time, or time only for events from Google Calendar), the work blocks already planned, and anything that does not fit.</li>
     <li>Earlier messages in the same conversation.</li>
   </ul>
-  <p>With an email account, this goes through Cadence's server, which adds Cadence's key and passes it on to Google. Cadence uses Google's free Gemini API. Under Google's terms for it, Google uses what it receives to improve its products, and people at Google may read it. So do not put anything in a message to the assistant that you would not want a stranger at a company to read: no health details, no passwords, and no private information about other people. If you would rather not send anything to Google, use Cadence with only a name: the assistant then reads your sentences on your own device and nothing leaves it. Cadence's server does not store your messages or the replies. With your own key, it goes straight from your browser to Anthropic under your Anthropic account.</p>
+  <p>This goes through Cadence's server, which adds Cadence's key and passes it on to Google. Cadence uses Google's free Gemini API. Under Google's terms for it, Google uses what it receives to improve its products, and people at Google may read it. So do not put anything in a message to the assistant that you would not want a stranger at a company to read: no health details, no passwords, and no private information about other people. If you would rather not send anything to Google, do not use the assistant: everything else in Cadence works without it. Cadence's server does not store your messages or the replies.</p>
+  <p>If you use Cadence with only a name, your browser first gets a hidden account from Supabase, Cadence's database provider, so that the server can count how many messages it sends in a day. That account is a random ID and nothing else: no name, no email and none of your plan, and the database lets it do nothing but be counted. It is kept in your browser, and removed after 30 days without use.</p>
+  <p>If a reply from an AI model cannot be had, the assistant reads simple sentences on your own device instead, with nothing sent anywhere. With your own key, it goes straight from your browser to Anthropic under your Anthropic account.</p>
   <p>With your own key, Cadence also sends the instructions of an assignment to Anthropic when it writes that assignment's summary, steps and time estimate, and, in the teacher tools, the text of an assignment you dictate.</p>
   <p>How Google handles what it receives is described in the <a href="https://ai.google.dev/gemini-api/terms" rel="noopener">Gemini API terms</a> and <a href="https://policies.google.com/privacy" rel="noopener">Google's privacy policy</a>, and how Anthropic does in <a href="https://www.anthropic.com/legal/privacy" rel="noopener">Anthropic's privacy policy</a>.</p>
   <p>If you use the microphone button, your browser turns your speech into text. In Chrome, that means the audio is sent to Google to be transcribed. Cadence receives only the text.</p>
@@ -126,9 +127,9 @@
   <table>
     <tr><th>Company</th><th>What for</th><th>What it handles</th></tr>
     <tr><td>Netlify</td><td>Hosts this website, the assistant's server function, and the contact form</td><td>Ordinary web requests, including your IP address, as any web host does. A message you send from the contact page, with the IP address and browser it came from, which it checks for spam with Akismet</td></tr>
-    <tr><td>Supabase</td><td>Email sign-in and the account database</td><td>Only if you sign in with an email: what is listed under "In your account", and its log of sign-ins</td></tr>
+    <tr><td>Supabase</td><td>Email sign-in and the account database</td><td>If you sign in with an email: what is listed under "In your account", and its log of sign-ins. If you use the assistant with only a name: a hidden account that is a random ID</td></tr>
     <tr><td>Anthropic</td><td>The assistant, if you add your own Anthropic key</td><td>What is listed under "The assistant, and AI"</td></tr>
-    <tr><td>Google</td><td>The assistant (Gemini), when you are signed in with an email. Google Calendar, if you connect it. Speech to text in Chrome, if you use the microphone</td><td>What is listed under "The assistant, and AI". Calendar requests you have allowed. Audio you speak into the microphone button</td></tr>
+    <tr><td>Google</td><td>The assistant (Gemini). Sign-in emails, which are sent from a Gmail account that belongs to Cadence. Google Calendar, if you connect it. Speech to text in Chrome, if you use the microphone</td><td>What is listed under "The assistant, and AI". Your email address and the sign-in email sent to it, if you sign in with an email. Calendar requests you have allowed. Audio you speak into the microphone button</td></tr>
   </table>
   <p>Cadence does not share your data with anyone else, and does not use advertising or analytics services.</p>
 
@@ -145,6 +146,7 @@
     <li><b>A club or class</b> you join sees your name, your check-ins for the activities you linked to that club (with the same details), and your progress toward its weekly goal. It does not see check-ins meant for another club, or for no club.</li>
   </ul>
   <p>Neither can see your assignments, your calendar, or activities you do not share.</p>
+  <p>You can end a partnership or leave a club at any time from Crew, and from then on they no longer see your check-ins. A club's leader can also remove you from it.</p>
 
   <h2 id="deleting-your-data">Deleting your data</h2>
   <ul>

@@ -34,7 +34,8 @@ function localAdapter() {
     me: () => null,
     feed: async () => [], partners: async () => [], clubs: async () => [], nudges: async () => [],
     share: async () => {}, kudos: no, nudge: no, invite: no, acceptInvite: no,
-    createClub: no, joinClub: no, club: no, shoutout: no
+    createClub: no, joinClub: no, club: no, shoutout: no,
+    leaveClub: no, removeMember: no, endPartnership: no, rotateCode: no
   };
 }
 
@@ -145,6 +146,18 @@ function demoAdapter(state) {
       const club = c.clubs.find((x) => x.id === clubId);
       if (club) club.posts.unshift({ id: uid('p'), from: { id: 'me', name: meName, color: '#f97316' }, text, at: new Date().toISOString() });
     },
+    leaveClub: async (clubId) => { c.clubs = c.clubs.filter((x) => x.id !== clubId); },
+    removeMember: async (clubId, userId) => {
+      const club = c.clubs.find((x) => x.id === clubId);
+      if (club) club.members = club.members.filter((m) => m.id !== userId);
+    },
+    endPartnership: async (partnerId) => { c.partners = c.partners.filter((p) => p.id !== partnerId); },
+    rotateCode: async (clubId) => {
+      const club = c.clubs.find((x) => x.id === clubId);
+      if (!club) throw new Error('Club not found');
+      club.code = `${club.code.split('-')[0]}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      return club.code;
+    }
   };
 }
 
@@ -242,6 +255,14 @@ function supabaseAdapter(cloud) {
       const [c] = await rest(`clubs?select=id,name&id=eq.${id}`).catch(() => []);
       return { id, name: c?.name || '' };
     },
-    shoutout: (clubId, text) => rest('club_posts', { method: 'POST', body: { club_id: clubId, text } })
+    shoutout: (clubId, text) => rest('club_posts', { method: 'POST', body: { club_id: clubId, text } }),
+    leaveClub: (clubId) => rest(`club_members?club_id=eq.${clubId}&user_id=eq.${uidOf()}`, { method: 'DELETE' }),
+    removeMember: (clubId, userId) => rest(`club_members?club_id=eq.${clubId}&user_id=eq.${userId}`, { method: 'DELETE' }),
+    endPartnership: (partnerId) => {
+      // Each pair is stored once, with the smaller id first (accept_invite).
+      const [a, b] = [uidOf(), partnerId].sort();
+      return rest(`partnerships?user_a=eq.${a}&user_b=eq.${b}`, { method: 'DELETE' });
+    },
+    rotateCode: (clubId) => rpc('rotate_club_code', { target: clubId })
   };
 }
