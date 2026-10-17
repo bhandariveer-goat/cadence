@@ -17,7 +17,8 @@
 import { MIN, HOUR, DAY, addDays, dateKey, clamp, startOfDay } from './util.js';
 import { freeSlots } from './calendar.js';
 import { effectiveDeadline } from './priority.js';
-import { dayWindows, dayCap, overrideFor, DAY as DAYMODEL } from './daymodel.js';
+import { dayWindows, workWindows, isSchoolDay, dayCap, overrideFor, DAY as DAYMODEL } from './daymodel.js';
+import { planPrefs, courseIn } from './memory.js';
 
 /** Minutes left in a task's time-of-day window from `at` (Infinity when it has none). */
 function windowLeft(win, at) {
@@ -40,9 +41,11 @@ const uidCounter = (() => { let i = 0; return () => `s${Date.now().toString(36)}
  * @param {number[]} [ctx.levels]  daily-load levels to try, lightest first
  * @param {object}   [ctx.spent]   dateKey -> minutes already worked that day
  * @param {Function} [ctx.firmDay] (date) -> true when the student set that day's load herself
+ * @param {object}   [ctx.prefer]  what this student prefers (lib/memory.js planPrefs): classes
+ *                                 to start earlier because they tend to slip, and a class to do first
  * @returns {{generatedAt:string, sessions:Array, unplaced:Array, days:Array, level:number, fits:boolean}}
  */
-export function buildPlan(tasks, { availability, busy, settings, from = new Date(), capFor = null, levels = null, spent = {}, firmDay = null }) {
+export function buildPlan(tasks, { availability, busy, settings, from = new Date(), capFor = null, levels = null, spent = {}, firmDay = null, prefer = null }) {
   const horizon = addDays(from, settings.lookaheadDays ?? 14);
   const slots = freeSlots(from, horizon, availability, busy, settings);
 
@@ -67,9 +70,14 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
   const candidatesFor = () => tasks
     .filter((t) => t.status !== 'done' && (t.estimateMin || 0) > 0)
     .map((t) => {
-      const deadline = t.priority?.deadline
+      let deadline = t.priority?.deadline
         ? new Date(t.priority.deadline)
         : (t.due ? effectiveDeadline(new Date(t.due), t.estimateMin, { availability, busy, settings, now: from, noBuffer: t.noBuffer }) : horizon);
+      // A class that keeps getting moved later is aimed a day early (or half
+      // the time left, when that is less), so there is still room when it slips.
+      if (prefer?.early?.size && !t.commitmentId && courseIn(t.courseName, prefer.early) && +deadline > +from) {
+        deadline = new Date(+deadline - Math.min(DAY, (+deadline - +from) / 2));
+      }
       const remaining = Math.max(0, (t.estimateMin || 0) - (t.loggedMin || 0));
       const daysLeft = Math.max(1, Math.ceil((+deadline - +from) / DAY));
       // Overdue work gets a runway to land on (effectiveDeadline), which would
@@ -177,6 +185,9 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
             // hour from something due at 8am tomorrow.
             .sort((a, b) => (Number(lastChance(b, cursor)) - Number(lastChance(a, cursor)))
               || (Number(b.overdue) - Number(a.overdue))
+              // "Math first": among things due the same day, that class leads.
+              || (prefer?.first ? dateKey(a.deadline).localeCompare(dateKey(b.deadline))
+                || (Number(courseIn(b.task.courseName, prefer.first)) - Number(courseIn(a.task.courseName, prefer.first))) : 0)
               || (+a.deadline - +b.deadline)
               || ((b.task.priority?.score ?? 0) - (a.task.priority?.score ?? 0)));
 
@@ -338,6 +349,37 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
   };
 }
 
+/**
+ * Free time per date with a preferred start applied: "you usually start at
+ * 7:30pm" moves the start of the window, never past a start the student set
+ * for that day themselves, and never so late that less than an hour is left.
+ */
+function preferredWindows(state, prefer) {
+  const base = dayWindows(state);
+  return (day) => {
+    const wins = base(day);
+    const want = prefer.start?.(day, isSchoolDay(state, day));
+    if (!wins.length || !want || overrideFor(state, day)?.startAt) return wins;
+    const toM = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
+    const w = wins[0];
+    const end = toM(w.end) <= toM('05:00') ? toM(w.end) + 1440 : toM(w.end);
+    if (toM(want) <= toM(w.start) || toM(want) + 60 > end) return wins;
+    return [{ start: want, end: w.end }, ...wins.slice(1)];
+  };
+}
+
+/** The dates in the next two weeks whose start moved, and why, for the Today screen. */
+function adaptedDays(state, prefer, now) {
+  const start = {};
+  const shifted = preferredWindows(state, prefer);
+  for (let i = 0; i < (state.settings.lookaheadDays ?? 14); i++) {
+    const d = addDays(startOfDay(now), i);
+    const a = shifted(d)[0], b = workWindows(state, d)[0];
+    if (a && b && a.start !== b.start) start[dateKey(d)] = { at: a.start, why: isSchoolDay(state, d) ? prefer.why.startSchool : prefer.why.startFree };
+  }
+  return { start, early: [...prefer.early], first: prefer.first, blockMin: prefer.blockMin };
+}
+
 /** "Part 2 of 4" — numbered across a task's whole history, not just new blocks. */
 function numberParts(sessions) {
   const counts = {};
@@ -409,15 +451,29 @@ export function replan(state, prioritized, busy = state.busy, settings = state.s
   const levels = [];
   for (let l = DAYMODEL.floorMin; l <= DAYMODEL.ceilingSchoolDay; l += DAYMODEL.stepMin) levels.push(l);
 
-  const plan = buildPlan(withProgress, {
-    availability: dayWindows(state),
+  const run = (prefer) => buildPlan(withProgress, {
+    availability: prefer ? preferredWindows(state, prefer) : dayWindows(state),
     busy: [...busy, ...running],
-    settings,
+    settings: prefer?.blockMin ? { ...settings, sessionMaxMin: prefer.blockMin, sessionMinMin: Math.min(settings.sessionMinMin ?? 20, prefer.blockMin) } : settings,
     capFor: (day, level) => dayCap(state, day, level),
     firmDay: (day) => { const o = overrideFor(state, day); return !!o && (o.off || Number.isFinite(o.budgetMin)); },
     levels,
-    spent: doneToday ? { [todayKey]: doneToday } : {}
+    spent: doneToday ? { [todayKey]: doneToday } : {},
+    prefer
   });
+
+  // What this student prefers (lib/memory.js) is tried first. If that leaves
+  // assigned work short of room before it is due, the plain plan is used
+  // instead: a habit is worth following, not worth a missed deadline.
+  const prefer = planPrefs(state, now);
+  let plan = run(prefer);
+  if (prefer) {
+    const short = (p) => p.unplaced.filter((u) => !u.commitmentId).reduce((a, u) => a + u.missingMin, 0);
+    const mine = short(plan);
+    const plain = mine > 0 ? run(null) : null;
+    if (plain && short(plain) < mine) plan = plain;
+    else plan.adapted = adaptedDays(state, prefer, now);
+  }
   plan.sessions = [...kept, ...plan.sessions].sort((a, b) => new Date(a.start) - new Date(b.start));
   numberParts(plan.sessions);
   plan.days = summarizeDays(plan.sessions, now, addDays(now, state.settings.lookaheadDays ?? 14));

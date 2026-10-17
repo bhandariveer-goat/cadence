@@ -16,9 +16,6 @@
     "https://www.googleapis.com/*",
     "https://oauth2.googleapis.com/*"
   ],
-  "optional_host_permissions": [
-    "*://*/*"
-  ],
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"

@@ -30,6 +30,19 @@ from urllib.parse import urlparse, parse_qs
 
 ROOT = Path(__file__).resolve().parent.parent
 MOCK = '--mock' in sys.argv
+
+
+def _site_headers():
+    """The headers netlify.toml sets for every path, read from the file."""
+    import re
+    text = (Path(__file__).resolve().parent.parent / 'netlify.toml').read_text()
+    block = re.search(r'for = "/\*"\s*\[headers\.values\](.*?)(?:\n\[|\Z)', text, re.S)
+    if not block:
+        return []
+    return [(k, v) for k, v in re.findall(r'^\s*([A-Za-z-]+)\s*=\s*"(.*)"\s*$', block.group(1), re.M)]
+
+
+SITE_HEADERS = _site_headers()
 PORT = next((int(a) for a in sys.argv[1:] if a.isdigit()), 8123)
 
 USERS = {}      # email -> user id
@@ -37,6 +50,9 @@ TOKENS = {}     # access token -> {id, email}
 ROWS = {}       # user id -> {data, updated_at}
 PROFILES = {}   # user id -> row
 USAGE = {}      # user id -> count
+INVITES = {}
+CSP_REPORTS = []
+MOCK_CLUB = {'id': '00000000-0000-4000-8000-00000000c1ab', 'name': 'Robotics'}
 AGENT_CALLS = []
 VISITS = {}     # "source|medium|campaign" -> count
 ENQUIRIES = []  # what the contact form sent, minus anything a bot filled in
@@ -57,6 +73,15 @@ class Handler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header('Cache-Control', 'no-store')
+        # The same security headers the live site sends (netlify.toml), so a
+        # page that breaks them breaks here first. Locally the Supabase stand-in
+        # is this server, which 'self' already allows.
+        for name, value in SITE_HEADERS:
+            # In mock mode the browser also reports anything the policy blocks
+            # to this server: GET /mock/csp-reports lists them.
+            if MOCK and name == 'Content-Security-Policy':
+                value += '; report-uri /mock/csp-report'
+            self.send_header(name, value)
         super().end_headers()
 
     def log_message(self, fmt, *args):
@@ -124,10 +149,31 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, VISITS)
         if MOCK and path == '/mock/enquiries':
             return self._json(200, ENQUIRIES)
+        if MOCK and path == '/mock/csp-reports':
+            return self._json(200, CSP_REPORTS)
         if MOCK and path.startswith('/mock/'):
             return self._mock('GET', path[5:])
+        if MOCK and path == '/src/config.js':
+            return self._mock_config()
         self._clean_address()
         return super().do_GET()
+
+    def _mock_config(self):
+        """src/config.js with the Supabase project swapped for this server's
+        stand-in, in memory only. Testing sign-in, sync, the assistant or the
+        Canvas feed locally used to mean editing config.js, which could then be
+        committed by mistake and ship a site that signs in to localhost."""
+        import re
+        text = (ROOT / 'src' / 'config.js').read_text()
+        host = self.headers.get('Host') or f'localhost:{PORT}'
+        text = re.sub(r"supabaseUrl:\s*'[^']*'", f"supabaseUrl: 'http://{host}/mock'", text, count=1)
+        text = re.sub(r"supabaseKey:\s*'[^']*'", "supabaseKey: 'sb_publishable_mockmockmockmockmockmock'", text, count=1)
+        raw = text.encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/javascript; charset=utf-8')
+        self.send_header('Content-Length', str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
 
     def do_HEAD(self):
         self._clean_address()
@@ -142,12 +188,24 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if MOCK and path == '/mock/csp-report':
+            n = int(self.headers.get('Content-Length') or 0)
+            try:
+                report = json.loads(self.rfile.read(n) or b'{}').get('csp-report', {})
+            except ValueError:
+                report = {}
+            CSP_REPORTS.append({k: report.get(k) for k in ('document-uri', 'violated-directive', 'blocked-uri', 'source-file', 'line-number')})
+            self.send_response(204)
+            self.end_headers()
+            return
         if MOCK and path.startswith('/mock/'):
             return self._mock('POST', path[5:])
         if MOCK and path == '/api/agent':
             return self._agent()
         if MOCK and path == '/api/visit':
             return self._visit()
+        if MOCK and path == '/api/canvas-feed':
+            return self._canvas_feed()
         if MOCK and 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', ''):
             return self._form(path)
         self._json(404, {'message': 'not found'})
@@ -175,6 +233,9 @@ class Handler(SimpleHTTPRequestHandler):
             if not token.isdigit() or not 6 <= len(token) <= 10 or token.startswith('000'):
                 return self._json(403, {'code': 403, 'error_code': 'otp_expired', 'msg': 'Token has expired or is invalid'})
             return self._json(200, self._session(body.get('email')))
+        if path == '/auth/v1/signup' and not body.get('email'):
+            # A hidden anonymous account, as a name-only student gets.
+            return self._json(200, self._session(f'anon-{uuid.uuid4().hex[:8]}@mock'))
         if path == '/auth/v1/token':
             old = str(body.get('refresh_token', '')).replace('ref_', '', 1)
             who = TOKENS.get(old)
@@ -215,10 +276,57 @@ class Handler(SimpleHTTPRequestHandler):
         if path == '/rest/v1/profiles':
             PROFILES[who['id']] = {**body, 'id': who['id']}
             return self._json(201, [PROFILES[who['id']]])
+        # Just enough of Crew to try invite links: one club whose code is
+        # ROBOT-ABC234, and partner invites that work once.
+        if path == '/rest/v1/invites' and method == 'POST':
+            INVITES[str(body.get('code', '')).upper()] = who['id']
+            return self._json(201, None)
+        if path == '/rest/v1/rpc/accept_invite':
+            owner = INVITES.pop(str(body.get('invite_code', '')).upper(), None)
+            if not owner or owner == who['id']:
+                return self._json(400, {'message': 'That invite code is not valid or has already been used.'})
+            return self._json(200, owner)
+        if path == '/rest/v1/rpc/join_club':
+            if str(body.get('club_code', '')).upper() != 'ROBOT-ABC234':
+                return self._json(400, {'message': 'No club with that code. Check it with your leader.'})
+            return self._json(200, MOCK_CLUB['id'])
+        if path == '/rest/v1/clubs' and 'id=eq.' in query:
+            return self._json(200, [{'id': MOCK_CLUB['id'], 'name': MOCK_CLUB['name']}])
         if path == '/rest/v1/rpc/bump_agent_usage':
             USAGE[who['id']] = USAGE.get(who['id'], 0) + 1
             return self._json(200, [{'mine': USAGE[who['id']], 'total': sum(USAGE.values())}])
         return self._json(200, [])
+
+    def _canvas_feed(self):
+        """Stand-in for netlify/functions/canvas-feed.mjs. A signed-in request
+        for a Canvas feed address gets a small calendar with three assignments
+        due in the coming days; an address containing "broken" gets the 404
+        Canvas sends for a link that no longer works."""
+        body = self._body()
+        auth = self.headers.get('Authorization', '')
+        if not auth.startswith('Bearer ') or not TOKENS.get(auth[7:]):
+            return self._json(401, {'error': 'Open Cadence again to sync Canvas.'})
+        url = str(body.get('url', ''))
+        if '/feeds/calendars/' not in url:
+            return self._json(400, {'error': "That isn't a calendar link Cadence can use."})
+        if 'broken' in url:
+            return self._json(404, {'error': 'Canvas did not recognise that link. Copy it again from Canvas.'})
+        import datetime
+        today = datetime.date.today()
+        def ev(n, days, title, course):
+            d = today + datetime.timedelta(days=days)
+            stamp = d.strftime('%Y%m%d') + 'T065900Z'
+            return (f'BEGIN:VEVENT\r\nUID:event-assignment-{n}@school.instructure.com\r\nDTSTART:{stamp}\r\nDTEND:{stamp}\r\n'
+                    f'SUMMARY:{title} [{course}]\r\nURL:https://school.instructure.com/courses/1/assignments/{n}\r\nEND:VEVENT\r\n')
+        ics = ('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:mock\r\n'
+               + ev(9001, 2, 'Lab report: enzymes', 'BIO-11') + ev(9002, 3, 'Problem set 4', 'MATH-11') + ev(9003, 5, 'Essay draft', 'ENG-11')
+               + 'END:VCALENDAR\r\n').encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/calendar; charset=utf-8')
+        self.send_header('Content-Length', str(len(ics)))
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(ics)
 
     def _agent(self):
         """Stand-in for netlify/functions/agent.mjs: echoes a scripted reply."""

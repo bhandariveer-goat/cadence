@@ -146,6 +146,7 @@ def config():
         'operator': field('operator'),
         'contact': field('contactEmail'),
         'reply': field('replyWithin'),
+        'extension': field('extensionUrl') if re.match(r'^https://chromewebstore\.google\.com/', field('extensionUrl')) else '',
         'visits': bool(re.search(r'\bcountVisits:\s*true\b', text)),
         # The same test as cloudConfigured() in src/config.js.
         'cloud': bool(re.match(r'(https://.+|http://localhost(:\d+)?/.+)', url)) and len(key) > 20 and not is_secret_key(key),
@@ -248,6 +249,10 @@ def stamp_body(page_html, cfg, updated):
     def fill(m):
         return m.group(1) + values[m.group(3)] + m.group(5) if m.group(3) in values else m.group(0)
     page_html = re.sub(r'(<(\w+)\b[^<>]*\sdata-site="([a-z]+)"[^<>]*>)(.*?)(</\2>)', fill, page_html, flags=re.S)
+    # A link whose address comes from the config: <a href="..." data-site-href="extension">.
+    hrefs = {'extension': cfg['extension'] or '/app'}
+    page_html = re.sub(r'<a\b([^<>]*?)\shref="[^"]*"([^<>]*\sdata-site-href="([a-z]+)"[^<>]*)>',
+                       lambda m: f'<a{m.group(1)} href="{esc(hrefs[m.group(3)])}"{m.group(2)}>' if m.group(3) in hrefs else m.group(0), page_html)
 
     return only_what_is_true(page_html, cfg)
 
@@ -274,7 +279,7 @@ def only_what_is_true(page_html, cfg):
     true to a browser, to a reader with scripts off and to anything that
     takes the text out of the HTML, and the other wording is still there to
     be brought back when the set-up changes."""
-    facts = {'cloud': cfg['cloud'], 'visits': cfg['visits'], 'contact': bool(cfg['contact']), 'reply': bool(cfg['reply'])}
+    facts = {'cloud': cfg['cloud'], 'visits': cfg['visits'], 'contact': bool(cfg['contact']), 'reply': bool(cfg['reply']), 'extension': bool(cfg['extension'])}
     # Everything back in first, then decide again from scratch.
     page_html = re.sub(re.escape(OFF_OPEN) + r'(.*?)' + re.escape(OFF_CLOSE), r'\1', page_html, flags=re.S)
     out, at = [], 0

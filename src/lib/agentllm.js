@@ -24,6 +24,7 @@ import { simulate, describe, planView, freeOn, clockOf, dayWord } from './agento
 import { dateKey, addDays, startOfDay } from './util.js';
 import { KINDS } from './habits.js';
 import { workWindows, overrideFor } from './daymodel.js';
+import { addNote } from './memory.js';
 
 export class AssistantUnavailable extends Error {}
 
@@ -134,6 +135,29 @@ export function toOps(name, input, state, now) {
       }
       return { reply: { date: i.date, free: slots.map((s) => ({ from: clockOf(s.start), to: clockOf(s.end), minutes: s.minutes })) } };
     }
+    case 'remember': {
+      const note = String(i.note || '').trim();
+      // Tried on a copy, so the model hears why a note was refused.
+      const tried = addNote({ memory: structuredClone(state.memory || {}) }, note);
+      if (tried.error) return { error: tried.error };
+      return { ops: [{ kind: 'memory', note }] };
+    }
+    case 'forget': {
+      const n = (state.memory?.notes || []).find((x) => x.id === i.id);
+      if (!n) return { error: `no saved note with id ${i.id}. Use an id from memory.notes.` };
+      return { ops: [{ kind: 'memory', forget: n.id, title: n.text }] };
+    }
+    case 'set_preferences': {
+      const op = { kind: 'memory', prefs: {} };
+      if (Number.isFinite(i.block_minutes)) op.prefs.blockMin = i.block_minutes;
+      if (isTime(i.school_day_start)) op.prefs.startSchool = pad2(i.school_day_start);
+      if (isTime(i.free_day_start)) op.prefs.startFree = pad2(i.free_day_start);
+      if (typeof i.first_class === 'string' && i.first_class.trim()) op.prefs.firstCourse = i.first_class.trim().slice(0, 60);
+      const clear = (Array.isArray(i.clear) ? i.clear : []).filter((k) => ['block_minutes', 'school_day_start', 'free_day_start', 'first_class'].includes(k));
+      if (clear.length) op.prefs.clear = clear;
+      if (!Object.keys(op.prefs).length) return { error: 'nothing to change: give a preference or clear' };
+      return { ops: [op] };
+    }
     case 'offer_choices':
       return { reply: { shown: true }, chips: (i.options || []).map((o) => String(o).trim().slice(0, 80)).filter(Boolean).slice(0, 4) };
     default:
@@ -220,12 +244,22 @@ export const directTransport = (apiKey) => async (messages) => parse(await fetch
   body: JSON.stringify(requestBody(messages))
 }));
 
-/** Through the site's function, which holds the key and checks the account. */
-export const proxyTransport = (endpoint, getToken) => async (messages) => parse(await fetch(endpoint, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json', authorization: `Bearer ${await getToken()}` },
-  body: JSON.stringify({ messages })
-}));
+/**
+ * Through the site's function, which holds the key and checks the account.
+ * It says how many questions are left today; that rides along on the reply
+ * as `remaining` and is never sent back.
+ */
+export const proxyTransport = (endpoint, getToken) => async (messages) => {
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${await getToken()}` },
+    body: JSON.stringify({ messages })
+  });
+  const data = await parse(res);
+  const left = res.headers.get('x-cadence-remaining');
+  if (data && left != null && /^\d+$/.test(left)) data.remaining = Number(left);
+  return data;
+};
 
 // ------------------------------------------------------------------ loop
 
@@ -248,6 +282,7 @@ export async function converse({ text, state, messages, send, now = new Date() }
   const applied = [];
   let chips = [];
   let ownChips = null;          // set when Cadence moved tonight later: always offer to keep the student's time
+  let remaining = null;         // questions left today, when the site's server says
 
   const tonight = stayUpOption(working, now);
   messages.push({ role: 'user', content: `<plan>${JSON.stringify({ ...planView(working, now), ...(tonight ? { if_staying_up: tonight } : {}) })}</plan>\n\n${String(text).slice(0, 2000)}` });
@@ -259,6 +294,7 @@ export async function converse({ text, state, messages, send, now = new Date() }
 
       const res = await send(messages);
       if (!res || !Array.isArray(res.content)) throw new AssistantUnavailable('The assistant sent an empty reply');
+      if (Number.isFinite(res.remaining)) remaining = res.remaining;
       if (res.stop_reason === 'refusal') throw new AssistantUnavailable('The assistant declined that one');
 
       // Echoed back whole and unchanged, thinking blocks included.
@@ -281,7 +317,8 @@ export async function converse({ text, state, messages, send, now = new Date() }
           ops: applied,
           next: changed ? working : null,
           chips: (ownChips || chips).map((c) => ({ label: c, text: c })),
-          diff: null
+          diff: null,
+          remaining
         };
       }
 

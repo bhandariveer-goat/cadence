@@ -2,10 +2,11 @@
 // the crew. Nothing else. Every other detail is one tap deeper.
 
 import {
-  app, currentSession, runningSession, nextFutureSession, commitmentById, plannable, loadCrew, persist, go, push
+  app, currentSession, runningSession, nextFutureSession, commitmentById, plannable, loadCrew, persist, go, push, insideCanvas, DEMO
 } from '../core.js';
-import { weekProgress, pendingCheckins, showUpStreak, sessionMinutes, weekStart } from '../../lib/habits.js';
-import { dateKey, fmtTime, fmtMinutes, fmtDay, addDays } from '../../lib/util.js';
+import { cloudConfigured } from '../../config.js';
+import { weekProgress, pendingCheckins, showUpStreak, sessionMinutes, weekStart, weeklyReview } from '../../lib/habits.js';
+import { dateKey, fmtTime, fmtMinutes, fmtDay, addDays, fmtClock } from '../../lib/util.js';
 import { ringsDeck, timeline, ART, commitmentIcon } from './parts.js';
 import { svg, I, esc, greeting, avatar, ago, colorFor, mmss, plural, KIND_ICON, dueLabel, isWide } from '../ui.js';
 import { dayWord } from '../../lib/agentops.js';
@@ -30,6 +31,7 @@ export function viewToday() {
     </section>
 
     ${nudge ? nudgeBanner(nudge) : ''}
+    ${nextStepCard()}
     ${ringsDeck()}
     ${pending.length ? pendingCard(pending[0]) : ''}
     ${cur ? nowCard(cur) : restCard()}
@@ -54,9 +56,43 @@ function summaryLine() {
   const dueToday = (S.commitments || []).filter((c) => !c.archived && weekProgress(c, S.checkins).left > 0).length;
   if (!todays.length && !dueToday) return 'Nothing planned today. A good day to rest or get ahead.';
   const bits = [todays.length ? `${plural(todays.length, 'block')} planned today, about ${fmtMinutes(mins)}.` : 'Your plan for today is clear.'];
+  // Say so when the day was shaped around how this student works.
+  const moved = S.plan?.adapted?.start?.[k];
+  const first = todays.slice().sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+  if (moved && first && fmtTime(first.start) === fmtClock(moved.at)) {
+    bits.push(moved.why === 'told' ? `Starting at ${fmtClock(moved.at)}, as you asked.` : `Starting around ${fmtClock(moved.at)}, when you usually get going.`);
+  }
   if (streak.days >= 2 && !streak.todayDone) bits.push(`Check in once to make it ${streak.days + 1} days in a row.`);
   return bits.join(' ');
 }
+
+/**
+ * One suggestion at a time, for whatever matters most next: homework coming in
+ * by itself, then not losing the plan. Each can be put away for good.
+ */
+function nextStepCard() {
+  const S = app.S;
+  if (DEMO) return '';
+  const p = S.prompts || {};
+  const tasks = Object.values(S.tasks || {});
+  const fromCanvas = tasks.some((t) => t.source === 'canvas' || t.source === 'canvas-feed');
+  if (!insideCanvas && !S.sources?.canvasFeed?.enabled && !fromCanvas && !p.canvas) {
+    return stepCard('canvas', 'Bring in your Canvas assignments', 'One link from Canvas, and every due date comes in and keeps coming in on its own.', 'Connect Canvas', 'canvas-feed-sheet', 'No Canvas at my school');
+  }
+  const age = Date.now() - +new Date(S.account?.createdAt || Date.now());
+  const worth = S.sources?.canvasFeed?.enabled || tasks.filter((t) => plannable(t)).length >= 3 || age > 86400000;
+  if (S.account?.mode === 'local' && cloudConfigured() && worth && !(p.email && Date.now() - p.email < 7 * 86400000)) {
+    return stepCard('email', 'Keep your week safe', 'Right now your plan lives only in this browser, which can clear it. Add an email and it is saved to an account, and it is on your phone and other computers too. No password.', 'Add an email', 'account-add-email', 'Not now');
+  }
+  return '';
+}
+
+const stepCard = (key, title, sub, label, act, later) => `<div class="card">
+  <div class="card-title">${title}</div>
+  <div class="card-sub">${sub}</div>
+  <div class="row gap2 mt3"><button class="btn primary small" data-act="${act}">${label}</button>
+    <button class="btn ghost small" data-act="prompt-dismiss" data-key="${key}">${later}</button></div>
+</div>`;
 
 function nudgeBanner(n) {
   return `<div class="nudge-banner">
@@ -169,7 +205,11 @@ function reviewCard() {
   const S = app.S;
   const dow = new Date().getDay();
   const thisWeek = dateKey(weekStart());
-  if (![0, 1, 2].includes(dow) || S.lastReviewWeek === thisWeek || !(S.commitments || []).length) return '';
+  if (![0, 1, 2].includes(dow) || S.lastReviewWeek === thisWeek) return '';
+  // Worth a look when there is something to look back on: activities, or
+  // homework finished or worked on last week.
+  const rv = weeklyReview(S);
+  if (!(S.commitments || []).length && !rv.homework.finished && !rv.showUpDays) return '';
   if (dow === 0 && new Date().getHours() < 16) return '';
   return `<button class="card tap row" data-act="open-review">
     <span class="kind-ic">${svg(I.chart)}</span>
@@ -202,12 +242,23 @@ function feedCardCompact(f) {
 }
 
 function emptyToday() {
+  // The first read of Canvas takes a few seconds. Saying so beats an empty week.
+  if (insideCanvas && app.syncing) {
+    return `<div class="empty" role="status">
+      <div class="art">${ART}</div>
+      <h2>Reading your Canvas courses</h2>
+      <p>Your assignments are on their way. This takes a few seconds the first time.</p>
+    </div>`;
+  }
+  // Off Canvas, the quickest way to a real plan is the Canvas feed link.
+  const canvas = !insideCanvas && !app.S.sources?.canvasFeed?.enabled;
   return `<div class="empty">
     <div class="art">${ART}</div>
     <h2>Your week starts here</h2>
-    <p>Tell Cadence what you have on, in your own words, and it builds the week around it.</p>
+    <p>${canvas ? 'Bring in your Canvas homework with one link, or tell Cadence what you have on in your own words.' : 'Tell Cadence what you have on, in your own words, and it builds the week around it.'}</p>
     <div class="mt4 stack">
-      <button class="btn primary" data-act="agent-open">Tell Cadence about your week</button>
+      ${canvas ? '<button class="btn primary" data-act="canvas-feed-sheet">Connect Canvas</button>' : ''}
+      <button class="btn ${canvas ? 'soft' : 'primary'}" data-act="agent-open">Tell Cadence about your week</button>
       <button class="btn soft" data-act="add-commit">Add an activity</button>
       <button class="btn soft" data-act="go" data-tab="plan">Add an assignment</button>
     </div>
@@ -222,6 +273,7 @@ export const actions = {
     const { render } = await import('../core.js');
     render();
   },
+  'prompt-dismiss': (el) => persist((st) => { (st.prompts ||= {})[el.dataset.key] = Date.now(); }, { recalc: false }),
   'skip-fixed': (el) => persist((st) => { (st.skipped ||= {})[`${el.dataset.id}|${dateKey(new Date())}`] = true; }, { recalc: false })
 };
 

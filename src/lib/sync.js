@@ -182,8 +182,18 @@ function supabaseAdapter(cloud) {
     get signedIn() { return cloud.signedIn; },
     me: () => cloud.user(),
 
-    feed: async () => {
-      const rows = await rest('checkins?select=id,user_id,title,kind,color,minutes,feel,note,at,profiles!checkins_user_id_fkey(name,color),kudos(from_user)&order=at.desc&limit=40');
+    feed: async ({ partnerIds = [], clubIds = [] } = {}) => {
+      // Asked for by whose and which clubs', which the database can answer
+      // from its indexes. Without these filters it had to read every visible
+      // row of the whole table to find the newest 40. The rules about who may
+      // see what still apply on top (schema.sql, "see connected check-ins").
+      const uuid = /^[0-9a-f-]{36}$/i;
+      const people = [uidOf(), ...partnerIds].filter((x) => uuid.test(String(x || '')));
+      const clubs = clubIds.filter((x) => uuid.test(String(x || '')));
+      if (!people.length) return [];
+      const who = `or=(user_id.in.(${people.join(',')})${clubs.length ? `,club_id.in.(${clubs.join(',')})` : ''})`;
+      const since = new Date(Date.now() - 60 * 86400000).toISOString();
+      const rows = await rest(`checkins?select=id,user_id,title,kind,color,minutes,feel,note,at,profiles!checkins_user_id_fkey(name,color),kudos(from_user)&${who}&at=gte.${encodeURIComponent(since)}&order=at.desc&limit=40`);
       return rows.map((r) => ({
         id: r.id, who: { id: r.user_id, name: r.profiles?.name || 'Someone', color: r.profiles?.color || '#94a3b8' },
         title: r.title, kind: r.kind, color: r.color, minutes: r.minutes, feel: r.feel, note: r.note, at: r.at,
@@ -252,6 +262,8 @@ function supabaseAdapter(cloud) {
     createClub: ({ name, commitment, kind = 'club' }) => rpc('create_club', { club_name: name, club_kind: kind, club_commitment: commitment }),
     joinClub: async (code) => {
       const id = await rpc('join_club', { club_code: String(code).trim().toUpperCase() });
+      // A wrong code comes back empty (the database counts wrong tries; see join_club).
+      if (!id) throw new Error('No club with that code. Check it with your leader.');
       const [c] = await rest(`clubs?select=id,name&id=eq.${id}`).catch(() => []);
       return { id, name: c?.name || '' };
     },

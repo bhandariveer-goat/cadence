@@ -13,7 +13,7 @@
 // Claude does when the student has added their own Anthropic key
 // (lib/agentllm.js). The offline reader is the fallback if that call fails.
 
-import { app, restore, go, DEMO } from '../core.js';
+import { app, restore, go, push, DEMO } from '../core.js';
 import { respond } from '../../lib/agent.js';
 import { converse, directTransport, proxyTransport } from '../../lib/agentllm.js';
 import { diffPlans, KIND_LABEL, dayWord } from '../../lib/agentops.js';
@@ -67,6 +67,7 @@ export function agentPanel() {
       ${a.thread.length ? a.thread.map(bubble).join('') : `
         <div class="ag-intro">
           <p>Describe your day or your week in your own words. It goes on the calendar and the plan is rebuilt around it. Every change is listed and can be undone.</p>
+          <p>It remembers lasting things you tell it, like how long you like to work or a class you find hard. <button class="link" data-act="agent-memory">See what it knows</button></p>
           <div class="ag-starters">
             ${starters().map((s) => `<button class="ag-starter" data-act="agent-say" data-text="${esc(s)}">${esc(s)}</button>`).join('')}
           </div>
@@ -74,6 +75,7 @@ export function agentPanel() {
       ${a.busy ? '<div class="ag-msg from-agent"><div class="ag-bubble ag-thinking" role="status" aria-label="Working on it…"><i></i><i></i><i></i></div></div>' : ''}
     </div>
 
+    ${Number.isFinite(a.remaining) && a.remaining <= 5 ? `<p class="hint ag-left" role="status">${a.remaining === 0 ? 'That was your last AI question for today. Plain sentences still work, read on your device.' : `${a.remaining} AI question${a.remaining === 1 ? '' : 's'} left today.`}${app.S.account?.mode !== 'cloud' ? ' Add an email to your account for more.' : ''}</p>` : ''}
     <form class="ag-compose" data-form="agent-send" autocomplete="off">
       <textarea name="text" id="ag-input" rows="1" placeholder="${a.listening ? 'Listening…' : 'I just got home and I am tired'}">${esc(a.draft || '')}</textarea>
       ${mic ? `<button class="ag-mic ${a.listening ? 'on' : ''}" type="button" data-act="agent-mic" data-tip="${a.listening ? 'Stop listening' : 'Speak instead of typing'}" aria-label="${a.listening ? 'Stop listening' : 'Speak instead of typing'}" aria-pressed="${a.listening}">${svg(I.mic, 18)}</button>` : ''}
@@ -94,7 +96,9 @@ function bubble(m, i) {
         ${m.moved?.length ? `<div class="ag-moved"><small>Moved because of this</small>${m.moved.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
         <div class="ag-actions">
           ${m.undone ? '<span class="muted small">Undone</span>' : `<button class="btn ghost small" data-act="agent-undo" data-i="${i}">Undo this</button>`}
-          <button class="btn soft small" data-act="agent-show">Open calendar</button>
+          ${m.ops.every((op) => op.kind === 'memory')
+    ? '<button class="btn soft small" data-act="agent-memory">See what it knows</button>'
+    : '<button class="btn soft small" data-act="agent-show">Open calendar</button>'}
         </div>
       </div>` : ''}
       ${last && m.chips?.length ? `<div class="ag-chips">${m.chips.map((c) => `<button class="ag-chip" data-act="agent-say" data-text="${esc(c.text)}">${esc(c.label)}</button>`).join('')}</div>` : ''}
@@ -130,6 +134,7 @@ async function send(text) {
       a.via = via.kind;
       const r = await converse({ text: clean, state: before, messages: a.messages, send: via, now });
       const diff = r.next ? diffPlans(before, r.next, now) : null;
+      if (Number.isFinite(r.remaining)) a.remaining = r.remaining;
       result = {
         text: r.text, ops: r.ops, next: r.next, chips: r.chips, list: [],
         moved: diff ? diff.moved.filter((m) => m.to.length).map((m) => `${m.title}: ${m.to.map((k) => dayWord(k, now)).join(', ')}`) : []
@@ -138,14 +143,17 @@ async function send(text) {
       // A spent limit, a slow answer, a network drop: the sentence still gets
       // read on the device, and the reply says so.
       result = null;
-      fellBack = /busy|limit/i.test(e?.message || '') ? 'The AI is busy right now.'
-        : /too long/i.test(e?.message || '') ? 'The AI took too long to answer.'
-          : 'The AI could not be reached.';
+      const why = String(e?.message || '');
+      // The day's limit is said as it is, not as "busy".
+      fellBack = /limit for today/i.test(why) ? why
+        : /busy|limit/i.test(why) ? 'The AI is busy right now.'
+          : /too long/i.test(why) ? 'The AI took too long to answer.'
+            : 'The AI could not be reached.';
     }
   }
   if (!result) {
     result = respond(clean, before, now);
-    if (fellBack) result = { ...result, text: `${result.text}\n\n${fellBack} This was read on your device instead, so try again in a minute for a fuller answer.` };
+    if (fellBack) result = { ...result, text: `${result.text}\n\n${fellBack}${/limit for today/i.test(fellBack) ? '' : ' This was read on your device instead, so try again in a minute for a fuller answer.'}` };
   }
 
   const snapshot = result.next ? structuredClone(before) : null;
@@ -225,6 +233,7 @@ export const actions = {
   'agent-toggle': () => { const a = ensureAgent(); a.open = !a.open; a.focusNext = a.open; render(); },
   'agent-say': (el) => { const a = ensureAgent(); if (!a.open) { a.open = true; } send(el.dataset.text); },
   'agent-mic': () => toggleMic(),
+  'agent-memory': () => { if (matchMedia('(max-width: 767px)').matches) { ensureAgent().open = false; render(); } if (app.view !== 'memory') push('memory'); },
   'agent-show': () => { if (matchMedia('(max-width: 767px)').matches) ensureAgent().open = false; go('calendar'); },
   'agent-undo': async (el) => {
     const a = ensureAgent();

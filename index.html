@@ -22,7 +22,7 @@
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon16.png">
-<link rel="apple-touch-icon" href="/icons/icon192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
 <meta name="theme-color" content="#ffffff">
 <script src="/src/panel/theme.js"></script>
 <link rel="stylesheet" href="/site.css">
@@ -177,9 +177,10 @@
   <h2 id="a-chrome-extension-on-canvas-and-this-website">A Chrome extension on Canvas, and this website.</h2>
   <div class="places">
     <div><h3 id="on-canvas">On Canvas</h3>
-      <p>The extension adds a Cadence button to every Canvas page and reads your courses and assignments with the login you already have there. There is no API token to create and nothing for your school to install.</p></div>
+      <p>The extension adds a Cadence button to every Canvas page and reads your courses and assignments with the login you already have there. There is no API token to create and nothing for your school to install.</p>
+      <!--off <p data-needs="extension"><a class="btn" href="/app" data-site-href="extension" rel="noopener">Add to Chrome</a></p> off--></div>
     <div><h3 id="on-the-website">On the website</h3>
-      <p>The same planner with more room: the week grid, the assistant beside it, and keyboard shortcuts. A website cannot read Canvas by itself, which is what the extension is for.</p></div>
+      <p>The same planner with more room: the week grid, the assistant beside it, and keyboard shortcuts. Paste your Canvas calendar feed link once and every due date comes in, on a phone, a Chromebook or any computer. The extension adds what the feed leaves out, such as points and whether you have already submitted.</p></div>
   </div>
   <p class="also" data-needs="cloud">Sign in with the same email in both and they show the same plan. To sign in, Cadence emails you a code or a link. There is no password.</p>
   <!--off <p class="also" data-needs="no-cloud">Connect Google Calendar, or paste your Canvas calendar feed link, and Cadence plans around what is already there. It writes to Google Calendar only if you turn that on, item by item.</p> off-->
@@ -194,7 +195,7 @@
         <tr><th scope="row">Your plan</th><td>In your browser.<span data-needs="cloud"> If you sign in with an email, a copy is saved to your account so your other devices can load it.</span></td><td>No one</td></tr>
         <tr><th scope="row">Canvas assignments</th><td>Read in your own browser, with your own Canvas login</td><td>No one</td></tr>
         <tr><th scope="row">Connected calendars</th><td>On the device where you connected them</td><td>No one. On the website, Cadence's server fetches your Canvas feed for you and keeps nothing</td></tr>
-        <tr><th scope="row">What you tell the assistant</th><td>Not kept. Read on your device unless an AI model is reading it</td><td>Google (Gemini), which may use and read it, or Anthropic (Claude) with your own key: your message and a summary of your week</td></tr>
+        <tr><th scope="row">What you tell the assistant</th><td>The conversation is not kept. Lasting things you tell it, saved by you or by the assistant, are kept with your plan, where you can see and delete them</td><td>Google (Gemini), which may use and read it, or Anthropic (Claude) with your own key: your message, a summary of your week and what Cadence remembers about you</td></tr>
         <tr><th scope="row">A message you send us</th><td>With Netlify, the company that hosts this site</td><td>The person who runs Cadence, to answer you. Netlify checks it for spam with a service called Akismet</td></tr>
         <tr data-needs="no-visits"><th scope="row">Ads and analytics</th><td>There are none</td><td>No one</td></tr>
         <!--off <tr data-needs="visits"><th scope="row">Ads and visit counts</th><td>No ads. A link shared with a label on it adds one to that label&rsquo;s count for the day</td><td>No one, and nothing about you is recorded</td></tr> off-->
@@ -218,7 +219,7 @@
     <details><summary id="what-if-i-am-having-a-bad-day">What if I am having a bad day?</summary>
       <p>Tell the assistant how much you can do tonight. There is <a href="#assistant">an example of that</a> further up this page. That night keeps the number you gave it and the rest of the week absorbs the difference. If something can no longer be finished on time, it says which thing and when it is due.</p></details>
     <details><summary id="does-it-work-on-my-phone">Does it work on my phone?</summary>
-      <p>The website works in a phone&rsquo;s browser. The Chrome extension, which is the part that reads Canvas, runs in Chrome on a computer or a Chromebook.</p></details>
+      <p>Yes. The website works in a phone&rsquo;s browser, and your Canvas assignments come in through your Canvas calendar feed link. The Chrome extension, which also reads points and what you have submitted, runs in Chrome on a computer or a Chromebook.</p></details>
     <details><summary id="who-can-see-my-plan">Who can see my plan?</summary>
       <p>Nobody, unless you add an accountability partner or join a club. They see your name and the check-ins for the activities you chose to share, and nothing about your assignments or your calendar. The privacy policy says <a href="/privacy.html#what-other-people-can-see">exactly what they can see</a>.</p></details>
     <details><summary id="is-the-assistant-an-ai">Is the assistant an AI?</summary>
@@ -253,7 +254,7 @@
     <a href="/privacy.html">Privacy</a>
     <a href="/terms.html">Terms</a>
   </nav>
-  <span class="updated-on">Site updated <span data-site="updated"><time datetime="2026-10-15">October 15, 2026</time></span></span>
+  <span class="updated-on">Site updated <span data-site="updated"><time datetime="2026-10-16">October 16, 2026</time></span></span>
 </div></footer>
 
 <aside class="notice" data-notice aria-label="How Cadence stores things" hidden>

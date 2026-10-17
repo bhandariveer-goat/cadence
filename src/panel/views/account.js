@@ -13,11 +13,17 @@ import { applyImported } from '../../lib/sources/sources.js';
 import { aiAvailable } from '../../lib/ai.js';
 import { cloudConfigured } from '../../config.js';
 import { showUpStreak } from '../../lib/habits.js';
+import { memoryOf, insights, planPrefs } from '../../lib/memory.js';
+import { portable } from '../../lib/cloud.js';
 import { fmtMinutes } from '../../lib/util.js';
 import {
   svg, I, esc, avatar, sheet, toast, timeSelect, DOW_SHORT, WEEK_ORDER, daysLabel, range, toMin, ago, plural
 } from '../ui.js';
 import { pageUrl } from './signin.js';
+
+// Reminders are sent by the extension's background worker (chrome.alarms).
+// The website has nothing that could send one, so it does not offer the switch.
+const IN_EXTENSION = typeof chrome !== 'undefined' && !!chrome.runtime?.id;
 
 export const STYLES = {
   sprint: { label: 'Short sprints', sub: '25 minutes on, 5 off', max: 25, brk: 5 },
@@ -30,7 +36,9 @@ export function viewAccount() {
   const a = S.account || {};
   const teacher = S.settings.role === 'teacher';
   const streak = showUpStreak(S);
-  const style = Object.entries(STYLES).find(([, v]) => v.max === S.settings.sessionMaxMin)?.[1] || STYLES.steady;
+  const style = Object.entries(STYLES).find(([, v]) => v.max === S.settings.sessionMaxMin)?.[1]
+    || { label: 'Your own', sub: `${S.settings.sessionMaxMin} minutes on, ${S.settings.breakMin} off` };
+  const learned = adaptedBlock(S);
   const sc = S.school;
   const row = (act, icon, title, sub, right = svg(I.right, 16), cls = '') => `
     <div class="integration tap ${cls}" data-act="${act}" role="button" tabindex="0">
@@ -60,7 +68,8 @@ export function viewAccount() {
     <div class="card flush">
       ${row('school-sheet', I.school, 'School', `${esc(daysLabel(sc.days))}, ${esc(range(sc.start, sc.end))}`)}
       ${row('sleep-sheet', I.clock, 'Sleep', `Up around ${esc(clockOf(S.sleep.wake))}, in bed around ${esc(clockOf(S.sleep.bed))}`)}
-      ${row('style-sheet', I.target, 'How you work', `${esc(style.label)}: ${esc(style.sub)}`)}
+      ${row('style-sheet', I.target, 'How you work', learned ? `Learned: ${learned} minutes on, then a break` : `${esc(style.label)}: ${esc(style.sub)}`)}
+      ${row('open-memory', I.you, 'What Cadence knows about you', memorySummary(S))}
     </div>
     <p class="hint">Cadence plans work in the time these leave, day by day. For a one-off change, tell the assistant: “no school Friday” or “I’m tired, an hour tonight”.</p>`}
 
@@ -68,23 +77,27 @@ export function viewAccount() {
     <div class="card flush">
       ${row('open-calendars', I.cal, 'Calendars', calendarsSummary())}
       ${teacher ? '' : row('ics-sheet', I.file, 'Import a calendar file', importSummary(S))}
-      <div class="integration"><span class="ic">${svg(I.canvas, 18)}</span>
-        <div class="grow"><div class="t">Canvas</div><div class="m">${insideCanvas ? 'Assignments come in automatically' : 'Comes in through the Chrome extension'}</div></div>
-        ${insideCanvas ? `<span class="status">${S.lastSync ? `Synced ${ago(S.lastSync)}` : 'Connected'}</span>` : `<span class="text-2 small">${DEMO ? 'Sample data' : 'Not on this page'}</span>`}</div>
+      ${insideCanvas || DEMO ? `<div class="integration"><span class="ic">${svg(I.canvas, 18)}</span>
+        <div class="grow"><div class="t">Canvas</div><div class="m">${DEMO ? 'Sample assignments' : 'Assignments come in automatically'}</div></div>
+        <span class="status">${DEMO ? 'Sample data' : S.lastSync ? `Synced ${ago(S.lastSync)}` : 'Connected'}</span></div>`
+    : row('canvas-feed-sheet', I.canvas, 'Canvas', S.sources?.canvasFeed?.enabled
+      ? `Calendar feed connected${S.sources.canvasFeed.lastSync ? ` · synced ${ago(S.sources.canvasFeed.lastSync)}` : ''}`
+      : 'Paste your Canvas calendar feed link and assignments come in by themselves')}
       ${row('ai-sheet', I.chat, 'Assistant', assistantLine(S), aiAvailable(S.settings) ? '<span class="status">Own key</span>' : svg(I.right, 16))}
     </div>
 
     <div class="section-head"><h2>Preferences</h2></div>
     <div class="card flush">
-      <label class="integration toggle"><span class="ic">${svg(I.bell, 18)}</span>
+      ${IN_EXTENSION ? `<label class="integration toggle"><span class="ic">${svg(I.bell, 18)}</span>
         <span class="grow"><span class="t block">Reminders</span><small>A nudge before each block and check-in</small></span>
-        <input type="checkbox" data-act="set-toggle" data-key="remindersEnabled" ${S.settings.remindersEnabled ? 'checked' : ''}><i></i></label>
+        <input type="checkbox" data-act="set-toggle" data-key="remindersEnabled" ${S.settings.remindersEnabled ? 'checked' : ''}><i></i></label>` : ''}
       ${window.CadenceTheme ? row('theme-sheet', window.CadenceTheme.current() === 'dark' ? I.moon : I.sun, 'Appearance', themeLine()) : ''}
       ${row('role', I.swap, teacher ? 'Switch to student view' : 'Teacher and club leader tools', teacher ? 'Plan your own week' : 'Draft assignments by voice, run a club')}
     </div>
 
     ${DEMO ? '' : `<div class="section-head"><h2>Account</h2></div>
     <div class="card flush">
+      ${row('account-export', I.file, 'Download my data', 'Everything in your plan, as a file you can keep or read')}
       ${row('account-signout', I.left, 'Sign out', a.mode === 'cloud' ? 'Your plan stays saved to your account' : 'Removes your plan from this browser')}
     </div>
     <div class="card flush danger-zone">
@@ -143,6 +156,18 @@ function assistantLine(S) {
   return 'Understands plain sentences. Add a key or sign in with email for the full assistant.';
 }
 
+/** The block length Cadence noticed and is planning with, when the student has not picked one. */
+function adaptedBlock(S) {
+  return S.settings.styleChosen ? null : planPrefs(S)?.blockMin || null;
+}
+
+function memorySummary(S) {
+  const notes = memoryOf(S).notes.length;
+  const noticed = insights(S).filter((i) => i.active).length;
+  if (!notes && !noticed) return 'Learns how you work as you use it';
+  return [notes && plural(notes, 'thing you told it', 'things you told it'), noticed && `${noticed} ${noticed === 1 ? 'pattern' : 'patterns'} noticed`].filter(Boolean).join(', ');
+}
+
 /** One line summarising which calendars are connected. */
 function calendarsSummary() {
   const src = app.S.sources || {};
@@ -188,10 +213,11 @@ async function sleepSheet() {
 }
 
 async function styleSheet() {
-  const current = Object.entries(STYLES).find(([, v]) => v.max === app.S.settings.sessionMaxMin)?.[0] || 'steady';
+  const learned = adaptedBlock(app.S);
+  const current = learned ? null : Object.entries(STYLES).find(([, v]) => v.max === app.S.settings.sessionMaxMin)?.[0] || null;
   const res = await sheet(`
     <h2>How you work</h2>
-    <p class="lead">How long a block runs before a break.</p>
+    <p class="lead">How long a block runs before a break.${learned ? ` Right now Cadence plans ${learned}-minute blocks, because that is about how long yours last. Picking one here replaces that.` : ''}</p>
     <div class="choices stacked">${Object.entries(STYLES).map(([id, v]) =>
       `<button class="choice" name="style" value="${id}" aria-pressed="${current === id}">${v.label}<small>${v.sub}</small></button>`).join('')}</div>
     <div class="actions"><button class="btn ghost" value="cancel">Cancel</button></div>`);
@@ -201,6 +227,8 @@ async function styleSheet() {
     st.settings.sessionMaxMin = STYLES[pick].max;
     st.settings.breakMin = STYLES[pick].brk;
     st.settings.sessionMinMin = Math.min(20, STYLES[pick].max);
+    // Picked by the student, so it wins over the length Cadence noticed.
+    st.settings.styleChosen = true;
   });
   toast('Updated. Your plan moved with it.');
 }
@@ -340,6 +368,24 @@ async function deleteFlow() {
   toast('Deleted');
 }
 
+/**
+ * Everything in the plan, as a JSON file: assignments, activities, check-ins,
+ * memory, settings. The same copy that is saved to an account, so keys and
+ * tokens for other services are left out.
+ */
+function exportData() {
+  const data = { exportedFrom: 'Cadence', exportedAt: new Date().toISOString(), plan: portable(app.S) };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cadence-data-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  toast('Your data is downloading');
+}
+
 function addEmail() {
   // Keep the plan on this device and attach it to an email account. The
   // account that is here stays signed in until the new sign-in succeeds, so
@@ -353,9 +399,11 @@ export const actions = {
   'school-sheet': () => schoolSheet(),
   'sleep-sheet': () => sleepSheet(),
   'style-sheet': () => styleSheet(),
+  'open-memory': () => { if (app.view !== 'memory') push('memory'); },
   'ics-sheet': () => icsSheet(),
   'ai-sheet': () => aiSheet(),
   'theme-sheet': () => themeSheet(),
+  'account-export': () => exportData(),
   'account-signout': () => signOutFlow(),
   'account-delete': () => deleteFlow(),
   'account-add-email': () => addEmail(),

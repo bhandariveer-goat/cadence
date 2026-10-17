@@ -25,6 +25,8 @@ It runs in two places from the same code:
 | `/robots.txt`, `/sitemap.xml` | written by `scripts/stamp_pages.py` | What crawlers may fetch, and the pages to find |
 | `/api/agent` | `netlify/functions/agent.mjs` | The assistant, server side |
 | `/api/visit` | `netlify/functions/visit.mjs` | Counts visits from labelled links. Off unless `site.countVisits` is on |
+| `/api/canvas-feed` | `netlify/functions/canvas-feed.mjs` | Fetches a Canvas feed or Google Calendar link for the website, keeping nothing |
+| `/app?join=<code>`, `/app?partner=<code>` | | Invite links: kept through sign-up, then offered as one tap to join |
 
 The demo and a real account never share storage. Earlier versions seeded sample
 data into the same record as a person's own plan; `store.js` now keeps two
@@ -38,8 +40,14 @@ python3 scripts/devserver.py --mock
 
 Open <http://localhost:8123/app> or <http://localhost:8123/demo>. The server
 sends `Cache-Control: no-store`, so an edited file is always the one that runs.
-`--mock` also answers the Supabase and `/api/agent` endpoints in memory, which
-is how sign-in and sync are tested without a real backend.
+`--mock` also answers the Supabase, `/api/agent` and `/api/canvas-feed`
+endpoints in memory, which is how sign-in, sync, the Canvas feed and invite
+links are tested without a real backend. It serves
+`src/config.js` with the Supabase project swapped for itself, in memory only,
+so the file never has to be edited to test (and the launch check refuses a
+test address in it). It also sends the same security headers as the live site
+(`netlify.toml`), and collects anything the Content-Security-Policy blocks at
+<http://localhost:8123/mock/csp-reports>.
 
 **Chrome extension:** `chrome://extensions` → Developer mode → Load unpacked →
 this folder. Refresh Canvas; the Cadence button is bottom right.

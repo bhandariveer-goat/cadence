@@ -92,6 +92,8 @@ const pending = new Map();
 window.addEventListener('message', (ev) => {
   const m = ev.data;
   if (!m || typeof m !== 'object') return;
+  // Answers come from the Canvas page that holds this panel, never another frame.
+  if (ev.source !== window.parent || window.parent === window) return;
   if (m.type === 'cadence:canvas:res' || m.type === 'cadence:context:res') {
     const r = pending.get(m.id);
     if (r) { pending.delete(m.id); r(m.payload ?? m.context); }
@@ -113,7 +115,53 @@ canvas.setTransport((req) => ask('cadence:canvas', { req }));
 
 // ------------------------------------------------------------- lifecycle
 
+// ---------------------------------------------------------------- invites
+//
+// A club or partner invite travels as a link: /app?join=<club code> or
+// /app?partner=<invite code>. The code is kept in this browser until it is
+// used, because the person opening it usually has to sign in first, and an
+// email sign-in link can land in another tab. Partners and clubs need an
+// email account, so it is offered once one is signed in (views/crew.js).
+
+const INVITE_SLOT = 'cadence.pending-invite';
+const INVITE_CODE = /^[A-Z0-9][A-Z0-9-]{3,31}$/;
+
+function captureInvite() {
+  if (DEMO || !STANDALONE) return;           // the demo never takes or offers a real invite
+  const join = params.get('join'), partner = params.get('partner');
+  if (join == null && partner == null) return;
+  const code = String(join ?? partner).trim().toUpperCase();
+  if (INVITE_CODE.test(code)) {
+    try { localStorage.setItem(INVITE_SLOT, JSON.stringify({ kind: join != null ? 'club' : 'partner', code, at: Date.now() })); } catch { /* storage refused: the code is still in the message they were sent */ }
+  }
+  const url = new URL(location.href);
+  url.searchParams.delete('join');
+  url.searchParams.delete('partner');
+  history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+}
+
+/** The invite waiting in this browser, if any, for up to two weeks. */
+export function pendingInvite() {
+  try {
+    const v = JSON.parse(localStorage.getItem(INVITE_SLOT) || 'null');
+    if (!v || !INVITE_CODE.test(v.code || '') || !['club', 'partner'].includes(v.kind) || Date.now() - v.at > 14 * DAY) return null;
+    return v;
+  } catch { return null; }
+}
+export function clearPendingInvite() { try { localStorage.removeItem(INVITE_SLOT); } catch { /* nothing to clear */ } }
+
+/** The link that invites someone, or null where this copy does not know its own address. */
+export function inviteLink(kind, code) {
+  const base = /^https?:$/.test(location.protocol) && STANDALONE ? location.origin
+    : CONFIG.site?.domain ? `https://${CONFIG.site.domain}` : null;
+  if (!base || !code) return null;
+  const url = new URL('/app', base);
+  url.searchParams.set(kind === 'club' ? 'join' : 'partner', code);
+  return url.href;
+}
+
 export async function boot() {
+  captureInvite();
   // Someone opening a sign-in link arrives with the session in the address.
   // It is read and taken out of the address before anything else happens, so
   // it is not left in the address bar or in the browser's history.
@@ -228,7 +276,24 @@ export async function signInLocal(name) {
   await persist((st) => {
     st.account = { mode: 'local', id: null, email: '', name: clean, createdAt: new Date().toISOString() };
     st.profile.name = clean;
+    st.profile.consentedAt ||= consentStamp();
   }, { recalc: false });
+  keepStorage();
+}
+
+/** When the sign-in screen's "13 or older, I agree" box was ticked in this browser. */
+function consentStamp() {
+  try { return localStorage.getItem('cadence.consented-at') || null; } catch { return null; }
+}
+
+/**
+ * Ask the browser not to clear this site's storage on its own. Without it,
+ * Safari drops a site's storage after a week without a visit, and an account
+ * that lives only in this browser goes with it. Browsers may say no; nothing
+ * depends on the answer.
+ */
+export function keepStorage() {
+  try { navigator.storage?.persist?.().catch(() => {}); } catch { /* not offered here */ }
 }
 
 /** Step two of email sign-in, with the code from the email. */
@@ -298,6 +363,7 @@ async function finishCloudSignIn(name) {
     const known = st.account?.name || st.profile.name || '';
     st.account = { mode: 'cloud', id: user.id, email: user.email, name: String(name || known || '').trim(), createdAt: st.account?.createdAt || new Date().toISOString() };
     if (st.account.name) st.profile.name = st.account.name;
+    st.profile.consentedAt ||= consentStamp();
     st.cloud.pulledAt = new Date().toISOString();
     // Nothing syncs in either direction until the person has said which plan
     // to keep. The flag is saved, so closing the tab at this point cannot let
@@ -342,6 +408,13 @@ export async function signOut({ wipe = true, force = false } = {}) {
   if (wipe) {
     const { resetState } = await import('../lib/store.js');
     app.S = await saveState(await resetState());
+    // What else this browser kept for the person: the hidden account the
+    // assistant and calendar links use (deleted on the server after 30 days
+    // without use), an invite not yet used, and the terms agreement.
+    anonymousTokens = null;
+    for (const slot of ['cadence.assistant-session', 'cadence.pending-invite', 'cadence.consented-at']) {
+      try { localStorage.removeItem(slot); } catch { /* nothing stored */ }
+    }
   } else {
     await persist((st) => { st.account = { mode: 'none', id: null, email: '', name: '', createdAt: null }; st.cloud.session = null; }, { recalc: false, edit: false });
   }
@@ -691,9 +764,11 @@ export async function loadCrew({ force = false } = {}) {
   c.loading = true;
   if (!c.loaded) render();
   try {
-    const [feed, partners, clubs, nudges] = await Promise.all([
-      app.sync.feed(), app.sync.partners(), app.sync.clubs(), app.sync.nudges ? app.sync.nudges() : []
+    const [partners, clubs, nudges] = await Promise.all([
+      app.sync.partners(), app.sync.clubs(), app.sync.nudges ? app.sync.nudges() : []
     ]);
+    // The feed is asked for by these people and clubs (lib/sync.js).
+    const feed = await app.sync.feed({ partnerIds: partners.map((p) => p.id), clubIds: clubs.map((c) => c.id) });
     Object.assign(c, { feed, partners, clubs, nudges, loaded: true, error: null });
   } catch (e) {
     c.error = e.message;
@@ -714,13 +789,14 @@ export async function syncCanvas({ quiet = false } = {}) {
     const nameById = Object.fromEntries(app.courses.map((c) => [c.id, c.name]));
     const items = await canvas.fetchPlannerItems({ daysBack: 30, daysAhead: (app.S.settings.lookaheadDays ?? 14) + 16 });
     const fetched = items.map((i) => canvas.taskFromPlannerItem(i, nameById)).filter(Boolean);
-    for (const c of app.courses.filter((x) => /student/i.test(x.role)).slice(0, 10)) {
-      try {
-        for (const a of await canvas.fetchCourseAssignments(c.id)) {
-          const t = canvas.taskFromAssignment(a, c);
-          if (t) fetched.push(t);
-        }
-      } catch { /* one locked course shouldn't fail the sync */ }
+    // Four courses at a time: one after another made a first sync take long
+    // enough to look like nothing had been found.
+    const mine = app.courses.filter((x) => /student/i.test(x.role)).slice(0, 10);
+    for (let i = 0; i < mine.length; i += 4) {
+      const batch = await Promise.all(mine.slice(i, i + 4).map((c) => canvas.fetchCourseAssignments(c.id)
+        .then((list) => list.map((a) => canvas.taskFromAssignment(a, c)).filter(Boolean))
+        .catch(() => [])));                       // one locked course shouldn't fail the sync
+      for (const list of batch) fetched.push(...list);
     }
     let added = 0;
     await persist((st) => {

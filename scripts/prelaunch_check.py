@@ -382,6 +382,27 @@ check('Every public page ends with the same links', all(foot(name) == foot('inde
 key = field('supabaseKey')
 check('Supabase is set up completely or not at all', bool(field('supabaseUrl')) == bool(key),
       'src/config.js has one of supabaseUrl and supabaseKey but not the other')
+# A local test address (the mock server, or anything not https) would ship a
+# site whose sign-in goes nowhere. scripts/devserver.py --mock swaps the
+# project in memory, so config.js never needs to point anywhere else.
+check('Supabase points at a real project, not a test server',
+      not field('supabaseUrl') or bool(re.match(r'^https://[a-z0-9-]+\.supabase\.co/?$', field('supabaseUrl'))) and 'mock' not in key,
+      'supabaseUrl in src/config.js must be https://<project>.supabase.co (a test value was left in)')
+toml_text = read('netlify.toml')
+csp = re.search(r'Content-Security-Policy = "([^"]*)"', toml_text)
+csp = csp.group(1) if csp else ''
+check('The site sends a Content-Security-Policy that only runs its own scripts',
+      "script-src 'self'" in csp and "object-src 'none'" in csp and 'frame-ancestors' in csp and 'unsafe-eval' not in csp
+      and not re.search(r"script-src[^;]*'unsafe-inline'", csp),
+      "netlify.toml needs Content-Security-Policy with script-src 'self', object-src 'none' and frame-ancestors, and no unsafe-inline or unsafe-eval for scripts")
+check('The Content-Security-Policy lets the app reach the Supabase project in src/config.js',
+      not field('supabaseUrl') or field('supabaseUrl').rstrip('/') in csp,
+      'connect-src in netlify.toml must name supabaseUrl from src/config.js, or sign-in and saving are blocked in the browser')
+pages_with_inline = [p.name for p in Path(ROOT).glob('*.html')
+                     if re.search(r'<script(?![^>]*\bsrc=)(?![^>]*application/ld\+json)[^>]*>', p.read_text())
+                     or re.search(r'\son[a-z]+="', p.read_text())]
+check('No page has an inline script or inline event handler (the Content-Security-Policy would block it)', not pages_with_inline,
+      'Move these into a .js file: ' + ', '.join(pages_with_inline))
 check('The Supabase key in src/config.js is the public one', not stamp_pages.is_secret_key(key),
       'supabaseKey is a secret or service_role key. Take it out, and rotate it in Supabase: it has been in a file')
 
@@ -551,7 +572,7 @@ check('The Gemini assistant stays off until the plan is chosen and the privacy p
       and 'may read it' in privacy_text)
 
 # ------------------------------------------------------------------ secrets
-secret = re.compile(r'sk-ant-[A-Za-z0-9_-]{8,}|service_role|sb_secret_[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]*|AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{30,}|GOCSPX-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY')
+secret = re.compile(r'sk-ant-[A-Za-z0-9_-]{8,}|(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|service_role|sb_secret_[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]*|AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{30,}|GOCSPX-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY')
 leaks = []
 for p in list(ROOT.rglob('*')):
     if not p.is_file() or '.git' in p.parts or p.suffix in ('.png', '.ico', '.zip') or p.name == 'prelaunch_check.py':

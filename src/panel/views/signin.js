@@ -7,12 +7,20 @@
 // extension and the website. Without one, the account is a name kept in this
 // browser; it is honest about that limit and can be upgraded to an email later.
 
-import { app, render, signInLocal, signInCloud, nameAccount, resolvePlanConflict, planConflict, insideCanvas, STANDALONE } from '../core.js';
+import { app, render, signInLocal, signInCloud, nameAccount, resolvePlanConflict, planConflict, insideCanvas, STANDALONE, pendingInvite, params } from '../core.js';
 import { CONFIG, cloudConfigured } from '../../config.js';
 import { svg, I, esc, toast, flash } from '../ui.js';
 import { ART } from './parts.js';
 
-export const pageUrl = (page) => new URL(`../../../${page}`, import.meta.url).href;
+/**
+ * A page of the website, by file name. On the website it is a sibling page.
+ * In the Chrome extension it is the website's own copy when this copy knows
+ * the site's address, so the store package does not need to carry the public
+ * pages; an unpacked folder without one still has them alongside.
+ */
+export const pageUrl = (page) => (!/^https?:$/.test(location.protocol) && CONFIG.site?.domain
+  ? new URL(`/${page}`, `https://${CONFIG.site.domain}`).href
+  : new URL(`../../../${page}`, import.meta.url).href);
 
 // Codes are six digits unless whoever runs the project chose longer ones.
 const CODE = /^\d{6,10}$/;
@@ -78,8 +86,6 @@ export function viewSignIn() {
       <form class="signin-form" data-form="signin-code" autocomplete="off">
         <label class="field"><span>Code</span>
           <input type="text" class="code-input" name="code" value="${esc(d.code || '')}" inputmode="numeric" maxlength="10" autocomplete="one-time-code" spellcheck="false" placeholder="123456" required data-error="Enter the code from the email."></label>
-        <label class="field"><span>Your name</span>
-          <input type="text" name="name" value="${esc(d.name || d.canvasName || '')}" maxlength="60" autocomplete="given-name" required data-error="Enter a name for Cadence to call you."></label>
         ${d.error ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
         <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Signing in…' : 'Sign in'}</button>
       </form>
@@ -100,10 +106,11 @@ export function viewSignIn() {
       <p class="lead">${again
         ? 'Your plan is still on this device. Sign in to start saving it to your account again.'
         : 'Your plan stays as it is. With an email it is also saved to your account, so the Chrome extension and the website show the same week.'}</p>
+      ${consentBox()}
       <form class="signin-form" data-form="signin-email" autocomplete="on">
         <label class="field"><span>School or personal email</span>
           <input type="email" name="email" value="${esc(d.email || '')}" autocomplete="email" spellcheck="false" placeholder="you@school.org" required data-error="Enter an email like you@school.org."></label>
-        ${d.error ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
+        ${d.error && d.errorFor !== 'consent' ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
         <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Sending…' : 'Send me a sign-in email'}</button>
       </form>
       <p class="hint">No password. We email that address a code or a link.</p>
@@ -111,11 +118,15 @@ export function viewSignIn() {
     </div>`;
   }
 
+  const invite = cloud ? pendingInvite() : null;
   return `<div class="signin">
     <div class="art">${ART}</div>
     <h1>${insideCanvas ? 'Set up Cadence' : cloud ? 'Sign in to Cadence' : 'Start using Cadence'}</h1>
     <p class="lead">Your classes, activities and assignments on one calendar, with the time to do them already planned.</p>
+    ${params.get('welcome') === '1' && typeof chrome !== 'undefined' && chrome.runtime?.id ? `<div class="card soft small mb4" role="status"><b>Cadence is installed.</b> Open Canvas in this browser (refresh it if it was already open) and press the Cadence button at the bottom right. Your assignments come in from there. You can also sign in here first.</div>` : ''}
+    ${invite ? `<div class="card soft small mb4" role="status"><b>You have an invite</b> to ${invite.kind === 'club' ? 'join a club' : 'be accountability partners'}. Sign in with your email to accept it: partners and clubs need an email account.</div>` : ''}
 
+    ${consentBox()}
     ${cloud ? `
       <form class="signin-form" data-form="signin-email" autocomplete="on">
         <label class="field"><span>School or personal email</span>
@@ -147,8 +158,34 @@ export function viewSignIn() {
 
 const fail = (message, errorFor) => { Object.assign(draft(), { error: message, errorFor, busy: false }); render(); };
 
+// Agreeing to the terms, and saying you are 13 or older, before an account is
+// made. Asked once: an account that has agreed is not asked again. The moment
+// is kept in this browser until the account exists (an email sign-in link can
+// open in another tab), then saved with the plan (core.js consentStamp).
+const CONSENT_SLOT = 'cadence.consented-at';
+const needsConsent = () => !app.S.profile?.consentedAt;
+const consentBox = () => (needsConsent() ? `
+  <label class="toggle consent mb3"><input type="checkbox" id="consent" ${draft().consented ? 'checked' : ''}><i></i>
+    <span>I am 13 or older and agree to the <a href="${esc(pageUrl('terms.html'))}" target="_blank" rel="noopener">Terms</a> and the <a href="${esc(pageUrl('privacy.html'))}" target="_blank" rel="noopener">Privacy Policy</a>
+      <small>If you are under 18, check with a parent or guardian first.</small></span></label>
+  ${draft().errorFor === 'consent' ? `<p class="field-error" role="alert">${esc(draft().error)}</p>` : ''}` : '');
+
+/** True when the box is ticked (or was agreed before); otherwise says so next to it. */
+function consented() {
+  if (!needsConsent()) return true;
+  const box = document.getElementById('consent');
+  if (box?.checked) {
+    draft().consented = true;
+    try { localStorage.setItem(CONSENT_SLOT, new Date().toISOString()); } catch { /* saved with the plan instead */ }
+    return true;
+  }
+  fail('Tick the box to say you are 13 or older and agree to the Terms and Privacy Policy.', 'consent');
+  return false;
+}
+
 export const submitActions = {
   'signin-local': async (form, data) => {
+    if (!consented()) return;
     try { await signInLocal(data.get('name')); app.signin = null; }
     catch (e) { fail(e.message, 'local'); }
   },
@@ -157,6 +194,7 @@ export const submitActions = {
     const d = draft();
     if (d.busy) return;
     const email = String(data.get('email') || '').trim().toLowerCase();
+    if (!consented()) return;
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Enter an email like you@school.org.', 'email');
     Object.assign(d, { email, busy: true, error: null, code: '' });
     render();
@@ -176,13 +214,17 @@ export const submitActions = {
     const d = draft();
     if (d.busy) return;
     const code = String(data.get('code') || '').replace(/\D/g, '');
-    const name = String(data.get('name') || '').trim();
     if (!CODE.test(code)) return fail('Enter the code from the email. It is six digits, sometimes more.', 'code');
-    Object.assign(d, { name, code, busy: true, error: null });
+    // Only the code is asked for. A name this device already knows goes with
+    // it; someone signing in on a new phone keeps the name their account has;
+    // only an account with no name at all is asked for one, afterwards.
+    const known = String(app.S.account?.name || app.S.profile?.name || d.canvasName || '').trim();
+    Object.assign(d, { code, busy: true, error: null });
     render();
     try {
-      const { conflict, remote } = await signInCloud(d.email, code, name);
+      const { conflict, remote } = await signInCloud(d.email, code, known);
       if (conflict) { Object.assign(d, { step: 'conflict', remote, busy: false }); return render(); }
+      if (!app.S.account?.name) { app.signin = { step: 'name', name: '' }; return render(); }
       app.signin = null;
       render();
       toast('Signed in');

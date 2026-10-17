@@ -30,9 +30,15 @@
 //   SUPABASE_KEY          required: the publishable key, same value as
 //                         supabaseKey in src/config.js (SUPABASE_ANON_KEY is
 //                         read too, for projects set up before the rename)
-//   AGENT_DAILY_LIMIT     optional, requests per account per day (default 60)
-//   AGENT_DAILY_TOTAL     optional, requests across all accounts per day
-//                         (default 1500); the ceiling on what a day can cost
+//   AGENT_DAILY_LIMIT     optional, questions per account per day (default 60;
+//                         the database also stops an email account at 60 and
+//                         an anonymous one at 15, see bump_agent_usage)
+//   AGENT_DAILY_TOTAL     optional, questions across all accounts per day
+//                         (default 1500). Anonymous accounts together get at
+//                         most 30% of it, so throwaway accounts cannot use up
+//                         everyone's day. A question can take a few model
+//                         requests while tools run; those are capped per
+//                         account in the database, not counted here.
 
 import { API_URL, API_VERSION, BETAS, requestBody, checkMessages } from '../../src/lib/agentspec.js';
 import { GEMINI_MODEL, geminiUrl, geminiRequest, fromGemini } from '../../src/lib/gemini.js';
@@ -41,6 +47,7 @@ const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, content-type',
   'access-control-allow-methods': 'POST, OPTIONS',
+  'access-control-expose-headers': 'x-cadence-remaining',
   'access-control-max-age': '86400'
 };
 
@@ -75,27 +82,54 @@ export default async (req) => {
   const problem = checkMessages(body?.messages);
   if (problem) return json(400, { error: problem });
 
+  // A question starts from something the student typed. The requests that
+  // follow while the model uses tools end with tool results instead.
+  const last = body.messages[body.messages.length - 1];
+  const isStep = last.role === 'user' && Array.isArray(last.content) && last.content.length > 0 && last.content.every((b) => b.type === 'tool_result');
+
   const limit = Math.max(1, Number(process.env.AGENT_DAILY_LIMIT) || 60);
   const siteLimit = Math.max(1, Number(process.env.AGENT_DAILY_TOTAL) || 1500);
-  let mine, total;
+  let row;
   try {
     const bump = await fetch(`${supabaseUrl}/rest/v1/rpc/bump_agent_usage`, {
-      method: 'POST', headers: { ...identity, 'content-type': 'application/json' }, body: '{}'
+      method: 'POST', headers: { ...identity, 'content-type': 'application/json' }, body: JSON.stringify({ is_step: isStep })
     });
     if (!bump.ok) return json(502, { error: 'Could not check your usage. Try again.' });
     const counted = await bump.json();
-    const row = Array.isArray(counted) ? counted[0] : counted;
-    mine = Number(row?.mine);
-    total = Number(row?.total);
+    row = Array.isArray(counted) ? counted[0] : counted;
   } catch {
     return json(502, { error: 'Could not check your usage. Try again.' });
   }
+  const mine = Number(row?.mine), total = Number(row?.total);
   // No count, no request: a check that cannot be read is treated as failed.
   if (!Number.isFinite(mine) || !Number.isFinite(total)) return json(502, { error: 'Could not check your usage. Try again.' });
-  if (mine > limit) return json(429, { error: 'That is the assistant\'s limit for today. Plain sentences still work.' });
-  if (total > siteLimit) return json(429, { error: 'The assistant has reached its limit for today. Plain sentences still work.' });
+  // The lower of the database's limit for this kind of account and AGENT_DAILY_LIMIT.
+  const cap = Math.min(limit, Number(row.cap) || limit);
+  const remaining = Math.max(0, cap - mine);
 
-  return provider === 'gemini' ? askGemini(gemini, body.messages) : askClaude(anthropic, body.messages);
+  // Whatever the database counted is given back when the request goes no
+  // further: refused here, or failed upstream (refund_agent_usage). A refused
+  // request moving the day's totals would let throwaway accounts push the
+  // total over for everyone.
+  const refund = () => (row.ticket ? fetch(`${supabaseUrl}/rest/v1/rpc/refund_agent_usage`, {
+    method: 'POST', headers: { ...identity, 'content-type': 'application/json' }, body: JSON.stringify({ ticket_id: row.ticket })
+  }).catch(() => {}) : Promise.resolve());
+  const refuse = async (body) => { await refund(); return json(429, body); };
+
+  if (isStep) {
+    // A question already under way may finish; steps beyond six for each
+    // question asked today are refused (bump_agent_usage).
+    if (row.steps_ok === false) return refuse({ error: 'That is the assistant\'s limit for today. Plain sentences still work.', limit: true });
+  } else {
+    if (mine > cap) return refuse({ error: `That is the assistant's limit for today${row.anon_account ? ' without an email account. Add an email for more' : ''}. It resets overnight, and plain sentences still work.`, limit: true });
+    if (total > siteLimit) return refuse({ error: 'The assistant has reached its limit for today. Plain sentences still work.', limit: true });
+    if (row.anon_account && Number(row.anon_total) > siteLimit * 0.3) return refuse({ error: 'The assistant is busy right now. Add an email to your account to keep using it, or try again later.' });
+  }
+
+  const res = provider === 'gemini' ? await askGemini(gemini, body.messages) : await askClaude(anthropic, body.messages);
+  if (!res.ok) { await refund(); return res; }
+  res.headers.set('x-cadence-remaining', String(remaining));
+  return res;
 };
 
 // "Busy" is worth telling apart from "broken", so the client can say which.

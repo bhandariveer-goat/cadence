@@ -46,6 +46,9 @@ export const CONFIG = {
     // The promise on the contact page: "We reply within ___." Written so it
     // finishes that sentence. Leave it empty to make no promise.
     replyWithin: 'a week',
+    // The extension's page on the Chrome Web Store, once it is published
+    // (STORE.md). While empty, nothing offers to install it.
+    extensionUrl: '',
     // Count visits that arrive from a labelled link (utm_source and friends):
     // one number per label per day, nothing about the visitor. Off unless you
     // turn it on, because the privacy page says "no tracking" while it is off

@@ -12,10 +12,13 @@ const PREFIX = 'cadence:session:';
 const DAILY = 'cadence:daily';
 const SYNC = 'cadence:autosync';
 
-chrome.runtime.onInstalled.addListener(async () => {
-  chrome.alarms.create(DAILY, { periodInMinutes: 60 * 24, when: nextAt(7, 30) });
+chrome.runtime.onInstalled.addListener(async (details) => {
+  chrome.alarms.create(DAILY, { periodInMinutes: 60 * 24, when: nextAt(15, 30) });
   await armAutoSync();
   await syncReminders();
+  // A first install opens a page that says where Cadence lives (the button on
+  // Canvas pages), so an install from the store does not land on nothing.
+  if (details?.reason === 'install') chrome.tabs.create({ url: chrome.runtime.getURL('src/panel/panel.html?standalone=1&welcome=1') });
 });
 chrome.runtime.onStartup.addListener(async () => { await armAutoSync(); await syncReminders(); });
 

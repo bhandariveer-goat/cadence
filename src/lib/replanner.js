@@ -8,10 +8,11 @@ import { estimate, classify } from './estimator.js';
 import { prioritize, isStale } from './priority.js';
 import { replan } from './scheduler.js';
 import { expandActivities } from './calendar.js';
-import { commitmentTasks, fixedActivities } from './habits.js';
+import { commitmentTasks, fixedActivities, noteActiveDays } from './habits.js';
 import { addDays, startOfDay, dateKey, DAY } from './util.js';
 import { sourceEvents, sourceAssignments } from './sources/sources.js';
 import { dayWindows, dayCeiling, schoolBlocks, pruneDayModel, DAY as DAYMODEL } from './daymodel.js';
+import { modelFor } from './memory.js';
 
 /** Everything that blocks time: school, imported events, connected calendars, fixed commitments. */
 export function allBusy(st) {
@@ -58,6 +59,11 @@ export function pruneTasks(st) {
   // "Tonight I can stay up till 12" and "no school Friday" belong to a date,
   // so they expire with it.
   pruneDayModel(st);
+
+  // The time log only feeds the speed model (which has already learned from
+  // older entries) and the weekly review, so the newest 400 are plenty. It is
+  // synced with the plan, and was growing without end.
+  if ((st.logs || []).length > 400) st.logs = st.logs.slice(-400);
 }
 
 /**
@@ -84,13 +90,16 @@ export function mergeSourceAssignments(st) {
 
 /** Estimates → ranking → schedule. Mutates and returns the state. */
 export function recomputeState(st) {
+  noteActiveDays(st);
   pruneTasks(st);
   mergeSourceAssignments(st);
 
+  // The speed learned per class, minus any the student switched off (lib/memory.js).
+  const model = modelFor(st);
   for (const t of Object.values(st.tasks)) {
     if (!t.category) t.category = classify(t);
     if (!t.userEstimateMin && !t.aiEstimateMin) {
-      const e = estimate(t, st.model);
+      const e = estimate(t, model);
       t.heuristicMin = e.minutes;
       t.estimateWhy = e.rationale;
     }

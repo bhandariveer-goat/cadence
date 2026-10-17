@@ -4,7 +4,7 @@
 
 import { mountShell } from './shell.js';
 import {
-  app, boot, setRender, go, back, push, activeTab, runningSession, findSession, syncCanvas, insideCanvas, STANDALONE, DEMO, EMBEDDED, signedIn, planConflict
+  app, boot, setRender, go, back, push, activeTab, runningSession, findSession, syncCanvas, insideCanvas, STANDALONE, DEMO, EMBEDDED, signedIn, planConflict, pendingInvite
 } from './core.js';
 import { showUpStreak } from '../lib/habits.js';
 import { svg, I, mmss, toast, $, isWide, isDesktop, esc, installTips, installFieldHelpers } from './ui.js';
@@ -22,6 +22,7 @@ import * as guide from './views/guide.js';
 import * as create from './views/create.js';
 import * as onboarding from './views/onboarding.js';
 import * as agent from './views/agent.js';
+import * as memory from './views/memory.js';
 import { openPalette, installShortcuts, shortcutsSheet } from './views/palette.js';
 import { checkinPicker } from './views/commitments.js';
 
@@ -40,6 +41,7 @@ const VIEWS = {
   crew: crew.viewCrew,
   club: crew.viewClub,
   account: account.viewAccount,
+  memory: memory.viewMemory,
   guide: guide.viewGuide,
   create: create.viewCreate
 };
@@ -52,7 +54,7 @@ const TABS = {
 const ACTIONS = {
   ...today.actions, ...plan.actions, ...crew.actions, ...activities.actions, ...account.actions, ...signin.actions,
   ...calendar.actions, ...calendars.actions, ...commitments.actions, ...guide.actions, ...create.actions,
-  ...onboarding.actions, ...agent.actions,
+  ...onboarding.actions, ...agent.actions, ...memory.actions,
   go: (el) => { if (el.dataset.mode) app.planMode = el.dataset.mode; go(el.dataset.tab); },
   tab: (el) => { if (el.dataset.tab === activeTab() && app.stack.length === 0) { $('#view').scrollTop = 0; return; } go(el.dataset.tab); },
   back: () => back(),
@@ -66,8 +68,8 @@ const ACTIONS = {
       : 'Check in on anything today to start a streak.');
   }
 };
-const CHANGE = { ...activities.changeActions, ...account.changeActions, ...calendars.changeActions };
-const SUBMIT = { ...plan.submitActions, ...create.submitActions, ...agent.submitActions, ...signin.submitActions, ...calendar.submitActions };
+const CHANGE = { ...activities.changeActions, ...account.changeActions, ...calendars.changeActions, ...memory.changeActions };
+const SUBMIT = { ...plan.submitActions, ...create.submitActions, ...agent.submitActions, ...signin.submitActions, ...calendar.submitActions, ...memory.submitActions, ...onboarding.submitActions };
 
 // ------------------------------------------------------------------ render
 
@@ -117,6 +119,8 @@ function renderApp() {
       ${svg(ic)}<span>${label}</span>${id === 'crew' && unseen ? '<i class="dot-badge" role="img" aria-label="New"></i>' : ''}</button>`).join('');
 
     $('#view').innerHTML = VIEWS[app.view]();
+    // An invite link opened before signing in is offered once the app is up.
+    if (!DEMO && pendingInvite()) setTimeout(() => crew.offerPendingInvite(), 0);
     // The week grid covers the whole day; open it where the day actually starts.
     const grid = $('.wg-body');
     if (grid) {

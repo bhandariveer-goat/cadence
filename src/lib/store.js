@@ -52,6 +52,7 @@ export const DEFAULT_STATE = {
   // The things nobody assigns: see lib/habits.js for the shape.
   commitments: [],
   checkins: [],                   // {id, commitmentId, date, at, minutes, feel, note}
+  activeDays: [],                 // 'YYYY-MM-DD' days that count toward the streak (lib/habits.js)
   streak: { freezes: 1, frozenDays: [], best: 0, lastAward: null },
   lastReviewWeek: null,
 
@@ -70,6 +71,7 @@ export const DEFAULT_STATE = {
   },
   autoSync: { enabled: true, everyMinutes: 20, lastRun: null },
   dismissed: {},                  // taskId -> true when she says "not doing this"
+  prompts: {},                    // suggestion cards put away: key -> when (ms)
 
   settings: {
     role: 'student',            // 'student' | 'teacher'
@@ -98,6 +100,9 @@ export const DEFAULT_STATE = {
   plan: null,                   // {generatedAt, sessions:[], unplaced:[]}
   logs: [],                     // {taskId, category, courseId, estimateMin, actualMin, at}
   model: { biases: {}, globalFactor: 1 },  // learned per-course/category speed
+  // What Cadence remembers about this student and has noticed about how they
+  // work: see lib/memory.js. Part of the plan, so it syncs with it.
+  memory: { learn: true, notes: [], prefs: {}, seen: { starts: [], focus: [], pushes: [] }, ignore: {} },
   lastSync: null
 };
 
@@ -141,9 +146,11 @@ export function scrubDemo(state) {
   state.checkins = (state.checkins || []).filter((k) => kept.has(k.commitmentId));
   state.logs = (state.logs || []).filter((l) => l.taskId && state.tasks[l.taskId]);
   if (!state.logs.length) state.model = { biases: {}, globalFactor: 1 };
+  state.memory = { learn: true, notes: [], prefs: {}, seen: { starts: [], focus: [], pushes: [] }, ignore: {} };
   if ((state.courses || []).every((c) => DEMO_COURSES.has(String(c.id)))) state.courses = [];
   if (state.profile?.name === 'Fiona') state.profile.name = '';
   state.streak = { freezes: 1, frozenDays: [], best: 0, lastAward: null };
+  state.activeDays = [];
   state.plan = null;
   state.ranked = [];
   delete state.demo;
@@ -181,6 +188,10 @@ function migrate(state) {
   if (state.account.mode === 'none' && state.profile.onboarded && state.profile.name) {
     state.account = { mode: 'local', id: null, email: '', name: state.profile.name, createdAt: new Date().toISOString() };
   }
+
+  // A block length other than the default was picked by the student, before
+  // Cadence started noticing how long their blocks really last.
+  if (!('styleChosen' in state.settings)) state.settings.styleChosen = state.settings.sessionMaxMin !== 45;
 
   // One model everywhere; the setting was never exposed in the interface.
   state.settings.model = 'claude-opus-5-5';

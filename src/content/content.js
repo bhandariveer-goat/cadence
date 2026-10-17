@@ -12,6 +12,7 @@
   window.__cadenceLoaded = true;
 
   const PANEL_URL = chrome.runtime.getURL('src/panel/panel.html');
+  const PANEL_ORIGIN = new URL(PANEL_URL).origin;
   let host, frame, open = false;
 
   // ---------------------------------------------------------------- launcher
@@ -74,8 +75,16 @@
   }
 
   // ------------------------------------------------------------ API bridge
-  async function canvasFetch({ path, method = 'GET', body }) {
-    const url = path.startsWith('http') ? path : `${location.origin}${path}`;
+  // What the panel uses: reading the API (pagination hands back full links on
+  // this same site) and creating an assignment. Nothing else is sent.
+  const METHODS = new Set(['GET', 'POST']);
+
+  async function canvasFetch({ path, method = 'GET', body } = {}) {
+    let target;
+    try { target = new URL(String(path || ''), location.origin); } catch { throw new Error('Not a Canvas API address'); }
+    if (target.origin !== location.origin || !target.pathname.startsWith('/api/v1/')) throw new Error('Not a Canvas API address');
+    if (!METHODS.has(method)) throw new Error('Not an allowed request');
+    const url = target.href;
     const headers = { Accept: 'application/json+canvas-string-ids, application/json' };
     const init = { method, headers, credentials: 'same-origin' };
 
@@ -100,8 +109,11 @@
   window.addEventListener('message', async (ev) => {
     const msg = ev.data;
     if (!msg || typeof msg !== 'object') return;
-    // Only trust messages coming from our own panel frame.
-    if (frame && ev.source !== frame.contentWindow) return;
+    // Only messages from Cadence's own panel frame, once it exists. Before the
+    // panel is opened there is nobody to listen to: anything else on a Canvas
+    // page (an embedded tool, the page's own scripts) could otherwise make
+    // requests with the student's Canvas login.
+    if (!frame || ev.source !== frame.contentWindow || ev.origin !== PANEL_ORIGIN) return;
 
     if (msg.type === 'cadence:close') return togglePanel(false);
     if (msg.type === 'cadence:context') {

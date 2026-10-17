@@ -2,10 +2,10 @@
 // showing up — with kudos (Strava's lightest possible reinforcement) and
 // nudges (Apple's "your friend just closed their rings").
 
-import { app, back, loadCrew, push, persist, render } from '../core.js';
+import { app, back, loadCrew, push, persist, render, pendingInvite, clearPendingInvite, inviteLink, DEMO } from '../core.js';
 import { newCommitment } from '../../lib/habits.js';
 import { fmtMinutes } from '../../lib/util.js';
-import { svg, I, esc, avatar, ring, sheet, toast, ago, plural, daysUntil, KIND_ICON } from '../ui.js';
+import { svg, I, esc, avatar, ring, sheet, toast, ago, plural, daysUntil, KIND_ICON, copyText } from '../ui.js';
 import { ART } from './parts.js';
 
 const FEEL_WORD = { great: 'Felt great', good: '', tough: 'Tough one' };
@@ -141,10 +141,14 @@ export function viewClub() {
 
     ${leader ? `
       <div class="card">
-        <div class="row between"><div><div class="card-title">Invite ${who}</div><div class="card-sub">They join with this code</div></div>
-          <button class="btn small soft" data-copy="${esc(c.code)}">${svg(I.copy, 14)} Copy code</button></div>
+        <div class="card-title">Invite ${who}</div>
+        <div class="card-sub">${inviteLink('club', c.code) ? 'Send the link: once they sign in with an email, Cadence asks them to join. Or they can type the code.' : 'They join with this code'}</div>
         <div class="code mt3">${esc(c.code)}</div>
-        <button class="btn small ghost mt3" data-act="club-rotate">New code</button>
+        <div class="row gap2 mt3 wrap">
+          ${inviteLink('club', c.code) ? `<button class="btn small primary" data-act="club-share" data-code="${esc(c.code)}" data-name="${esc(c.name)}">${svg(I.link, 14)} Share invite link</button>` : ''}
+          <button class="btn small soft" data-copy="${esc(c.code)}">${svg(I.copy, 14)} Copy code</button>
+          <button class="btn small ghost" data-act="club-rotate">New code</button>
+        </div>
       </div>
       <div class="row gap2 mb3">
         <button class="btn soft grow" data-act="club-post">${svg(I.chat, 16)} Post an update</button>
@@ -276,23 +280,117 @@ async function rotateCode() {
 }
 
 async function invitePartner() {
-  let code = '…';
-  try { ({ code } = await app.sync.invite()); } catch (e) { return toast(e.message); }
+  // The invite is made only when the student asks for one, so opening this
+  // sheet to type a friend's code does not use up an invite.
+  let made = null;
   const res = await sheet(`
     <h2>Invite a partner</h2>
-    <p class="lead">Pick someone who will actually notice: a friend, teammate, sibling or parent. Share your code:</p>
-    <div class="code">${esc(code)}</div>
-    <button type="button" class="btn soft block mt3" data-copy="${esc(code)}">${svg(I.copy, 16)} Copy code</button>
+    <p class="lead">Pick someone who will actually notice: a friend, teammate, sibling or parent.</p>
+    <div data-invite-out hidden><div class="code" data-invite-code></div>
+      <input type="text" class="mt3 w100" readonly data-invite-link aria-label="Invite link" hidden>
+      <p class="hint" data-invite-said role="status"></p></div>
+    <button type="button" class="btn primary block" data-invite-make>${svg(I.link, 16)} ${inviteLink('partner', 'CODE') ? 'Share an invite link' : 'Get an invite code'}</button>
     <div class="q">Have a friend's code?</div>
     <div class="row gap2"><input type="text" class="code-input" name="code" placeholder="K7Q2-XM4P" autocomplete="off" spellcheck="false" aria-label="Partner code">
-      <button class="btn primary" name="op" value="accept">Add partner</button></div>
-    <div class="actions"><button class="btn ghost" value="cancel">Close</button></div>`);
+      <button class="btn soft" name="op" value="accept">Add partner</button></div>
+    <div class="actions"><button class="btn ghost" value="cancel">Close</button></div>`, {
+    onMount(form) {
+      const btn = form.querySelector('[data-invite-make]');
+      const said = (text) => { form.querySelector('[data-invite-said]').textContent = text; form.querySelector('[data-invite-out]').hidden = false; };
+      btn.addEventListener('click', async () => {
+        if (btn.getAttribute('aria-busy') === 'true') return;
+        btn.setAttribute('aria-busy', 'true');
+        try {
+          made ||= await app.sync.invite();
+          form.querySelector('[data-invite-code]').textContent = made.code;
+          const link = inviteLink('partner', made.code);
+          const field = form.querySelector('[data-invite-link]');
+          const how = await shareInvite('partner', made.code);
+          if (how === 'cancelled') { form.querySelector('[data-invite-out]').hidden = false; return; }
+          // Where nothing could be shared or copied, the link is there to select.
+          if (link && !how) { field.value = link; field.hidden = false; field.addEventListener('focus', () => field.select()); }
+          said(how === 'shared' ? 'Sent. It works once, for the first person who uses it.'
+            : how === 'copied' ? 'Copied. Paste it in a message to them. It works once, for the first person who uses it.'
+              : link ? 'Copy this link and send it to them. It works once, for the first person who uses it.'
+                : 'Send them this code. It works once, for the first person who uses it.');
+        } catch (e) {
+          said(e.message);
+        } finally { btn.removeAttribute('aria-busy'); }
+      });
+    }
+  });
   if (res?.get('op') !== 'accept') return;
   try {
     const p = await app.sync.acceptInvite(String(res.get('code') || ''));
     await loadCrew({ force: true });
     toast(`You and ${p?.name?.split(' ')[0] || 'your partner'} are connected`);
   } catch (e) { toast(e.message); }
+}
+
+/**
+ * Send an invite: the phone's share sheet where there is one, otherwise the
+ * clipboard. The code goes in the message too, for anyone whose link opens in
+ * a different browser. Returns 'shared', 'copied', 'cancelled' (the share
+ * sheet was closed), or null when nothing could be shared or copied.
+ */
+async function shareInvite(kind, code, clubName = '') {
+  const url = inviteLink(kind, code);
+  const text = kind === 'club'
+    ? `Join ${clubName || 'my club'} on Cadence${url ? `: ${url}` : '.'} If the link does not work, the code is ${code}.`
+    : `Be my accountability partner on Cadence${url ? `: ${url}` : '.'} If the link does not work, the code is ${code}.`;
+  if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+    try { await navigator.share({ title: 'Cadence', text }); return 'shared'; }
+    catch (e) { if (e?.name === 'AbortError') return 'cancelled'; }
+  }
+  return (await copyText(text)) ? 'copied' : null;
+}
+
+/**
+ * An invite link this browser opened earlier, offered once the student is
+ * signed in (partners and clubs need an email account). The app calls this
+ * after it draws; it asks at most once per invite and kind of account.
+ */
+export async function offerPendingInvite() {
+  if (DEMO) return;                          // a real invite waits for the real app
+  const inv = pendingInvite();
+  const mode = app.S.account?.mode;
+  if (!inv || app.inviteBusy || app.inviteAsked === `${inv.code}|${mode}` || document.querySelector('dialog[open]')) return;
+  app.inviteAsked = `${inv.code}|${mode}`;
+  const what = inv.kind === 'club' ? 'join a club' : 'be accountability partners';
+  if (!app.sync?.available) {
+    if (mode !== 'local') return;
+    const res = await sheet(`<h2>You have an invite</h2>
+      <p class="lead">Someone invited you to ${what} on Cadence. Partners and clubs need an email account, so the check-ins you share can reach them. Your plan stays as it is.</p>
+      <div class="actions"><button class="btn ghost" value="cancel">Not now</button><button class="btn primary" name="op" value="email">Add an email</button></div>`);
+    if (res?.get('op') !== 'email') return clearPendingInvite();
+    app.signin = { step: 'start', name: app.S.account?.name || '', email: '', upgrading: true };
+    return render();
+  }
+  const res = await sheet(`<h2>${inv.kind === 'club' ? 'Join this club?' : 'Add an accountability partner?'}</h2>
+    <p class="lead">${inv.kind === 'club'
+      ? `You opened an invite to a club on Cadence, code <b>${esc(inv.code)}</b>. Members see each other's check-ins for the club's goal.`
+      : `You opened an invite from a friend on Cadence, code <b>${esc(inv.code)}</b>. Partners see the check-ins you each choose to share, and can nudge each other.`}</p>
+    <div class="actions"><button class="btn ghost" value="cancel">Not now</button><button class="btn primary" name="op" value="yes">${inv.kind === 'club' ? 'Join club' : 'Add partner'}</button></div>`);
+  if (res?.get('op') !== 'yes') return clearPendingInvite();
+  app.inviteBusy = true;
+  try {
+    if (inv.kind === 'club') {
+      const club = await app.sync.joinClub(inv.code);
+      clearPendingInvite();
+      await loadCrew({ force: true });
+      toast(`Welcome to ${club?.name || 'the club'}`);
+      if (club?.id) push('club', { clubId: club.id });
+    } else {
+      const p = await app.sync.acceptInvite(inv.code);
+      clearPendingInvite();
+      await loadCrew({ force: true });
+      toast(`You and ${p?.name?.split(' ')[0] || 'your partner'} are connected`);
+      push('crew');
+    }
+  } catch (e) {
+    clearPendingInvite();
+    toast(e.message);
+  } finally { app.inviteBusy = false; }
 }
 
 async function joinClub() {
@@ -366,6 +464,18 @@ export const actions = {
   'open-person': (el) => openPerson(el.dataset.id),
   'invite-partner': () => invitePartner(),
   'club-join': () => joinClub(),
+  'club-share': async (el) => {
+    const how = await shareInvite('club', el.dataset.code, el.dataset.name);
+    if (how === 'copied') return toast('Invite copied. Paste it in your group chat or a Canvas announcement.');
+    if (how === 'shared' || how === 'cancelled') return;
+    // Nothing could be shared or copied: show the link to select by hand.
+    await sheet(`<h2>Invite link</h2>
+      <p class="lead">Copy this link and send it to your ${el.dataset.name ? esc(el.dataset.name) : 'club'} group. Once they sign in with an email, Cadence asks them to join.</p>
+      <input type="text" class="w100" readonly value="${esc(inviteLink('club', el.dataset.code) || '')}" aria-label="Invite link" data-select-all>
+      <div class="actions"><button class="btn primary" value="cancel">Done</button></div>`, {
+      onMount(form) { const f = form.querySelector('[data-select-all]'); f.addEventListener('focus', () => f.select()); }
+    });
+  },
   'club-create': () => createClub(),
   'open-club': (el) => { push('club', { clubId: el.dataset.id }); },
   'club-post': () => postUpdate(),

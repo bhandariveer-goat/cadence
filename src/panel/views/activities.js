@@ -12,6 +12,7 @@ import {
 import { fmtMinutes, dateKey } from '../../lib/util.js';
 import { svg, I, esc, ring, toast, copyFrom, KIND_ICON, daysLabel, plural } from '../ui.js';
 import { scheduleLabel, ART } from './parts.js';
+import { insights } from '../../lib/memory.js';
 
 export function viewActivities() {
   const S = app.S;
@@ -134,6 +135,8 @@ export function viewReview() {
   const rv = weeklyReview(S);
   const weekLabel = new Date(`${rv.weekOf}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' });
   const note = S.reflections?.[rv.weekOf] || '';
+  // The weekly moment to show that the plan has been adapting to them.
+  const learned = insights(S).filter((x) => x.active).slice(0, 4);
 
   return `
     <button class="back" data-act="back">${svg(I.left, 16)} Go back</button>
@@ -142,10 +145,14 @@ export function viewReview() {
         ${ring({ pct: rv.showUpDays / 7, size: 112, stroke: 8, inner: `<b class="ring-num lg">${rv.showUpDays}</b>`, label: `${rv.showUpDays} of 7 days` })}
       </div>
       <h1>You showed up ${rv.showUpDays} of 7 days</h1>
-      <p>Week of ${esc(weekLabel)} · ${rv.hours} hours on your activities · ${rv.met} of ${rv.items.length} targets met</p>
+      <p>Week of ${esc(weekLabel)}${rv.homework.finished ? ` · ${plural(rv.homework.finished, 'assignment')} finished` : ''}${rv.items.length ? ` · ${rv.hours} hours on your activities · ${rv.met} of ${rv.items.length} targets met` : ''}</p>
     </section>
 
-    <div class="card flush">
+    ${learned.length ? `<div class="section-head"><h2>What Cadence learned about you</h2><button class="link" data-act="open-memory">See everything</button></div>
+    <div class="card flush">${learned.map((x) => `<div class="item"><div class="grow"><div class="t">${esc(x.text)}</div><div class="m">${esc(x.effect)}</div></div></div>`).join('')}</div>` : ''}
+
+    ${rv.items.length ? `<div class="section-head${learned.length ? ' mt6' : ''}"><h2>Your activities</h2></div>` : ''}
+    <div class="card flush" ${rv.items.length ? '' : 'hidden'}>
       ${rv.items.map(({ commitment: c, progress: p, previous, suggestion }) => `
         <div class="item top-align wrap k-activity">
           ${ring({ pct: p.pct, size: 40, stroke: 4, inner: svg(KIND_ICON[c.kind] || I.star), label: c.title })}
@@ -176,7 +183,8 @@ export const actions = {
     const c = st.commitments.find((x) => x.id === el.dataset.id);
     if (c && !isFixed(c)) c.target.sessions = Number(el.dataset.to);
   }).then(() => toast('Target updated for this week')),
-  'finish-review': () => persist((st) => { st.lastReviewWeek = dateKey(weekStart()); }, { recalc: false }).then(() => { go('activities'); toast('Review saved. A new week has started.'); })
+  'finish-review': () => persist((st) => { st.lastReviewWeek = dateKey(weekStart()); }, { recalc: false })
+    .then(() => { go((app.S.commitments || []).some((c) => !c.archived) ? 'activities' : 'today'); toast('Review saved. A new week has started.'); })
 };
 
 export const changeActions = {

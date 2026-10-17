@@ -131,6 +131,9 @@ alter table club_posts add constraint club_posts_sizes check (char_length(text) 
 -- policies make, the app's lists (newest first), and removing an account
 -- (which removes everything that points at it) stay quick as tables grow.
 create index if not exists checkins_club_id on checkins (club_id);
+-- The Crew feed asks for check-ins by these people and these clubs, newest
+-- first (lib/sync.js), so it reads only theirs, not the whole table.
+create index if not exists checkins_club_at on checkins (club_id, at desc);
 create index if not exists club_members_user_id on club_members (user_id);
 create index if not exists club_posts_club_at on club_posts (club_id, at desc);
 create index if not exists club_posts_from_user on club_posts (from_user);
@@ -361,10 +364,12 @@ language plpgsql security definer set search_path = public as $$
 declare inviter uuid;
 begin
   if auth.uid() is null or anonymous_account() then raise exception 'Sign in with an email to add a partner'; end if;
-  delete from invites where code = invite_code and owner <> auth.uid() returning owner into inviter;
+  -- An invite lasts two weeks, so an old code left in a group chat stops working.
+  delete from invites where code = invite_code and owner <> auth.uid() and created_at > now() - interval '14 days'
+  returning owner into inviter;
   if inviter is null then
-    if exists (select 1 from invites where code = invite_code) then raise exception 'That''s your own invite code'; end if;
-    raise exception 'That invite code is invalid or already used';
+    if exists (select 1 from invites where code = invite_code and owner = auth.uid()) then raise exception 'That''s your own invite code'; end if;
+    raise exception 'That invite code is invalid, already used, or more than two weeks old';
   end if;
   insert into partnerships (user_a, user_b) values (least(inviter, auth.uid()), greatest(inviter, auth.uid())) on conflict do nothing;
   return inviter;
@@ -466,13 +471,31 @@ begin
   return new_code;
 end $$;
 
+-- Wrong codes are counted, 20 a day per account, so codes cannot be guessed
+-- by trying many: a club shows its members' names and check-ins. A wrong code
+-- returns null rather than raising an error, because an error would undo the
+-- row that counts it.
+create table if not exists join_attempts (
+  user_id uuid not null,
+  at timestamptz not null default now()
+);
+create index if not exists join_attempts_user_at on join_attempts (user_id, at);
+alter table join_attempts enable row level security;
+
 create or replace function join_club(club_code text) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare target uuid;
 begin
   if auth.uid() is null or anonymous_account() then raise exception 'Sign in with an email to join a club'; end if;
+  if (select count(*) from join_attempts where user_id = auth.uid() and at > now() - interval '1 day') >= 20 then
+    raise exception 'Too many wrong codes today. Check the code with your leader and try again tomorrow.';
+  end if;
   select id into target from clubs where code = club_code;
-  if target is null then raise exception 'No club with that code'; end if;
+  if target is null then
+    insert into join_attempts (user_id) values (auth.uid());
+    delete from join_attempts where at < now() - interval '2 days';
+    return null;
+  end if;
   insert into club_members (club_id, user_id) values (target, auth.uid()) on conflict do nothing;
   return target;
 end $$;
@@ -553,19 +576,31 @@ create policy "delete own plan" on planner_state for delete using (user_id = (se
 
 -- ----------------------------------------------------- assistant rate limit
 -- netlify/functions/agent.mjs calls bump_agent_usage() with the student's own
--- token before every model request. The table has row level security on and
--- no policies, so nobody can read or reset their count directly; the function
--- is the only way in. It returns two numbers: this account's requests today,
--- and everyone's, and the server function refuses a request when either is
--- over its limit (AGENT_DAILY_LIMIT and AGENT_DAILY_TOTAL). An account's own
--- count stops going up at 61, one past the default limit of 60, so that one
--- account calling this over and over cannot use up everyone's total. Raising
--- AGENT_DAILY_LIMIT above 60 needs that number raised here too.
+-- token before every model request. These tables have row level security on
+-- and no policies, so nobody can read or reset a count directly; the
+-- functions are the only way in.
+--
+-- What is counted is questions: a request that starts from something the
+-- student typed. One question can take a few more requests while the model
+-- uses tools (is_step), and those are counted separately, up to six for
+-- every question asked that day, so they cannot be used to ask for free. An email
+-- account gets 60 questions a day; a hidden anonymous account (a student
+-- using Cadence with only a name) gets 15, because a new one costs nothing.
+-- Each count stops one past its limit, so calling this over and over cannot
+-- push the day's total up. The day starts at midnight Pacific time, not UTC,
+-- which was 5pm in California and 8pm in New York, in the middle of homework.
+--
+-- It returns this account's questions today (mine), everyone's (total), this account's limit (cap), the questions from anonymous accounts today
+-- (anon_total; the server keeps those to a share of the total, so throwaway
+-- accounts cannot use up everyone's day), whether a step is still allowed,
+-- and a ticket. When the model then fails (busy, down, too slow), the server
+-- hands the ticket to refund_agent_usage() and the question is given back.
+-- The ticket never leaves the server, so a student cannot refund a question
+-- that reached the model.
 --
 -- user_id is deliberately not a foreign key. A count row is an id and a
--- number, it is removed the day after it is written, and keeping it when an
--- account is deleted is what stops delete-and-sign-up-again from resetting
--- the day's total.
+-- number, it is removed soon after its day, and keeping it when an account is
+-- deleted is what stops delete-and-sign-up-again from resetting the day.
 
 create table if not exists agent_usage (
   user_id uuid not null,
@@ -573,25 +608,104 @@ create table if not exists agent_usage (
   count int not null default 0,
   primary key (user_id, day)
 );
-
+alter table agent_usage add column if not exists steps int not null default 0;
 alter table agent_usage enable row level security;
 
-create or replace function bump_agent_usage() returns table (mine int, total bigint)
+-- The day's totals in one row per kind of account (email, anonymous), so the
+-- check on every request reads a few rows instead of adding up every account.
+create table if not exists agent_usage_total (
+  day date not null,
+  kind text not null check (kind in ('email', 'anonymous')),
+  questions bigint not null default 0,
+  primary key (day, kind)
+);
+alter table agent_usage_total enable row level security;
+
+create table if not exists agent_usage_tickets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  day date not null,
+  step boolean not null,
+  kind text not null,
+  counted boolean not null,
+  at timestamptz not null default now()
+);
+alter table agent_usage_tickets enable row level security;
+
+drop function if exists bump_agent_usage();
+create or replace function bump_agent_usage(is_step boolean default false)
+returns table (mine int, total bigint, cap int, anon_account boolean, anon_total bigint, steps_ok boolean, ticket uuid)
 language plpgsql security definer set search_path = public as $$
-declare n int;
+declare
+  today date := (now() at time zone 'America/Los_Angeles')::date;
+  anon boolean := coalesce(anonymous_account(), false);
+  who text := case when anon then 'anonymous' else 'email' end;
+  lim int := case when anon then 15 else 60 end;
+  before_q int; before_s int; n int; s int; counted boolean; t uuid;
 begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
-  -- Only today's counts are kept; earlier days are of no use and are removed.
-  delete from agent_usage where day < current_date;
-  -- So are anonymous accounts not used for 30 days (Supabase does not remove
-  -- them itself). A browser whose account was removed simply gets a new one.
-  delete from auth.users
-  where is_anonymous and id <> auth.uid()
-    and coalesce(last_sign_in_at, created_at) < now() - interval '30 days';
-  insert into agent_usage as u (user_id, day, count) values (auth.uid(), current_date, 1)
-  on conflict (user_id, day) do update set count = u.count + 1 where u.count <= 60;
-  select a.count into n from agent_usage a where a.user_id = auth.uid() and a.day = current_date;
-  return query select n, coalesce(sum(a.count), 0)::bigint from agent_usage a where a.day = current_date;
+  -- Housekeeping about once in a hundred requests rather than on every one:
+  -- counts and tickets from earlier days, and anonymous accounts nobody has
+  -- used for 30 days (Supabase does not remove those itself; a browser whose
+  -- account was removed simply gets a new one).
+  if random() < 0.01 then
+    delete from agent_usage where day < today - 1;
+    delete from agent_usage_total where day < today - 7;
+    delete from agent_usage_tickets where at < now() - interval '1 hour';
+    delete from auth.users
+    where is_anonymous and id <> auth.uid()
+      and coalesce(last_sign_in_at, created_at) < now() - interval '30 days';
+  end if;
+
+  select a.count, a.steps into before_q, before_s from agent_usage a where a.user_id = auth.uid() and a.day = today;
+  before_q := coalesce(before_q, 0);
+  before_s := coalesce(before_s, 0);
+  -- A step is allowed only while there have been fewer than six for every
+  -- question asked today: steps follow questions, so they cannot stand in
+  -- for them (a request is a step when the student's side of it is only
+  -- tool results, which a client could send without asking anything).
+  counted := case when is_step then before_s < before_q * 6 else before_q <= lim end;
+  insert into agent_usage as u (user_id, day, count, steps)
+    values (auth.uid(), today, case when is_step then 0 else 1 end, 0)
+  on conflict (user_id, day) do update set
+    count = case when is_step or u.count > lim then u.count else u.count + 1 end,
+    steps = case when is_step and u.steps < u.count * 6 then u.steps + 1 else u.steps end;
+  select a.count, a.steps into n, s from agent_usage a where a.user_id = auth.uid() and a.day = today;
+
+  -- Only a question that was counted moves the day's total.
+  if counted and not is_step then
+    insert into agent_usage_total as g (day, kind, questions) values (today, who, 1)
+    on conflict (day, kind) do update set questions = g.questions + 1;
+  end if;
+  insert into agent_usage_tickets (user_id, day, step, kind, counted)
+    values (auth.uid(), today, is_step, who, counted) returning id into t;
+
+  return query select n,
+    (select coalesce(sum(g.questions), 0)::bigint from agent_usage_total g where g.day = today),
+    lim, anon,
+    (select coalesce(sum(g.questions), 0)::bigint from agent_usage_total g where g.day = today and g.kind = 'anonymous'),
+    case when is_step then counted else true end, t;
+end $$;
+
+-- Gives back what one bump counted, when the model failed to answer. Only
+-- the account that made the ticket can use it, only once, and only for two
+-- minutes.
+create or replace function refund_agent_usage(ticket_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare tk agent_usage_tickets;
+begin
+  if auth.uid() is null then return; end if;
+  delete from agent_usage_tickets
+  where id = ticket_id and user_id = auth.uid() and at > now() - interval '2 minutes'
+  returning * into tk;
+  if tk.id is null or not tk.counted then return; end if;
+  update agent_usage set
+    count = case when tk.step then count else greatest(count - 1, 0) end,
+    steps = case when tk.step then greatest(steps - 1, 0) else steps end
+  where user_id = auth.uid() and day = tk.day;
+  if not tk.step then
+    update agent_usage_total set questions = greatest(questions - 1, 0) where day = tk.day and kind = tk.kind;
+  end if;
 end $$;
 
 
@@ -687,7 +801,7 @@ grant usage on schema public to anon, authenticated;
 -- tables were made (many projects grant every new table to everyone and
 -- leave the rest to the policies). Nothing at all is for someone not signed in.
 revoke all on profiles, partnerships, invites, clubs, club_members, checkins, kudos, nudges, club_posts,
-  planner_state, agent_usage, visit_counts, partner_overview from anon, authenticated;
+  planner_state, agent_usage, agent_usage_total, agent_usage_tickets, join_attempts, visit_counts, partner_overview from anon, authenticated;
 
 -- Signed in: the tables the app reads and writes, and only in the ways it does.
 grant select, insert, update on profiles to authenticated;
@@ -710,7 +824,8 @@ grant insert (club_id, text) on club_posts to authenticated;
 grant select, insert, update, delete on planner_state to authenticated;
 grant select on partner_overview to authenticated;
 
--- agent_usage and visit_counts are granted to nobody. They are reached only
+-- agent_usage (and its totals and tickets), join_attempts and visit_counts
+-- are granted to nobody. They are reached only
 -- through their functions, which run with the database owner's rights, and
 -- read by the project's owner in the dashboard.
 
@@ -719,14 +834,14 @@ grant select on partner_overview to authenticated;
 revoke execute on function
   my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid), leave_club(uuid),
   club_members_progress(uuid, timestamptz), my_club_overview(timestamptz),
-  bump_agent_usage(), delete_my_account(), count_visit(text, text, text), handle_new_user(), club_sessions(jsonb),
+  bump_agent_usage(boolean), refund_agent_usage(uuid), delete_my_account(), count_visit(text, text, text), handle_new_user(), club_sessions(jsonb),
   limit_per_day(), anonymous_account()
   from public, anon, authenticated;
 
 grant execute on function
   my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid), leave_club(uuid),
   club_members_progress(uuid, timestamptz), my_club_overview(timestamptz),
-  bump_agent_usage(), delete_my_account(), anonymous_account()
+  bump_agent_usage(boolean), refund_agent_usage(uuid), delete_my_account(), anonymous_account()
   to authenticated;
 
 -- The visit counter is the one thing a visitor without an account can call.

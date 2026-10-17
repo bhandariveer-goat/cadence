@@ -123,9 +123,29 @@ export function weekStreak(c, checkins, now = new Date()) {
 
 /** Every day the student did *something* they planned: a check-in or a finished homework block. */
 export function activeDates(state) {
-  const set = new Set((state.checkins || []).map((k) => k.date));
+  const set = new Set([...(state.activeDays || []), ...(state.checkins || []).map((k) => k.date)]);
   for (const s of state.plan?.sessions || []) if (s.done) set.add(dateKey(new Date(s.start)));
   return set;
+}
+
+/**
+ * Write down the days that count toward the streak, in a list that lasts.
+ * Finished homework blocks live in the plan, which keeps them only about a
+ * week once the assignment is done and is not synced, so a streak built on
+ * homework alone stopped at about eight days and was missing on a second
+ * device. This list is synced with the rest of the plan. Called on every
+ * re-plan, before old blocks are let go.
+ */
+export function noteActiveDays(state, now = new Date()) {
+  const days = new Set(state.activeDays || []);
+  for (const s of state.plan?.sessions || []) if (s.done) days.add(dateKey(new Date(s.start)));
+  for (const k of state.checkins || []) if (k.date) days.add(k.date);
+  // Only days that are over: today is still read live, so undoing a check-in
+  // made by mistake takes today back off the streak.
+  const from = dateKey(addDays(startOfDay(now), -400));
+  const kept = [...days].filter((k) => k >= from && k < dateKey(now)).sort();
+  state.activeDays = kept;
+  return kept;
 }
 
 export function showUpStreak(state, now = new Date()) {
@@ -335,5 +355,18 @@ export function weeklyReview(state, now = new Date()) {
 
   const minutes = (state.checkins || []).filter((k) => k.date >= dateKey(last) && k.date < dateKey(weekStart(now)))
     .reduce((a, k) => a + (k.minutes || 0), 0);
-  return { weekOf: dateKey(last), showUpDays, hours: round1(minutes / 60), items, met: items.filter((i) => i.progress.met).length };
+
+  // Homework finished last week: from the time logs, and from assignments
+  // marked done without a time.
+  const from = +last, to = +weekStart(now);
+  const inWeek = (at) => { const t = +new Date(at); return t >= from && t < to; };
+  const finished = new Set();
+  let homeworkMin = 0;
+  for (const l of state.logs || []) if (l.at && inWeek(l.at)) { finished.add(l.taskId); homeworkMin += l.actualMin || 0; }
+  for (const t of Object.values(state.tasks || {})) if (t.completedAt && inWeek(t.completedAt)) finished.add(t.id);
+
+  return {
+    weekOf: dateKey(last), showUpDays, hours: round1(minutes / 60), items, met: items.filter((i) => i.progress.met).length,
+    homework: { finished: finished.size, hours: round1(homeworkMin / 60) }
+  };
 }

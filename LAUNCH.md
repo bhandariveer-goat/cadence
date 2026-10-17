@@ -275,6 +275,20 @@ two Gemini variables, and change the privacy page's assistant section to match.
 2. If you set up the server function, put the full address of the site in
    `src/config.js` as `agentEndpoint` (for example
    `https://your-domain/api/agent`) so the extension can reach it.
+3. To publish it on the Chrome Web Store, follow `STORE.md`. It has the
+   listing, the permission explanations the store asks for, and
+   `scripts/package_extension.py`, which builds the zip to upload. Once it is
+   published, put its address in `site.extensionUrl` so the homepage shows an
+   "Add to Chrome" button.
+
+### Updating the database before the site
+
+When `supabase/schema.sql` changes, apply it to the Supabase project before
+the new version of the site goes live. The server functions call the
+database's functions by name and with their current arguments; new code
+against an old database fails (the assistant would answer "Could not check
+your usage"), while old code against a new database keeps working. The whole
+file can be run again safely.
 
 ## 6. The contact form
 

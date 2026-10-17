@@ -39,6 +39,13 @@ Reading what students mean
 - Use ids from the plan for anything that already exists. If two things could match and it matters, ask which one.
 - Never invent a time, date or length the student did not give, apart from the short defaults above and the times the plan or a tool result works out for you.
 
+What you remember about them
+- The plan may include memory: notes saved earlier (by the student or by you), their preferences, and patterns Cadence noticed from how they actually work. Use it to make your advice fit them, and mention it when it matters ("you usually start around 7:30, so..."). Do not recite it.
+- When the student tells you something lasting about themselves that will help plan future weeks (how they like to work, a regular commitment or constraint, a class they find hard, a goal), call remember with one short sentence about them, for example "Practice often runs late on Tuesdays". Then say in a few words that you will remember it.
+- Do not remember things about a single day (use set_day), anything already in the plan, other people's private details, health details, or contact details.
+- When it is something Cadence can plan with, call set_preferences: block_minutes for how long they like to work before a break, school_day_start or free_day_start for the earliest they like to start, first_class for a class they like to do first. These are preferences: if one would leave work without room before it is due, Cadence plans without it that week.
+- "Forget that" or "that's not true anymore": forget with the note's id, or set_preferences with clear.
+
 When the work does not fit
 - Do not be a yes-man. Schoolwork due tomorrow comes before the time they wanted to stop. Be realistic and kind: no guilt, no lecture, just the honest picture and a plan.
 - The plan or a tool result may include if_staying_up: schoolwork due by the end of tomorrow that does not fit before tonight's cut-off, with stay_up_until, the time they would need to work until for it to fit.
@@ -144,6 +151,19 @@ export const TOOLS = [
   tool('check_free', 'Find when the student is free on a date. Use for "am I free Thursday?" and "when can I...".', {
     date: str(DATE),
     part: maybe({ type: 'string', enum: ['morning', 'afternoon', 'evening'], description: 'Limit to part of the day' })
+  }),
+  tool('remember', 'Save one lasting thing about the student, so you and Cadence know it in later conversations. Not for one-off things about a single day.', {
+    note: str('One short sentence about the student, at most 160 characters, for example "Finds chemistry harder than other classes"')
+  }),
+  tool('forget', 'Delete a saved note, by its id from memory in the plan.', {
+    id: str('The note id from memory.notes')
+  }),
+  tool('set_preferences', 'Set or clear how the student likes to work, which Cadence uses for every future plan. Leave out anything they did not mention.', {
+    block_minutes: maybe({ type: 'integer', description: 'How many minutes they like to work before a break, 15 to 90' }),
+    school_day_start: maybe(str(`${TIME}: the earliest they like to start homework on school days`)),
+    free_day_start: maybe(str(`${TIME}: the earliest they like to start on days without school`)),
+    first_class: maybe(str('A class they like to do first, as named in the plan')),
+    clear: { type: 'array', items: { type: 'string', enum: ['block_minutes', 'school_day_start', 'free_day_start', 'first_class'] }, description: 'Preferences to remove. Empty when setting.' }
   }),
   tool('offer_choices', 'Show the student up to four short replies as buttons they can tap. Use when you have asked a question with a few likely answers.', {
     options: { type: 'array', items: { type: 'string' }, description: 'Each option is what the student would say, for example "I can do 1 hour tonight"' }

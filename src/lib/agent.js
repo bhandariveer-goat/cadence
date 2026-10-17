@@ -19,6 +19,7 @@ import {
 } from './agentops.js';
 import { workWindows, isSchoolDay } from './daymodel.js';
 import { allBusy } from './replanner.js';
+import { addNote } from './memory.js';
 
 const DOW = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const DOW_ABBR = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -796,8 +797,27 @@ const mins = (m) => { const r = Math.round(m); if (r < 60) return `${r} minutes`
  * new one, so the reply describes what actually moved rather than what was asked.
  */
 export function respond(text, state, now = new Date()) {
-  const { ops, queries, ask } = read(text, state, now);
   const out = { text: '', ops: [], moved: [], list: [], chips: [], next: null, changed: false };
+
+  const { ops, queries, ask } = read(text, state, now);
+
+  // "Remember that practice runs late on Tuesdays": kept in Cadence's memory
+  // (lib/memory.js), where the assistant and the memory screen both see it.
+  // Only when the sentence is not also something for the plan: "remember I
+  // have a bio test Friday" is an assignment, and "remember to..." is a to-do.
+  const rem = /^\s*(?:please\s+|can you\s+|could you\s+)?(?:remember|keep in mind)(?!\s+to\b)(?:\s+that)?[:,]?\s+(.{3,})$/i.exec(String(text || ''));
+  if (rem && !ops.length && !queries.length && !ask) {
+    const note = rem[1].trim().replace(/[.?!]+$/, '');
+    const tried = addNote({ memory: structuredClone(state.memory || {}) }, note, 'you', now);
+    if (tried.error) return { ...out, text: tried.error };
+    const { next, applied } = simulate(state, [{ kind: 'memory', note, by: 'you' }], now);
+    if (!applied.length) return { ...out, text: 'That could not be saved. Try saying it in a shorter sentence.' };
+    return {
+      ...out, next, changed: true,
+      ops: applied.map((op) => ({ ...op, summary: describe(op, next, now) })),
+      text: tried.refreshed ? 'Cadence already knew that, and has updated it.' : 'Got it. Cadence will remember that. Everything it remembers is under your name, in What Cadence knows about you.'
+    };
+  }
 
   if (ask && !ops.length) {
     out.text = ask.question;

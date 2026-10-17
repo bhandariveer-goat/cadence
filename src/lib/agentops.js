@@ -17,6 +17,7 @@ import { classify } from './estimator.js';
 import { recomputeState, allBusy, plannable } from './replanner.js';
 import { workWindows, isSchoolDay, schoolEnd, overrideFor } from './daymodel.js';
 import { freeSlots } from './calendar.js';
+import { addNote, forgetNote, setPrefs, memoryView } from './memory.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 export const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
@@ -135,13 +136,18 @@ export function describe(op, state, now = new Date()) {
     case 'first': return `${op.title} · do this first`;
     case 'remove': return op.date ? `${op.title} · off ${dayWord(op.date, now)}` : `${op.title} · removed`;
     case 'limit': return op.minutes ? `No more than ${dur(op.minutes)} of work on any day` : 'Daily limit removed';
+    case 'memory':
+      if (op.forget) return `Forgot: ${op.title || 'a note'}`;
+      if (op.note) return `Remembered: ${op.note}`;
+      return op.said?.length ? `Preference: ${op.said.join(', ')}` : 'Preferences updated';
     default: return '';
   }
 }
 
 export const KIND_LABEL = {
   event: 'On your calendar', activity: 'New activity', task: 'New assignment', day: 'Just this day', school: 'School',
-  sleep: 'Sleep', done: 'Assignment', estimate: 'Time estimate', move: 'Moved', first: 'Priority', remove: 'Removed', limit: 'Daily limit'
+  sleep: 'Sleep', done: 'Assignment', estimate: 'Time estimate', move: 'Moved', first: 'Priority', remove: 'Removed', limit: 'Daily limit',
+  memory: 'Memory'
 };
 
 // ----------------------------------------------------------------- apply
@@ -319,6 +325,23 @@ const APPLY = {
       if (!t) return false;
       if (t.source === 'manual') delete state.tasks[op.id]; else (state.dismissed ||= {})[op.id] = true;
       return true;
+    }
+    return false;
+  },
+
+  // Notes and preferences (lib/memory.js). A note that cannot be kept (too
+  // long, or contact details) is refused rather than trimmed.
+  memory(state, op, now) {
+    if (op.forget) return forgetNote(state, op.forget);
+    if (op.note) {
+      const r = addNote(state, op.note, op.by === 'you' ? 'you' : 'assistant', now);
+      if (r.error) return false;
+      op.note = r.note.text;
+      return true;
+    }
+    if (op.prefs) {
+      op.said = setPrefs(state, op.prefs);
+      return op.said.length > 0;
     }
     return false;
   },
@@ -522,6 +545,8 @@ export function planView(state, now = new Date(), days = 7) {
     perDay: (state.plan?.days || []).filter((d) => d.date >= today && d.date < until).map((d) => ({ date: d.date, plannedMinutes: d.minutes, school: isSchoolDay(state, noon(d.date)) })),
     doesNotFit: (state.plan?.unplaced || []).map((u) => ({ title: u.title, minutes: u.missingMin, due: u.due || null }))
   };
+  const memory = memoryView(state, now);
+  if (memory) out.memory = memory;
   return out;
 }
 

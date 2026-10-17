@@ -5,9 +5,13 @@
 // tab answers "what do I actually have to do, and how big is it".
 
 import {
-  app, persist, go, push, render, findSession, runningSession, minutesSince, rankedTasks, plannable, undoTo
+  app, persist, go, push, render, findSession, runningSession, minutesSince, rankedTasks, plannable, undoTo, insideCanvas
 } from '../core.js';
 import { learn } from '../../lib/estimator.js';
+import { observe } from '../../lib/memory.js';
+import { isSchoolDay, dayWindows } from '../../lib/daymodel.js';
+import { freeSlots } from '../../lib/calendar.js';
+import { allBusy } from '../../lib/replanner.js';
 import { isStale } from '../../lib/priority.js';
 import { parseAssignmentText } from '../../lib/parse.js';
 import { fmtMinutes, fmtTime, fmtDay, dateKey, addDays, atTime, uid, MIN, DAY, clamp } from '../../lib/util.js';
@@ -58,7 +62,10 @@ function schoolList() {
       <div class="card flush">${list.map(taskRow).join('')}</div></div>`).join('')}
     ${done.length ? `<div class="section group"><div class="section-head"><h2>Finished this week</h2><span class="muted">${done.length}</span></div>
       <div class="card flush">${done.map(taskRow).join('')}</div></div>` : ''}
-    ${!open.length && !done.length ? `<div class="card"><div class="empty"><h2>No assignments yet</h2><p>They arrive from Canvas through the Chrome extension, or add one in the box above. Each gets a time estimate and its own blocks on your calendar.</p></div></div>` : ''}`;
+    ${!open.length && !done.length ? `<div class="card"><div class="empty"><h2>No assignments yet</h2><p>${insideCanvas ? 'They come in from Canvas on their own, or add one in the box above.'
+      : app.S.sources?.canvasFeed?.enabled ? 'Nothing is due in your Canvas feed right now. Add one in the box above.'
+        : 'Connect your Canvas calendar feed and they come in by themselves, or add one in the box above.'} Each gets a time estimate and its own blocks on your calendar.</p>
+      ${!insideCanvas && !app.S.sources?.canvasFeed?.enabled ? '<button class="btn primary" data-act="canvas-feed-sheet">Connect Canvas</button>' : ''}</div></div>` : ''}`;
 }
 
 function taskRow(t) {
@@ -103,6 +110,7 @@ function breakdown(t) {
 // -------------------------------------------------------------- homework flows
 
 const FEEL = { faster: 0.75, right: 1, longer: 1.35 };
+const fmtHM = (d) => { const x = new Date(d); return `${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}`; };
 const CHEERS = ['Done and dusted.', 'One less thing on your plate.', "That's off your list.", 'Nicely done.'];
 
 async function startSession(id) {
@@ -110,7 +118,17 @@ async function startSession(id) {
     for (const s of st.plan?.sessions || []) if (s.startedAt && !s.done && s.id !== id) s.startedAt = null;
     const s = findSession(st, id);
     if (!s) return;
-    s.startedAt = new Date().toISOString();
+    const now = new Date();
+    // When the evening's homework really began, against the first free time
+    // the day had for it: how Cadence learns when this student gets going.
+    // Not against the plan, which is rebuilt from "now" whenever the app opens
+    // and so would always seem to start when they did.
+    if (!s.commitmentId) {
+      const day = new Date(now); day.setHours(0, 0, 0, 0);
+      const first = freeSlots(day, addDays(day, 1), dayWindows(st), allBusy(st), st.settings)[0];
+      observe(st, { type: 'start', school: isSchoolDay(st, now), planned: first ? fmtHM(first.start) : null }, now);
+    }
+    s.startedAt = now.toISOString();
     const t = st.tasks[s.taskId];
     if (t && t.status === 'todo') t.status = 'in_progress';
   }, { recalc: false });
@@ -128,6 +146,9 @@ async function stopSession(id) {
   await persist((st) => {
     const x = findSession(st, id);
     if (worked < 5) { x.startedAt = null; return; }
+    // Stopped before the block was up: how long a block really lasts.
+    if (worked < x.minutes) observe(st, { type: 'focus', planned: x.minutes, actual: worked });
+    observe(st, { type: 'done', course: x.courseName || st.tasks[x.taskId]?.courseName });
     Object.assign(x, { done: true, startedAt: null, minutes: Math.round(worked / 5) * 5 || 5, actualMin: worked });
     const t = st.tasks[x.taskId];
     if (t) t.actualMin = (t.actualMin || 0) + worked;
@@ -181,6 +202,11 @@ async function finishSession(id) {
   await persist((st) => {
     const x = findSession(st, id);
     if (!x) return;
+    // A timed block that ended while the assignment goes on says how long
+    // this student focuses. One that finished the assignment says how fast
+    // they are, which the estimate learns from instead.
+    if (feel === 'timer' && !finished) observe(st, { type: 'focus', planned: x.minutes, actual });
+    observe(st, { type: 'done', course: x.courseName || st.tasks[x.taskId]?.courseName });
     Object.assign(x, { done: true, startedAt: null, actualMin: actual, doneAt: new Date().toISOString() });
     if (+new Date(x.start) > Date.now()) {
       x.end = new Date().toISOString();
@@ -224,6 +250,7 @@ async function skipSession(id) {
     const start = new Date(Math.max(Date.now(), +new Date(s.start)));
     const end = new Date(Math.max(+new Date(s.end), +start + s.minutes * MIN));
     st.busy.push({ id: uid('skip'), title: 'Skipped', source: 'skip', start: start.toISOString(), end: end.toISOString() });
+    if (!s.commitmentId) observe(st, { type: 'push', course: s.courseName || st.tasks[s.taskId]?.courseName });
   });
   const moved = (app.S.plan?.sessions || []).find((x) => (x.taskId === s.taskId || (s.commitmentId && x.commitmentId === s.commitmentId)) && !x.done && x.id !== s.id);
   toast(moved ? `Moved to ${fmtDay(moved.start) === 'Today' ? 'later today' : fmtDay(moved.start)} at ${fmtTime(moved.start)}` : 'Moved to later',
