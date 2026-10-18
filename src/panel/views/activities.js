@@ -10,7 +10,7 @@ import {
   showUpStreak, weekProgress, activityRecord, weeklyReview, weekStart, isFixed, pendingCheckins, COMMON_APP
 } from '../../lib/habits.js';
 import { fmtMinutes, dateKey } from '../../lib/util.js';
-import { svg, I, esc, ring, toast, copyFrom, KIND_ICON, daysLabel, plural } from '../ui.js';
+import { svg, I, esc, ring, toast, copyFrom, KIND_ICON, daysLabel, plural, activityColor } from '../ui.js';
 import { scheduleLabel, ART } from './parts.js';
 import { insights } from '../../lib/memory.js';
 
@@ -41,7 +41,7 @@ export function viewActivities() {
       <p>${met} of ${plural(active.length, 'activity', 'activities')} on track this week${streak.days ? `, and a ${streak.days}-day streak of showing up` : ''}.</p>
     </section>
 
-    ${pending.map((c) => `<div class="card k-activity">
+    ${pending.map((c) => `<div class="card k-activity" style="--c:${activityColor(c)}">
       <div class="row"><span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
         <div class="grow"><div class="card-title">How was ${esc(c.title)}?</div><div class="card-sub">Check in so it counts toward this week.</div></div></div>
       <div class="row mt3 gap2">
@@ -53,8 +53,8 @@ export function viewActivities() {
     <div class="card flush">
       ${active.map((c) => {
         const p = weekProgress(c, S.checkins);
-        return `<div class="item tap k-activity" data-act="open-commit" data-id="${c.id}" role="button" tabindex="0">
-          ${ring({ pct: p.pct, size: 40, stroke: 4, inner: svg(KIND_ICON[c.kind] || I.star), label: c.title })}
+        return `<div class="item tap k-activity" style="--c:${activityColor(c)}" data-act="open-commit" data-id="${c.id}" role="button" tabindex="0">
+          ${ring({ pct: p.pct, color: activityColor(c), size: 40, stroke: 4, inner: svg(KIND_ICON[c.kind] || I.star), label: c.title })}
           <div class="grow"><div class="t">${esc(c.title)}</div><div class="m">${esc(scheduleLabel(c, daysLabel))}</div></div>
           <span class="small ${p.met ? 'ok' : 'muted'}">${p.met ? 'Done' : esc(p.label)}</span>
         </div>`;
@@ -90,7 +90,7 @@ export function viewRecord() {
     <button class="btn soft mb4" data-act="copy-record">${svg(I.copy, 16)} Copy record as text</button>
 
     ${records.map(({ c, r }) => `
-      <div class="card k-activity">
+      <div class="card k-activity" style="--c:${activityColor(c)}">
         <div class="row top-align">
           <span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
           <div class="grow">
@@ -154,8 +154,8 @@ export function viewReview() {
     ${rv.items.length ? `<div class="section-head${learned.length ? ' mt6' : ''}"><h2>Your activities</h2></div>` : ''}
     <div class="card flush" ${rv.items.length ? '' : 'hidden'}>
       ${rv.items.map(({ commitment: c, progress: p, previous, suggestion }) => `
-        <div class="item top-align wrap k-activity">
-          ${ring({ pct: p.pct, size: 40, stroke: 4, inner: svg(KIND_ICON[c.kind] || I.star), label: c.title })}
+        <div class="item top-align wrap k-activity" style="--c:${activityColor(c)}">
+          ${ring({ pct: p.pct, color: activityColor(c), size: 40, stroke: 4, inner: svg(KIND_ICON[c.kind] || I.star), label: c.title })}
           <div class="grow">
             <div class="t">${esc(c.title)}</div>
             <div class="m">${p.done} of ${p.target}${p.done > previous.done ? ` · up from ${previous.done}` : p.done < previous.done ? ` · down from ${previous.done}` : ''}</div>

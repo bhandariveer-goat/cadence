@@ -32,7 +32,7 @@
   .tabbar::-webkit-scrollbar { display: none; }
   .tab { flex: none; flex-direction: row; gap: var(--s2); min-height: var(--hit); padding: 0 var(--s3); color: var(--text-2); font-size: var(--t-sm); }
   .tab svg { width: 16px; height: 16px; }
-  .tab[aria-current="page"]::before { top: auto; bottom: -1px; left: var(--s3); right: var(--s3); }
+  .tab[aria-current="page"]::before { content: ""; position: absolute; top: auto; bottom: -1px; left: var(--s3); right: var(--s3); height: 2px; border-radius: 2px 2px 0 0; background: var(--accent); }
   .tab .dot-badge { position: static; box-shadow: none; }
 
   main { --pad-top: var(--s6); grid-column: 1; grid-row: 2; padding: var(--pad-top) var(--gutter) var(--s16); }
@@ -56,6 +56,8 @@
   .grid2 > * { margin-bottom: 0; }
   .toast { bottom: var(--s6); }
   .now { padding: var(--s6); }
+  .today-hero h1 { font-size: 2.566rem; }
+  .ds-bar { height: 52px; }
 }
 
 /* A mouse can hit a smaller control than a finger. The visible size drops;

@@ -202,7 +202,7 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 /* What it is on the left; the thing itself, running, on the right. */
 .hero { padding: var(--s12) 0 var(--s16); }
 .hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s12); align-items: center; }
-.hero h1 { max-width: 22ch; font-size: var(--t-h1); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; }
+.hero h1 { max-width: 22ch; font-size: var(--t-h1); font-weight: 700; line-height: 1.08; letter-spacing: -.025em; }
 .hero .sub { max-width: 46ch; margin-top: var(--s4); color: var(--text-2); font-size: var(--t-lead); line-height: 1.5; }
 .cta { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s6); }
 .live { width: 100%; max-width: 420px; margin: 0 auto; }

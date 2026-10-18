@@ -52,7 +52,7 @@ import stamp_pages  # noqa: E402  (the list of pages, and what should be written
 PAGES = [name for name, *_ in stamp_pages.PAGES]
 # The pages that are read rather than used: plain HTML, complete without a script.
 PUBLIC_PAGES = ['index.html', 'privacy.html', 'terms.html', 'contact.html', 'thanks.html', '404.html']
-STYLES = ['site.css', 'src/panel/panel.css', 'src/panel/web.css', 'src/content/content.css']
+STYLES = ['site.css', 'src/panel/panel.css', 'src/panel/web.css', 'src/panel/tour.css', 'src/content/content.css']
 results = []
 
 

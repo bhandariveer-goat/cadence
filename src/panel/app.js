@@ -24,6 +24,7 @@ import * as onboarding from './views/onboarding.js';
 import * as agent from './views/agent.js';
 import * as memory from './views/memory.js';
 import { openPalette, installShortcuts, shortcutsSheet } from './views/palette.js';
+import { maybeStartTour, startTour } from './tour.js';
 import { checkinPicker } from './views/commitments.js';
 
 mountShell();
@@ -59,6 +60,7 @@ const ACTIONS = {
   tab: (el) => { if (el.dataset.tab === activeTab() && app.stack.length === 0) { $('#view').scrollTop = 0; return; } go(el.dataset.tab); },
   back: () => back(),
   palette: () => openPalette(),
+  'tour-start': () => startTour({ force: true }),
   shortcuts: () => shortcutsSheet(),
   'theme-toggle': () => window.CadenceTheme?.set(window.CadenceTheme.current() === 'dark' ? 'light' : 'dark'),
   streak: () => {
@@ -121,6 +123,8 @@ function renderApp() {
     $('#view').innerHTML = VIEWS[app.view]();
     // An invite link opened before signing in is offered once the app is up.
     if (!DEMO && pendingInvite()) setTimeout(() => crew.offerPendingInvite(), 0);
+    // The short tour of the tabs, once, the first time the app is up after setup.
+    maybeStartTour();
     // The week grid covers the whole day; open it where the day actually starts.
     const grid = $('.wg-body');
     if (grid) {

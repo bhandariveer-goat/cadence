@@ -7,7 +7,7 @@ import {
 } from '../../lib/habits.js';
 import { fmtMinutes, dateKey, uid } from '../../lib/util.js';
 import {
-  sheet, toast, svg, I, esc, KIND_ICON, timeSelect, WEEK_ORDER, DOW_TWO, DOW_SHORT, daysLabel, toMin, ago, daysUntil, plural
+  sheet, toast, svg, I, esc, KIND_ICON, timeSelect, WEEK_ORDER, DOW_TWO, DOW_SHORT, daysLabel, toMin, ago, daysUntil, plural, activityColor
 } from '../ui.js';
 import { weekDots, scheduleLabel } from './parts.js';
 
@@ -30,7 +30,7 @@ export async function checkinFlow(commitmentId, { sessionId = null, day = null }
   const p = weekProgress(c, app.S.checkins, date);
 
   const res = await sheet(`
-    <div class="sheet-hero k-activity">
+    <div class="sheet-hero k-activity" style="--c:${activityColor(c)}">
       <span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
       <div class="grow"><h2 class="m0">Check in: ${esc(c.title)}</h2>
         <div class="text-2 small">${p.done} of ${p.target} this week${day && day !== dateKey(new Date()) ? ` · ${esc(day)}` : ''}</div></div>
@@ -269,7 +269,7 @@ export async function commitmentDetail(id) {
   const eventDays = c.event?.date ? daysUntil(c.event.date) : null;
 
   const res = await sheet(`
-    <div class="sheet-hero k-activity">
+    <div class="sheet-hero k-activity" style="--c:${activityColor(c)}">
       <span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
       <div class="grow"><h2 class="m0">${esc(c.title)}</h2><div class="muted small">${esc(scheduleLabel(c, daysLabel))}</div></div>
     </div>
@@ -318,7 +318,7 @@ export async function checkinPicker() {
   const res = await sheet(`<h2>Check in</h2><p class="lead">What did you just do?</p>
     <div class="choices stacked">${list.map((c) => {
       const p = weekProgress(c, app.S.checkins);
-      return `<button class="choice row k-activity" name="id" value="${c.id}">
+      return `<button class="choice row k-activity" style="--c:${activityColor(c)}" name="id" value="${c.id}">
         <span class="kind-ic sm">${svg(KIND_ICON[c.kind] || I.star, 16)}</span>
         <span class="grow">${esc(c.title)}<small>${p.label} this week</small></span></button>`;
     }).join('')}</div>

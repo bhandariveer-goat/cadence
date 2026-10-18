@@ -5,10 +5,10 @@ import {
   app, currentSession, runningSession, nextFutureSession, commitmentById, plannable, loadCrew, persist, go, push, insideCanvas, DEMO
 } from '../core.js';
 import { cloudConfigured } from '../../config.js';
-import { weekProgress, pendingCheckins, showUpStreak, sessionMinutes, weekStart, weeklyReview } from '../../lib/habits.js';
+import { weekProgress, pendingCheckins, showUpStreak, sessionMinutes, weekStart, weeklyReview, activeDates } from '../../lib/habits.js';
 import { dateKey, fmtTime, fmtMinutes, fmtDay, addDays, fmtClock } from '../../lib/util.js';
-import { ringsDeck, timeline, ART, commitmentIcon } from './parts.js';
-import { svg, I, esc, greeting, avatar, ago, colorFor, mmss, plural, KIND_ICON, dueLabel, isWide } from '../ui.js';
+import { ringsDeck, timeline, ART, commitmentIcon, dayStrip } from './parts.js';
+import { svg, I, esc, greeting, avatar, ago, colorFor, mmss, plural, KIND_ICON, dueLabel, isWide, activityColor } from '../ui.js';
 import { dayWord } from '../../lib/agentops.js';
 import { composeGuide } from './guide.js';
 import { stepsForSession, describeSteps } from '../../lib/guide.js';
@@ -24,18 +24,21 @@ export function viewToday() {
   const nudge = (app.crew.nudges || []).find((n) => !n.seen);
   const unplaced = S.plan?.unplaced || [];
 
+  const date = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   return `
-    <section class="hello">
+    <section class="today-hero">
+      <p class="hero-date">${esc(date)}</p>
       <h1>${greeting(S.profile.name)}</h1>
-      <p>${summaryLine()}</p>
+      <p class="hero-sum">${summaryLine()}</p>
+      ${dayStrip(k)}
     </section>
 
     ${nudge ? nudgeBanner(nudge) : ''}
     ${nextStepCard()}
-    ${ringsDeck()}
-    ${pending.length ? pendingCard(pending[0]) : ''}
     ${cur ? nowCard(cur) : restCard()}
+    ${pending.length ? pendingCard(pending[0]) : ''}
     ${tiredLine()}
+    ${ringsDeck()}
 
     <div class="section">
       <div class="section-head"><h2>Today</h2><button class="link" data-act="go" data-tab="calendar">Open the week</button></div>
@@ -104,7 +107,7 @@ function nudgeBanner(n) {
 }
 
 function pendingCard(c) {
-  return `<div class="card k-activity">
+  return `<div class="card k-activity" style="--c:${activityColor(c)}">
     <div class="row">
       <span class="kind-ic">${commitmentIcon(c)}</span>
       <div class="grow"><div class="card-title">How was ${esc(c.title)}?</div>
@@ -142,7 +145,7 @@ function nowCard(s) {
           <span class="mat-ic">${svg(I.file, 12)}</span><span>${esc(m.title)}</span></button>`).join('')}</div>` : ''}`;
   }
 
-  return `<div class="now">
+  return `<div class="now" style="--c:${c ? activityColor(c) : 'var(--k-work)'}">
     <div class="now-kicker">${kicker}</div>
     <div class="now-title">${esc(s.title)}</div>
     ${detail}
@@ -284,13 +287,26 @@ export function side() {
   const k = dateKey(new Date());
   const upcoming = (S.plan?.days || []).filter((d) => d.date > k && d.sessions.some((s) => !s.done)).slice(0, 3);
 
+  // This week, Monday to Sunday: which days counted toward the streak.
+  const active = activeDates(S);
+  const monday = weekStart();
+  const week = [...Array(7)].map((_, i) => {
+    const d = addDays(monday, i);
+    const key = dateKey(d);
+    return `<span class="wd${active.has(key) ? ' on' : ''}${key === k ? ' today' : ''}"><i></i><small>${esc(d.toLocaleDateString([], { weekday: 'narrow' }))}</small></span>`;
+  }).join('');
+  const shown = [...Array(7)].filter((_, i) => active.has(dateKey(addDays(monday, i)))).length;
+
   return `
-    <div class="card row">
-      <span class="kind-ic streak-ic">${svg(I.flame)}</span>
-      <div class="grow">
-        <div class="card-title num">${streak.days}-day streak</div>
-        <div class="card-sub mt0">${streak.todayDone ? 'Today is counted.' : 'Check in once today to keep it.'}${streak.best > streak.days ? ` Best: ${streak.best}.` : ''}${streak.freezes ? ` ${plural(streak.freezes, 'freeze')} ready.` : ''}</div>
+    <div class="card streak-card">
+      <div class="row">
+        <span class="kind-ic streak-ic">${svg(I.flame)}</span>
+        <div class="grow">
+          <div class="card-title num">${streak.days}-day streak</div>
+          <div class="card-sub mt0">${streak.todayDone ? 'Today is counted.' : 'Check in once today to keep it.'}${streak.best > streak.days ? ` Best: ${streak.best}.` : ''}${streak.freezes ? ` ${plural(streak.freezes, 'freeze')} ready.` : ''}</div>
+        </div>
       </div>
+      <div class="week-row" role="img" aria-label="Showed up ${shown} of 7 days this week">${week}</div>
     </div>
 
     ${reviewCard()}

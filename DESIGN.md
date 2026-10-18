@@ -18,10 +18,22 @@ says what they are for, so a change can be checked against them.
 | `--on-accent` | `#1c1b19` | Text on an orange fill (5.8:1; white would be 3:1) |
 | `--green`, `--amber`, `--red` | | Done, careful, wrong. Never decoration |
 | `--k-school`, `--k-event`, `--k-activity`, `--k-work` | grey, blue, green, orange | What kind of thing is on a calendar |
+| `--a-practice` ... `--a-custom` | one per kind of activity | Which activity: its ring, its icon, its block in the day strip |
 
-Colour says one of three things: what you can do next (orange), what state
-something is in (green, amber, red), or what kind of thing it is (the four
-`--k` colours). People and courses are not given colours of their own.
+Colour says one of four things: what you can do next (orange), what state
+something is in (green, amber, red), what kind of time it is (the four `--k`
+colours, on the calendar), or which activity it is (the `--a` colours, by
+kind of activity, chosen so none is the blue of an event, the orange of
+homework or the grey of school). A friend's avatar is tinted with their own
+colour. Courses are not given colours of their own.
+
+### The loud part
+
+Today opens with the one place the design raises its voice: the date, a big
+greeting, one sentence about the day, and the day strip, a bar from waking to
+bed with school, plans, activities and homework in their colours and a mark
+for now. The card for the next thing to do is tinted with that thing's colour.
+Everything else stays quiet so these read first.
 
 ### Light and dark
 
@@ -47,8 +59,10 @@ works offline. Three sizes for text: 12px for meta (timestamps, helper text,
 keys), 14px for the interface, 16px for anything read as a sentence and for
 every field. Above that the app steps by 1.125 and the public pages by 1.2.
 
-Three weights: 400, 500, 600. Hierarchy comes from size and colour before
-weight. Times and counts use tabular figures so columns of them line up.
+Three weights for text: 400, 500, 600. Display type (the greeting, page
+titles, the title of the next thing to do) is 700 with tight tracking
+(`--display-weight`, `--display-track`). Hierarchy comes from size and colour
+before weight. Times and counts use tabular figures so columns of them line up.
 
 ## Space, corners, depth
 

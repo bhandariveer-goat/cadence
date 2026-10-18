@@ -13,7 +13,7 @@
 // from the calendar now (lib/daymodel.js), so the questions are gone.
 
 import { app, persist, render, insideCanvas, syncCanvas, loadCrew, refreshSources, keepStorage } from '../core.js';
-import { svg, I, esc, KIND_ICON, daysLabel, range, plural } from '../ui.js';
+import { svg, I, esc, KIND_ICON, daysLabel, range, plural, activityColor } from '../ui.js';
 import { looksLikeFeedUrl } from '../../lib/sources/canvasFeed.js';
 import { CONFIG } from '../../config.js';
 import { ART, scheduleLabel } from './parts.js';
@@ -58,7 +58,7 @@ export function viewOnboarding() {
     return `<div class="ob">
       <h1>${greet}What do you do outside class?</h1>
       <p class="lead">Homework has due dates and teachers. These don't, which is why they are the first thing to slip. Pick what is part of your week and Cadence will plan around it and keep count.</p>
-      <div class="tiles">${TILES.map((t) => `<button class="tile k-activity" data-act="ob-pick" data-kind="${t.kind}" aria-pressed="${o.picks.includes(t.kind)}">
+      <div class="tiles">${TILES.map((t) => `<button class="tile k-activity" style="--c:${activityColor({ kind: t.kind })}" data-act="ob-pick" data-kind="${t.kind}" aria-pressed="${o.picks.includes(t.kind)}">
         <span class="kind-ic">${svg(KIND_ICON[t.kind])}</span><div><b>${t.label}</b><small>${t.sub}</small></div></button>`).join('')}</div>
       <label class="field mt4"><span>Or say it in your own words</span>
         <textarea data-ob-said rows="2" placeholder="Robotics Monday and Wednesday 3:45 to 5:30">${esc(o.said)}</textarea></label>
@@ -71,7 +71,7 @@ export function viewOnboarding() {
     <h1>${list.length ? 'Check the details' : 'One last thing'}</h1>
     <p class="lead">${list.length ? 'These are guesses. Tap one to set its days and times.' : 'When is school? Cadence keeps those hours clear and plans work after the last bell.'}</p>
     ${list.length ? `<div class="card flush">
-      ${list.map((c) => `<div class="item tap k-activity" data-act="edit-commit" data-id="${c.id}" role="button" tabindex="0">
+      ${list.map((c) => `<div class="item tap k-activity" style="--c:${activityColor(c)}" data-act="edit-commit" data-id="${c.id}" role="button" tabindex="0">
         <span class="kind-ic">${svg(KIND_ICON[c.kind] || I.star)}</span>
         <div class="grow"><div class="t">${esc(c.title)}</div><div class="m">${esc(scheduleLabel(c, daysLabel))}</div></div>
         ${svg(I.edit, 18)}</div>`).join('')}

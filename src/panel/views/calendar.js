@@ -66,7 +66,7 @@ export function viewCalendar() {
       }).join('')}</div>
       <div class="section-head"><h2>${esc(longDay(app.planDay))}</h2><span class="muted">${dayLoad(app.planDay)}</span></div>
       ${markers(app.planDay)}
-      ${timeline(app.planDay, { emptyText: 'Nothing on the calendar this day.' })}
+      ${timeline(app.planDay, { emptyText: 'Nothing on the calendar this day.', byKind: true })}
       <div class="wg-legend plain">${LEGEND.map(([id, label]) => `<span><i class="k-${id}"></i>${label}</span>`).join('')}</div>`}
 
     <p class="cal-foot">

@@ -5,7 +5,7 @@
 import { app, back, loadCrew, push, persist, render, pendingInvite, clearPendingInvite, inviteLink, DEMO } from '../core.js';
 import { newCommitment } from '../../lib/habits.js';
 import { fmtMinutes } from '../../lib/util.js';
-import { svg, I, esc, avatar, ring, sheet, toast, ago, plural, daysUntil, KIND_ICON, copyText } from '../ui.js';
+import { svg, I, esc, avatar, ring, sheet, toast, ago, plural, daysUntil, KIND_ICON, copyText, activityColor } from '../ui.js';
 import { ART } from './parts.js';
 
 const FEEL_WORD = { great: 'Felt great', good: '', tough: 'Tough one' };
@@ -94,7 +94,7 @@ function clubCard(c) {
 export function feedCard(f) {
   const mine = f.kudos.includes('me');
   const others = f.kudos.filter((k) => k !== 'me').length;
-  return `<div class="feed-card k-activity">
+  return `<div class="feed-card k-activity" style="--c:${activityColor(f)}">
     <div class="feed-head">
       ${avatar(f.who, 38)}
       <div class="grow"><div class="t">${f.mine ? 'You' : esc(f.who.name)}</div><div class="m">${ago(f.at)}${f.club ? ` · ${esc(f.club)}` : ''}</div></div>

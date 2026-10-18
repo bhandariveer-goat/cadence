@@ -1,0 +1,59 @@
+/* The first-run tour (tour.js): a dim layer over the app, a ring around one
+   control, and a small card beside it. Drawn from the tokens in panel.css
+   only, so it follows light and dark with the rest of the app.
+
+   The layer itself catches clicks (they do nothing). The dimming is the
+   ring's own shadow, spread to cover the window, so the control inside the
+   ring stays at full strength without any cutout. Before the first stop is
+   measured the layer is a plain scrim instead (.is-plain). */
+
+.tour {
+  position: fixed; inset: 0; z-index: calc(var(--z-over) + 50);
+  animation: tour-in var(--m2) var(--ease-out);
+}
+.tour.is-plain { background: var(--scrim); }
+
+.tour-halo {
+  position: fixed; top: 0; left: 0; width: 0; height: 0;
+  border-radius: var(--r-lg);
+  outline: 2px solid var(--ring);
+  box-shadow: 0 0 0 9999px var(--scrim);
+  pointer-events: none;
+}
+.tour.is-plain .tour-halo { display: none; }
+
+.tour-card {
+  position: fixed; top: 0; left: 0;
+  width: min(320px, calc(100vw - 2 * var(--s4)));
+  padding: var(--s4);
+  border: 1px solid var(--line-strong); border-radius: var(--r-xl);
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow-3);
+}
+/* The card takes focus only when it is clicked between its buttons. */
+.tour-card:focus { outline: none; }
+.tour.is-plain .tour-card { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+.tour-title { color: var(--text); font-size: var(--t-h4); font-weight: 600; line-height: 1.3; }
+.tour-text { margin-top: var(--s1); color: var(--text-2); font-size: var(--t-sm); line-height: 1.5; }
+
+.tour-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-top: var(--s4); }
+.tour-count { margin-right: auto; color: var(--muted); font-size: var(--t-meta); font-variant-numeric: tabular-nums; }
+
+/* Moving from one stop to the next. The first position is drawn without it. */
+.tour.is-live .tour-halo {
+  transition: transform var(--m3) var(--ease-out), opacity var(--m3) var(--ease-out);
+}
+.tour.is-live .tour-card {
+  transition: transform var(--m3) var(--ease-out), opacity var(--m3) var(--ease-out);
+}
+
+@keyframes tour-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour, .tour-halo, .tour-card,
+  .tour.is-live .tour-halo, .tour.is-live .tour-card { animation: none; transition: none; }
+}
+
+@media print {
+  .tour { display: none; }
+}

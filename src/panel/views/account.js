@@ -70,6 +70,7 @@ export function viewAccount() {
       ${row('sleep-sheet', I.clock, 'Sleep', `Up around ${esc(clockOf(S.sleep.wake))}, in bed around ${esc(clockOf(S.sleep.bed))}`)}
       ${row('style-sheet', I.target, 'How you work', learned ? `Learned: ${learned} minutes on, then a break` : `${esc(style.label)}: ${esc(style.sub)}`)}
       ${row('open-memory', I.you, 'What Cadence knows about you', memorySummary(S))}
+      ${row('tour-start', I.flag, 'Show me around', 'A quick look at each tab, in six short steps')}
     </div>
     <p class="hint">Cadence plans work in the time these leave, day by day. For a one-off change, tell the assistant: “no school Friday” or “I’m tired, an hour tonight”.</p>`}
 

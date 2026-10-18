@@ -96,12 +96,22 @@ export function ring({ pct = 0, color = 'var(--k-activity)', size = 64, stroke =
   </span>`;
 }
 
-/** Initials in a circle. People are told apart by name, not by a colour. */
+/**
+ * Initials in a circle, tinted with the person's own colour when they have
+ * one, so a crew of five is not five identical grey dots. The colour is only
+ * ever a #rrggbb value; anything else falls back to grey.
+ */
 export function avatar(person = {}, size = 36) {
   const initials = String(person?.name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
   const type = size < 34 ? 12 : size < 50 ? 14 : 16;
-  return `<span class="avatar" style="width:${size}px;height:${size}px;font-size:${type}px">${esc(initials)}</span>`;
+  const tint = /^#[0-9a-f]{6}$/i.test(String(person?.color || '')) ? `;--pc:${person.color}` : '';
+  return `<span class="avatar${tint ? ' tinted' : ''}" style="width:${size}px;height:${size}px;font-size:${type}px${tint}">${esc(initials)}</span>`;
 }
+
+const ACTIVITY_KINDS = new Set(['practice', 'sport', 'club', 'service', 'work', 'study', 'project', 'wellness']);
+
+/** The colour of one activity, from what kind of activity it is (the --a tokens). */
+export const activityColor = (c) => `var(--a-${ACTIVITY_KINDS.has(c?.kind) ? c.kind : 'custom'})`;
 
 /**
  * Colour says what kind of thing something is, and there are four kinds (see

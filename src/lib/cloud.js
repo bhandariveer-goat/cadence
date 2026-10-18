@@ -296,6 +296,8 @@ export function adopt(local, remote) {
   next.cloud = local.cloud;
   next.sources = structuredClone(local.sources || DEFAULT_STATE.sources);
   next.settings = { ...remote.settings, apiKey: local.settings?.apiKey || '', useAI: !!local.settings?.useAI && !!local.settings?.apiKey };
+  // A tour already seen on this device is not shown again because the account's copy was older.
+  if (local.tourSeen === true) next.tourSeen = true;
   return next;
 }
 

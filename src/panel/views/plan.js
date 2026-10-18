@@ -14,7 +14,7 @@ import { freeSlots } from '../../lib/calendar.js';
 import { allBusy } from '../../lib/replanner.js';
 import { isStale } from '../../lib/priority.js';
 import { parseAssignmentText } from '../../lib/parse.js';
-import { fmtMinutes, fmtTime, fmtDay, dateKey, addDays, atTime, uid, MIN, DAY, clamp } from '../../lib/util.js';
+import { fmtMinutes, fmtTime, fmtDay, dateKey, addDays, atTime, uid, MIN, DAY, clamp, startOfDay } from '../../lib/util.js';
 import {
   svg, I, esc, sheet, toast, flash, colorFor, dueLabel, longDay, timeSelect, plural, toLocalInput
 } from '../ui.js';
@@ -40,11 +40,15 @@ function schoolList() {
   const all = rankedTasks();
   const open = all.filter((t) => t.status !== 'done' && !app.S.dismissed?.[t.id] && !isStale(t));
   const weekOut = +addDays(new Date(), 7);
+  // "Start today" and "Catch up" stay in priority order. The dated groups read
+  // down the date column, so they go by due date, with "Doing this first" on
+  // top and priority breaking ties.
+  const byDue = (list) => list.slice().sort((a, b) => (!!b.pinned - !!a.pinned) || (+new Date(a.due) - +new Date(b.due)));
   const groups = [
     ['Start today', open.filter((t) => t.due && t.priority?.band === 'now')],
-    ['This week', open.filter((t) => t.due && (t.priority?.band === 'soon' || (t.priority?.band === 'later' && +new Date(t.due) < weekOut)))],
+    ['This week', byDue(open.filter((t) => t.due && (t.priority?.band === 'soon' || (t.priority?.band === 'later' && +new Date(t.due) < weekOut))))],
     ['Catch up', open.filter((t) => t.priority?.band === 'catchup')],
-    ['Later on', open.filter((t) => t.due && t.priority?.band === 'later' && +new Date(t.due) >= weekOut)],
+    ['Later on', byDue(open.filter((t) => t.due && t.priority?.band === 'later' && +new Date(t.due) >= weekOut))],
     ['Whenever', open.filter((t) => !t.due)]
   ];
   const done = all.filter((t) => t.status === 'done' && t.completedAt && +new Date(t.completedAt) > Date.now() - 7 * DAY);
@@ -73,15 +77,29 @@ function taskRow(t) {
   const open = app.openTask === t.id && !isDone;
   return `<div class="task ${open ? 'open' : ''} ${isDone ? 'done' : ''}">
     <div class="item tap" data-act="toggle-task" data-id="${t.id}" role="button" tabindex="0" aria-expanded="${open}">
-      <span class="chev">${svg(open ? I.down : I.right, 16)}</span>
+      ${dueTab(t)}
       <div class="grow">
         <div class="t">${esc(t.title)}${t.pinned ? ` <span class="first-tag">Doing this first</span>` : ''}</div>
         <div class="m">${esc(t.courseName || 'Personal')} · ${esc(dueLabel(t.due))}${isDone ? '' : ` · about ${fmtMinutes(t.estimateMin || 0)}`}</div>
       </div>
+      <span class="chev">${svg(open ? I.down : I.right, 16)}</span>
       <button class="check ${isDone ? 'on' : ''}" data-act="${isDone ? 'reopen' : 'complete'}" data-id="${t.id}" aria-label="${isDone ? 'Mark not done' : 'Mark done'}">${svg(I.check)}</button>
     </div>
     ${open ? breakdown(t) : ''}
   </div>`;
+}
+
+/**
+ * The due date as a planner tab: the weekday and the date, amber when it is
+ * due today or tomorrow, red once it is late. The same date is in the words
+ * beside it, so the tab is hidden from screen readers.
+ */
+function dueTab(t) {
+  if (!t.due) return '<span class="due-tab none" aria-hidden="true"></span>';
+  const d = new Date(t.due);
+  const days = Math.round((+startOfDay(d) - +startOfDay(new Date())) / DAY);
+  const state = t.status === 'done' ? '' : +d < Date.now() ? ' late' : days <= 1 ? ' soon' : '';
+  return `<span class="due-tab${state}" aria-hidden="true"><small>${esc(d.toLocaleDateString([], { weekday: 'short' }))}</small><b>${d.getDate()}</b></span>`;
 }
 
 /** What it is, how long, and the steps, each with the block it lands in. */
