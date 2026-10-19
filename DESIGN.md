@@ -109,9 +109,13 @@ Loading has three forms and no others: the ring on a busy button, a line or
 two of placeholder that breathes slowly where text is about to arrive, and
 the three dots while the assistant is thinking.
 
-One thing moves by itself: the live app on the homepage plays a short tour
-of its own tabs (`src/panel/autoplay.js`), marking each tap with a soft
-circle. It only looks, never changes the demo week, does not play for anyone
+Changing tabs is the one longer move, about a third of a second: the mark
+under the current tab slides to the new one and the page comes in from that
+side (`showTabChange` in `src/panel/app.js`).
+
+One thing moves by itself: the live app on the homepage steps through its
+own tabs every few seconds (`src/panel/autoplay.js`), with that same
+change. It only looks, never changes the demo week, does not play for anyone
 who asked for less motion, and stops for good at the visitor's first click,
 tap, scroll or key press.
 

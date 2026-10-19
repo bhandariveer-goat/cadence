@@ -252,7 +252,7 @@ main {
 /* Along the bottom on a phone, the current tab's icon sits on a tinted tab of
    its own, big enough to see at a glance. web.css draws an underline instead. */
 @media (max-width: 767.98px) {
-  .tab svg { box-sizing: content-box; padding: 4px 14px; border-radius: var(--r-lg); transition: background-color var(--m2) ease; }
+  .tab svg { box-sizing: content-box; padding: 4px 14px; border-radius: var(--r-lg); }
   .tab[aria-current="page"] svg { background: var(--accent-soft); }
 }
 .tab .dot-badge { position: absolute; top: 12px; left: calc(50% + 6px); width: 8px; height: 8px; border-radius: 50%; background: var(--accent-strong); box-shadow: 0 0 0 2px var(--surface); }
@@ -1119,13 +1119,12 @@ dialog.setup .lead { margin-top: var(--s2); color: var(--text-2); font-size: var
   .su-foot .btn { flex: 1; }
 }
 
-/* ------------------------------------------- the homepage demo's taps
-   autoplay.js marks each tap of its tour with a soft circle where a finger
-   would land, as a phone demo is filmed. Opacity and transform only. */
-.tap-hint {
-  position: fixed; z-index: 100; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%;
-  background: color-mix(in srgb, var(--text) 16%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 28%, transparent);
-  pointer-events: none; opacity: 0; transform: scale(.6);
-}
-.tap-hint.on { animation: tap-hint 700ms var(--ease-out) forwards; }
-@keyframes tap-hint { 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.15); } }
+/* ------------------------------------------- moving between tabs
+   app.js slides the current tab's mark from the old tab to the new one, as a
+   copy laid over the bar (.tab-glide), while the real mark waits underneath.
+   The page then comes in from the side of the tab that was picked. */
+.tabbar { position: relative; }
+.tab-glide { position: absolute; z-index: 0; pointer-events: none; background: var(--accent-soft); }
+.tabbar.gliding .tab[aria-current="page"] svg { background: none; }
+.tabbar.gliding .tab[aria-current="page"]::before { opacity: 0; }
+.tab svg, .tab span { position: relative; z-index: 1; }
