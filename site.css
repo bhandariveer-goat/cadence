@@ -3,7 +3,16 @@
    Same tokens as the app (src/panel/panel.css): one neutral family, one
    orange, hairlines before shadows, three weights. Type here steps by 1.2
    instead of 1.125, because a page that is read has room for bigger jumps.
-   Nothing moves on scroll and nothing is here for decoration. */
+   Nothing moves on scroll and nothing is here for decoration.
+
+   The homepage adds two surfaces of its own. The stage is evening blue, the
+   hour homework happens in: the first screen stands on it, with the app
+   lit up as a white screen and the orange button as the brightest thing
+   there, and so does the last invitation to try it. It is a place to stand,
+   never a control, and it is the only loud colour on the page. The band is
+   the app's own pale stone, taken by every other section so where one ends
+   is shown without a rule; anything framed sits on it on the page colour.
+   Privacy, terms and contact use neither. */
 
 :root {
   --bg: #ffffff;
@@ -20,6 +29,13 @@
   --accent-soft: #fdf1e9;
   --accent-ink: #9a3412;
   --on-accent: #1c1b19;
+  --stage: #1d3c9c;           /* evening blue */
+  --stage-hover: #2a4aa8;
+  --stage-edge: #142c78;
+  --on-stage: #ffffff;        /* 9.6:1 on the stage */
+  --on-stage-2: #d3ddfb;      /* 7.1:1 on the stage */
+  --stage-line: #9fb2ee;      /* an outline on the stage, 4.6:1 */
+  --band: #f7f6f4;
   --k-school: #8a857f;
   --k-event: #2563eb;
   --k-activity: #16a34a;
@@ -33,6 +49,9 @@
   --t-h3: 1.2rem;
   --t-h2: 1.728rem;
   --t-h1: 2.074rem;
+  --t-d2: 2.488rem;
+  --t-d1: 3.583rem;
+  --display-track: -.03em;
 
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px; --s12: 48px; --s16: 64px; --s24: 96px;
   --r-sm: 4px; --r: 6px; --r-lg: 8px; --r-xl: 12px;
@@ -47,8 +66,8 @@
 }
 
 /* Dark, when the toggle in the header (or the app) has chosen it. The same
-   values as the app's. src/panel/theme.js writes data-theme on <html>.
-   Screens only: paper is always light. */
+   values as the app's, and the stage after dark. src/panel/theme.js writes
+   data-theme on <html>. Screens only: paper is always light. */
 @media screen {
 :root[data-theme="dark"] {
   --bg: #141312;
@@ -65,6 +84,13 @@
   --accent-soft: #33211a;
   --accent-ink: #ffb48a;
   --on-accent: #1c1b19;
+  --stage: #1c2d6e;
+  --stage-hover: #26397d;
+  --stage-edge: #33478f;
+  --on-stage: #ffffff;
+  --on-stage-2: #c9d4f7;
+  --stage-line: #7f95dd;
+  --band: #1e1c1a;
   --k-school: #a8a29e;
   --k-event: #60a5fa;
   --k-activity: #4ade80;
@@ -199,18 +225,34 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 .btn.large { min-height: 48px; padding: 0 var(--s6); font-size: var(--t-body); }
 
 /* ---------------------------------------------------------------- hero */
-/* What it is on the left; the thing itself, running, on the right. */
-.hero { padding: var(--s12) 0 var(--s16); }
+/* What it is on the left; the thing itself, running, on the right. Both
+   stand on the stage, so the first screen is one field of evening blue with
+   the app lit up on it and the orange button as the brightest thing there. */
+.hero { padding: var(--s12) 0; background: var(--stage); color: var(--on-stage); }
 .hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s12); align-items: center; }
-.hero h1 { max-width: 22ch; font-size: var(--t-h1); font-weight: 700; line-height: 1.08; letter-spacing: -.025em; }
-.hero .sub { max-width: 46ch; margin-top: var(--s4); color: var(--text-2); font-size: var(--t-lead); line-height: 1.5; }
+.hero h1 { max-width: 16ch; font-size: var(--t-d2); font-weight: 700; line-height: 1.04; letter-spacing: var(--display-track); }
+.hero .sub { max-width: 42ch; margin-top: var(--s6); color: var(--on-stage-2); font-size: var(--t-lead); line-height: 1.5; }
+.hero .facts { margin-top: var(--s4); color: var(--on-stage-2); font-size: var(--t-sm); }
 .cta { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s6); }
-.live { width: 100%; max-width: 420px; margin: 0 auto; }
-.live iframe { display: block; width: 100%; height: min(640px, calc(100dvh - 176px)); min-height: 480px; border: 1px solid var(--line-strong); border-radius: var(--r-xl); background: var(--bg); }
-.live figcaption { margin-top: var(--s3); color: var(--muted); font-size: var(--t-sm); text-align: center; }
-/* Until the demo has loaded, its frame holds three quiet bars, not a blank. */
+.hero .cta { margin-top: var(--s8); }
+/* On the stage, the second button is an outline in the stage's own light,
+   and focus is drawn in white so it can be found against the colour. */
+.hero .btn.plain, .closing .btn.plain { border-color: var(--stage-line); background: transparent; color: var(--on-stage); }
+.hero .btn.plain:hover, .closing .btn.plain:hover { background: var(--stage-hover); }
+.hero :focus-visible, .closing :focus-visible { outline-color: var(--on-stage); }
+/* Under the words on a narrow screen, it keeps their left edge. */
+.live { width: 100%; max-width: 420px; margin: 0; }
+.live iframe { display: block; width: 100%; height: min(640px, calc(100dvh - 176px)); min-height: 480px; border: 1px solid var(--stage-edge); border-radius: var(--r-xl); background: var(--bg); }
+.live figcaption { margin-top: var(--s3); color: var(--on-stage-2); font-size: var(--t-sm); text-align: center; }
+/* Until the demo has loaded, its frame is already there, the same size and
+   colour as the app, holding three quiet bars: a white screen waiting on the
+   blue, not bars floating on it. */
 .live { position: relative; }
-.live-wait { position: absolute; inset: var(--s6) var(--s6) auto; display: grid; gap: var(--s3); pointer-events: none; }
+.live-wait {
+  position: absolute; inset: 0 0 auto; height: min(640px, calc(100dvh - 176px)); min-height: 480px;
+  display: grid; align-content: start; gap: var(--s3); padding: var(--s6);
+  border: 1px solid var(--stage-edge); border-radius: var(--r-xl); background: var(--bg); pointer-events: none;
+}
 .live-wait i { height: 12px; border-radius: var(--r-sm); background: var(--surface-3); animation: wait 1.2s ease-in-out infinite alternate; }
 .live-wait i:nth-child(1) { width: 55%; height: 20px; }
 .live-wait i:nth-child(2) { width: 85%; }
@@ -228,37 +270,46 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 @media (min-width: 960px) {
   .hero { padding: var(--s16) 0; }
   .hero .wrap { grid-template-columns: minmax(0, 1fr) 420px; gap: var(--s16); }
-  .hero h1 { font-size: 2.488rem; }
-  .live { margin: 0; }
+  /* Grows with the window until the full display size, so a small laptop
+     gets three lines beside the app instead of five. */
+  .hero h1 { font-size: clamp(var(--t-d2), 4.2vw, var(--t-d1)); }
 }
 
 /* ------------------------------------------------------------ sections */
-section { padding: var(--s16) 0; border-top: 1px solid var(--line); }
+/* White and the band take turns down the homepage; the change of colour is
+   where one section ends, so there is no rule between them. */
+section { padding: var(--s16) 0; }
+section.band { background: var(--band); }
 @media (min-width: 960px) { section { padding: var(--s24) 0; } }
-h2 { max-width: 24ch; font-size: var(--t-h2); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
+h2 { max-width: 24ch; font-size: var(--t-h2); font-weight: 700; line-height: 1.15; letter-spacing: -.02em; }
 h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.25; }
 .lead { max-width: 60ch; margin-top: var(--s4); color: var(--text-2); font-size: var(--t-lead); line-height: 1.5; }
-@media (min-width: 960px) { h2 { font-size: 2.074rem; } }
+@media (min-width: 960px) { h2 { font-size: var(--t-d2); } }
 
-/* Three jobs: the name of each tab, then what it is for. */
+/* The five tabs of the app above: the name of each, then what it is for. */
 .jobs { display: grid; gap: var(--s8); }
 .jobs dl { border-top: 1px solid var(--line-strong); }
 .jobs dl > div { display: grid; gap: var(--s1) var(--s6); padding: var(--s4) 0; border-bottom: 1px solid var(--line); }
 .jobs dt { font-size: var(--t-h3); font-weight: 600; }
 .jobs dd { max-width: 60ch; color: var(--text-2); }
+.jobs .lead { max-width: 32ch; }
 @media (min-width: 960px) {
   .jobs { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s16); align-items: start; }
   .jobs dl > div { grid-template-columns: 160px minmax(0, 1fr); padding: var(--s6) 0; }
 }
 
-/* Four rules the planner follows, in a ruled two-by-two. */
-.rules { display: grid; margin-top: var(--s12); border-top: 1px solid var(--line-strong); }
-.rules > div { padding: var(--s6) 0; border-bottom: 1px solid var(--line); }
+/* Four rules the planner follows: one frame on the band, ruled into a
+   two by two. */
+.rules { display: grid; margin-top: var(--s12); border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); }
+.rules > div { padding: var(--s6); }
+.rules > div + div { border-top: 1px solid var(--line); }
 .rules p { max-width: 48ch; margin-top: var(--s2); color: var(--text-2); }
 @media (min-width: 768px) {
   .rules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rules > div { padding: var(--s8) var(--s8) var(--s8) 0; }
-  .rules > div:nth-child(even) { padding: var(--s8) 0 var(--s8) var(--s8); border-left: 1px solid var(--line); }
+  .rules > div { padding: var(--s8); }
+  .rules > div + div { border-top: 0; }
+  .rules > div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .rules > div:nth-child(even) { border-left: 1px solid var(--line); }
 }
 
 /* The assistant: the claim beside an exchange copied from the demo. */
@@ -288,34 +339,56 @@ h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.25; }
    its total on one line with what was planned underneath, and nothing has to
    be scrolled sideways. */
 .week { margin: 0; border: 1px solid var(--line-strong); border-radius: var(--r-lg); }
-.week > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s1) var(--s4); padding: var(--s3) var(--s4); }
+.week > div { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; gap: var(--s1) var(--s4); padding: var(--s3) var(--s4); }
 .week > div + div { border-top: 1px solid var(--line); }
 .week dt { font-size: var(--t-sm); font-weight: 600; }
 .week dd { grid-column: 1 / -1; color: var(--text-2); font-size: var(--t-sm); }
-.week dd.time { grid-column: 2; grid-row: 1; color: var(--text); font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* Planned work is homework time, so each total carries the calendar's mark
+   for homework: the same small square as in the app. */
+.week dd.time { display: flex; align-items: baseline; gap: var(--s2); grid-column: 2; grid-row: 1; color: var(--text); font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.week dd.time::before { content: ""; width: 8px; height: 8px; flex: none; border-radius: 2px; background: var(--k-work); }
 @media (min-width: 768px) {
-  .week > div { grid-template-columns: 144px minmax(0, 1fr) auto; }
+  .week > div { grid-template-columns: 144px minmax(0, 1fr) 8rem; }
   .week dd { grid-column: 2; }
   .week dd.time { grid-column: 3; }
 }
-.points.results { max-width: 72ch; margin-top: var(--s8); }
+/* What came out of the week: four findings, two by two on a wide screen. */
+.points.results { max-width: none; gap: var(--s6); margin-top: var(--s12); }
+.points.results li { padding-top: var(--s4); border-top: 1px solid var(--line-strong); }
+@media (min-width: 768px) { .points.results { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s8) var(--s12); } }
 @media (min-width: 960px) { .example { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s16); align-items: start; } }
 
 /* Where it runs: two places, side by side. */
 .places { display: grid; gap: var(--s8); margin-top: var(--s12); }
-.places > div { padding-top: var(--s4); border-top: 2px solid var(--text); }
+.places > div { padding-top: var(--s4); border-top: 1px solid var(--line-strong); }
 .places p { max-width: 52ch; margin-top: var(--s2); color: var(--text-2); }
 .also { max-width: 70ch; margin-top: var(--s8); color: var(--text-2); }
 @media (min-width: 768px) { .places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s12); } }
 
 /* What goes where: a table, because it is one. */
-.where { margin-top: var(--s8); overflow-x: auto; border: 1px solid var(--line-strong); border-radius: var(--r-lg); }
+.where { margin-top: var(--s8); overflow-x: auto; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); }
 .where table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: var(--t-sm); }
 .where th, .where td { padding: var(--s3) var(--s4); text-align: left; vertical-align: top; }
 .where thead th { border-bottom: 1px solid var(--line-strong); background: var(--surface-2); color: var(--text-2); font-weight: 500; }
 .where tbody th { width: 28%; font-weight: 500; }
 .where tbody td { color: var(--text-2); }
 .where tbody tr + tr > * { border-top: 1px solid var(--line); }
+/* On a phone the third column would start off the screen, and "No one" is
+   the answer people came for. So each row's name goes across the top and its
+   two answers sit side by side under the two headings; nothing scrolls
+   sideways. "What" is still read out, just not drawn over a column of its own. */
+@media (max-width: 639.98px) {
+  .where { position: relative; }
+  .where table { min-width: 0; }
+  .where tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .where thead tr { border-bottom: 1px solid var(--line-strong); background: var(--surface-2); }
+  .where thead th { border-bottom: 0; }
+  .where thead th:first-child { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .where tbody th { grid-column: 1 / -1; width: auto; padding-bottom: var(--s1); color: var(--text); font-weight: 600; }
+  .where tbody td { padding-top: 0; }
+  .where tbody tr + tr > * { border-top: 0; }
+  .where tbody tr + tr { border-top: 1px solid var(--line); }
+}
 .after-table { margin-top: var(--s6); }
 
 /* Questions: one column, each answer behind its question. */
@@ -331,8 +404,10 @@ h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.25; }
 @media (min-width: 960px) { .faq { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s16); align-items: start; } }
 .faq-list .ask { padding-top: var(--s4); color: var(--text-2); }
 
+/* The last invitation stands on the same stage as the first screen. */
+.closing { background: var(--stage); color: var(--on-stage); }
 .closing h2 { max-width: none; }
-.closing p { margin-top: var(--s2); color: var(--text-2); }
+.closing p { margin-top: var(--s3); color: var(--on-stage-2); font-size: var(--t-lead); }
 
 footer { border-top: 1px solid var(--line); padding: var(--s8) 0 var(--s12); color: var(--muted); font-size: var(--t-sm); }
 footer .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s4) var(--s6); }
@@ -347,7 +422,9 @@ footer .updated-on { flex-basis: 100%; color: var(--muted); font-size: var(--t-m
 .doc { max-width: calc(68ch + var(--s12)); margin: 0 auto; padding: var(--s12) var(--s6) var(--s24); }
 .doc h1 { font-size: var(--t-h1); font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
 .doc .updated { margin-top: var(--s2); color: var(--muted); font-size: var(--t-sm); }
-.doc h2 { max-width: none; margin-top: var(--s12); font-size: 1.44rem; line-height: 1.25; scroll-margin-top: var(--s16); }
+/* Headings in a document stay a step under its title: the homepage's
+   display weight is for the homepage. */
+.doc h2 { max-width: none; margin-top: var(--s12); font-size: 1.44rem; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; scroll-margin-top: var(--s16); }
 .doc h3 { margin-top: var(--s6); font-size: var(--t-body); }
 .doc p, .doc li { color: var(--text-2); }
 .doc p { margin-top: var(--s3); }
@@ -452,6 +529,10 @@ mark { border-radius: var(--r-sm); background: color-mix(in srgb, var(--accent) 
   /* While the bar is up, the corner keeps only the way back to the top:
      Contact is in the menu and the footer, and a phone has no room for both. */
   .cta-bar:not([hidden]) ~ .floaters .float.wide { display: none; }
+  /* On the homepage it never shows on a phone: in the first screen it would
+     sit on top of the app. Contact is in the menu, under the questions and
+     in the footer. */
+  .nav-home ~ .floaters .float.wide { display: none; }
 }
 
 /* ---------------------------------------------------------------- print */
@@ -459,7 +540,7 @@ mark { border-radius: var(--r-sm); background: color-mix(in srgb, var(--accent) 
    paper: no header, no buttons, black on white, and every link's address
    written out after it. */
 @media print {
-  :root { --bg: #fff; --surface-2: #fff; --surface-3: #eee; --line: #bbb; --line-strong: #888; --text: #000; --text-2: #222; --muted: #444; --accent-strong: #000; --accent-ink: #000; }
+  :root { --bg: #fff; --surface-2: #fff; --surface-3: #eee; --line: #bbb; --line-strong: #888; --text: #000; --text-2: #222; --muted: #444; --accent-strong: #000; --accent-ink: #000; --stage: #fff; --on-stage: #000; --on-stage-2: #222; --band: #fff; }
   .nav, .skip, .floaters, .notice, .cta, .cta-bar, .crumbs, .live, .closing, dialog, .copy, .enquiry, footer .spacer, footer a:not(.brand) { display: none !important; }
   body { font-size: 11pt; }
   section { padding: 16pt 0; break-inside: avoid; }

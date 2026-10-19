@@ -10,6 +10,7 @@ import { dateKey, fmtTime, fmtMinutes, fmtDay, addDays, fmtClock } from '../../l
 import { ringsDeck, timeline, ART, commitmentIcon, dayStrip } from './parts.js';
 import { svg, I, esc, greeting, avatar, ago, colorFor, mmss, plural, KIND_ICON, dueLabel, isWide, activityColor } from '../ui.js';
 import { dayWord } from '../../lib/agentops.js';
+import { atRisk } from '../../lib/scheduler.js';
 import { composeGuide } from './guide.js';
 import { stepsForSession, describeSteps } from '../../lib/guide.js';
 
@@ -22,7 +23,8 @@ export function viewToday() {
   const cur = currentSession();
   const pending = pendingCheckins(S).filter((c) => !S.skipped?.[`${c.id}|${k}`]);
   const nudge = (app.crew.nudges || []).find((n) => !n.seen);
-  const unplaced = S.plan?.unplaced || [];
+  const risk = atRisk(S.plan);
+  const stretched = (S.plan?.stretchDays || []).filter((d) => d >= k).sort();
 
   const date = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   return `
@@ -45,7 +47,7 @@ export function viewToday() {
       ${timeline(k, { emptyText: 'Nothing on the calendar today.' })}
     </div>
 
-    ${unplaced.length ? roomCard(unplaced) : ''}
+    ${risk.length ? roomCard(risk) : stretched.length ? stretchCard(stretched) : ''}
     ${isWide() ? '' : `${reviewCard()}${crewPeek()}`}
   `;
 }
@@ -178,15 +180,32 @@ function restCard() {
   </div>`;
 }
 
-function roomCard(unplaced) {
-  const assigned = unplaced.filter((u) => !u.commitmentId);
-  const names = (assigned.length ? assigned : unplaced).slice(0, 2).map((u) => `${esc(u.title)}${u.due && !u.commitmentId ? ` (due ${esc(dayWord(dateKey(new Date(u.due))))})` : ''}`).join(' and ');
+/**
+ * Everything is in the plan; this says what that cost. Work planned after its
+ * due date first, then (rarely) work with no free time at all.
+ */
+function roomCard(risk) {
+  const assigned = risk.filter((u) => !u.commitmentId);
+  const late = assigned.filter((u) => u.late);
+  const names = (assigned.length ? assigned : risk).slice(0, 2).map((u) => `${esc(u.title)}${u.due && !u.commitmentId ? ` (due ${esc(dayWord(dateKey(new Date(u.due))))}${u.late ? `, done ${esc(dayWord(dateKey(new Date(u.finishes))))}` : ''})` : ''}`).join(' and ');
+  const title = late.length === assigned.length && assigned.length ? 'Planned, but after it is due' : assigned.length ? 'No free time left for this' : 'No free time left for practice';
+  const what = assigned.length ? 'Everything else is planned. Tell Cadence a night you can do more, or which one can wait.' : 'Homework took the time. Nothing with a due date is at risk.';
   return `<div class="card warm">
-    <div class="card-title">${assigned.length ? 'Something does not fit yet' : 'A session short this week'}</div>
-    <div class="card-sub">${names}${unplaced.length > 2 ? `, and ${unplaced.length - 2} more` : ''}. ${assigned.length ? 'Tell Cadence a night you can do more, or which one can wait.' : 'Homework took the time. Nothing with a due date is at risk.'}</div>
+    <div class="card-title">${title}</div>
+    <div class="card-sub">${names}${risk.length > 2 ? `, and ${risk.length - 2} more` : ''}. ${what}</div>
     <div class="row mt3 gap2">
       <button class="btn small soft" data-act="agent-open" data-seed="${assigned.length ? 'I can do more on ' : ''}">Ask Cadence to fit it in</button>
     </div>
+  </div>`;
+}
+
+/** Days that go past their usual load so that everything fits. */
+function stretchCard(days) {
+  const names = days.slice(0, 3).map((d) => esc(dayWord(d)));
+  return `<div class="card soft">
+    <div class="card-title">Heavier than usual ${names.length > 1 ? `on ${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0]}</div>
+    <div class="card-sub">Cadence went past the usual amount for ${days.length > 1 ? 'those days' : 'that day'} so that everything is planned before it is due. If that is too much, tell Cadence what can wait.</div>
+    <div class="row mt3 gap2"><button class="btn small soft" data-act="agent-open" data-seed="This can wait: ">Tell Cadence what can wait</button></div>
   </div>`;
 }
 

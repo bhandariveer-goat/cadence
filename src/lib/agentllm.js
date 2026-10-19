@@ -25,6 +25,7 @@ import { dateKey, addDays, startOfDay } from './util.js';
 import { KINDS } from './habits.js';
 import { workWindows, overrideFor } from './daymodel.js';
 import { addNote } from './memory.js';
+import { atRisk } from './scheduler.js';
 
 export class AssistantUnavailable extends Error {}
 
@@ -170,13 +171,14 @@ export function toOps(name, input, state, now) {
  * where the student said they would stop tonight. Returns null when there is
  * none; otherwise the latest time they would need to work until for it to fit
  * (tried in 15-minute steps up to 2am), or stay_up_until null when even that
- * is not enough. The planner itself always keeps a limit the student set;
+ * is not enough. The planner never works past a time the student set to
+ * stop (it books what is left after the due date instead, listed as late);
  * this is what lets the assistant tell them honestly what it would take.
  */
 export function stayUpOption(state, now = new Date()) {
   const today = dateKey(now);
   const endOfTomorrow = +addDays(startOfDay(now), 2);
-  const dueSoon = (st) => (st.plan?.unplaced || []).filter((u) => !u.commitmentId && u.due && +new Date(u.due) < endOfTomorrow);
+  const dueSoon = (st) => atRisk(st.plan).filter((u) => !u.commitmentId && u.due && +new Date(u.due) < endOfTomorrow);
   const short = dueSoon(state);
   if (!short.length) return null;
   const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + m; };
@@ -219,7 +221,7 @@ function outcome(diff, now) {
       blocks: diff.tonight.blocks.map((b) => `${clockOf(b.start)} ${b.title} (${dur(b.minutes)})`)
     },
     moved: diff.moved.filter((m) => m.to.length).map((m) => `${m.title} to ${m.to.map((k) => dayWord(k, now)).join(', ')}`),
-    does_not_fit: diff.unplaced.map((u) => `${u.title}: ${dur(u.minutes)} short${u.due ? `, due ${dayWord(dateKey(new Date(u.due)), now)}` : ''}${u.assigned ? '' : ' (an activity session, not homework)'}`)
+    does_not_fit: diff.unplaced.map((u) => `${u.title}: ${dur(u.minutes)} ${u.late ? 'planned after it is due' : 'short'}${u.due ? `, due ${dayWord(dateKey(new Date(u.due)), now)}` : ''}${u.assigned ? '' : ' (an activity session, not homework)'}`)
   };
 }
 

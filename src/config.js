@@ -41,8 +41,8 @@ export const CONFIG = {
     // Where the site lives, with no https:// and no slash. The Netlify
     // address for now; replace it with the custom domain when there is one.
     domain: 'cadenceaiplanning.netlify.app',
-    operator: '',
-    contactEmail: '',
+    operator: 'Veer Bhandari',
+    contactEmail: 'cadenceaiplanner@gmail.com',
     // The promise on the contact page: "We reply within ___." Written so it
     // finishes that sentence. Leave it empty to make no promise.
     replyWithin: 'a week',

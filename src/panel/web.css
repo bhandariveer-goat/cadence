@@ -161,3 +161,36 @@
   a { color: inherit; }
   @page { margin: 14mm; }
 }
+
+/* ---------------------------------- the assistant: chats and outline mode
+   The chat list takes the conversation's place in the panel: rows inside one
+   frame, the open chat marked, each with its own delete. Chats are kept in
+   this browser only (lib/chats.js). An outline (lib/outline.js) is one frame
+   with plain headings; the "/secret" reveal is a dashed frame, quiet on
+   purpose: it is found, not advertised. */
+.ag-chats { gap: var(--s3); }
+.ag-chats-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.ag-chats-head b { font-size: var(--t-sm); font-weight: 600; }
+.ag-chats-head .btn { gap: var(--s2); }
+.ag-chat-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.ag-chat-list li { display: flex; align-items: center; gap: var(--s1); padding-right: var(--s1); }
+.ag-chat-list li + li { border-top: 1px solid var(--line); }
+.ag-chat-list li.on { background: var(--surface-2); }
+.ag-chat { flex: 1; min-width: 0; min-height: 52px; padding: var(--s2) var(--s3); border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; }
+.ag-chat:hover { background: var(--surface-2); }
+.ag-chat b { display: block; overflow: hidden; font-size: var(--t-sm); font-weight: 500; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.ag-chat small { display: block; color: var(--muted); font-size: var(--t-meta); line-height: 1.4; }
+.ag-chat-list li.on .ag-chat b { font-weight: 600; }
+.ag-chats-empty { color: var(--text-2); font-size: var(--t-sm); }
+.ag-chats-note { margin-top: 0; }
+
+.ag-secret { padding: var(--s3); border: 1.5px dashed color-mix(in srgb, var(--accent) 55%, var(--line-strong)); border-radius: var(--r-lg); background: var(--accent-soft); font-size: var(--t-sm); line-height: 1.5; }
+.ag-secret b { display: block; color: var(--accent-ink); font-weight: 600; }
+.ag-secret p { margin-top: var(--s1); color: var(--text); }
+
+.ag-outline { padding: var(--s3) var(--s4) var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); font-size: var(--t-sm); line-height: 1.5; }
+.ag-outline h4 { margin: var(--s4) 0 var(--s1); font-size: var(--t-sm); font-weight: 600; }
+.ag-outline h4:first-child { margin-top: var(--s1); }
+.ag-outline p { color: var(--text-2); }
+.ag-outline ol, .ag-outline ul { display: grid; gap: var(--s1); margin: 0; padding-left: calc(var(--s4) + var(--s1)); color: var(--text-2); }
+.ag-outline .ag-outline-foot { margin-top: var(--s4); padding-top: var(--s3); border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t-meta); }

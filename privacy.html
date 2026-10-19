@@ -64,14 +64,14 @@
     <li><span aria-current="page">Privacy policy</span></li>
   </ol></nav>
   <h1>Privacy policy</h1>
-  <p class="updated">Last updated <time datetime="2026-10-16">October 16, 2026</time></p>
+  <p class="updated">Last updated <time datetime="2026-10-19">October 19, 2026</time></p>
 
   <div class="summary">
     <p><b>The short version.</b> Cadence is a planner. Your plan is stored in your browser. If you sign in with an email, a copy is also saved to your account so your other devices can load it. Cadence does not show ads, <span data-needs="no-visits">does not use analytics or tracking,</span><!--off <span data-needs="visits">does not track you or build a profile of you,</span> off--> and does not sell or rent anything about you. A few features send data to other companies to work, and each one is listed below with exactly what is sent.</p>
   </div>
 
   <h2 id="who-runs-cadence">Who runs Cadence</h2>
-  <p>Cadence is run by <span data-site="operator"><mark class="pending">Operator name to be added before launch</mark></span>. For questions about this policy, or requests about your data, use the <a href="/contact.html">contact page</a><!--off <span data-needs="contact"> or write to <span data-site="contact"><mark class="pending">Contact email to be added before launch</mark></span></span> off-->.</p>
+  <p>Cadence is run by <span data-site="operator">Veer Bhandari</span>. For questions about this policy, or requests about your data, use the <a href="/contact.html">contact page</a><span data-needs="contact"> or write to <span data-site="contact"><a href="mailto:cadenceaiplanner@gmail.com">cadenceaiplanner@gmail.com</a></span></span>.</p>
 
   <h2 id="what-cadence-stores">What Cadence stores</h2>
   <h3 id="in-your-browser">In your browser</h3>
@@ -85,7 +85,8 @@
     <li>Your settings, including whether you chose the light or dark theme and whether you have dismissed the notice about storage.</li>
     <li>When you confirmed you are 13 or older and agreed to the terms and this policy.</li>
     <li>If you open an invite link to a club or a partner, its code, until you use it or for up to two weeks.</li>
-    <li>If you add them: an Anthropic API key, a Google Calendar access token, your Canvas calendar feed link, and a Google Calendar link. These are never saved to your account, and leave your device only to reach the service they belong to, with two exceptions. On the website, your Canvas feed link goes to Cadence's server, which fetches your calendar from Canvas, hands it straight back to your browser, and keeps neither. And a Google Calendar link always goes to Cadence's server, which does the same with Google. (A browser does not let a website read another site's calendar itself. The Chrome extension can read Canvas, so for Canvas it does not use Cadence's server.)</li>
+    <li>Your chats with the assistant: what you said and what it answered, up to 30 chats, and for the chat you have open, what the AI model needs to carry it on (each message to it includes the summary of your week described under "The assistant, and AI"). Chats are kept only in this browser, never in your account, until you delete them, sign out, or delete your data.</li>
+    <li>If you add them: an Anthropic API key, a Google Calendar access token, your Canvas calendar feed link, and a Google Calendar, Outlook or iCloud calendar link. These are never saved to your account, and leave your device only to reach the service they belong to, with two exceptions. On the website, your Canvas feed link goes to Cadence's server, which fetches your calendar from Canvas, hands it straight back to your browser, and keeps neither. And a Google Calendar, Outlook or iCloud link always goes to Cadence's server, which does the same with Google, Microsoft or Apple. (A browser does not let a website read another site's calendar itself. The Chrome extension can read Canvas, so for Canvas it does not use Cadence's server.) From a Google, Outlook or iCloud calendar, Cadence keeps only each event's title and time, on your device.</li>
   </ul>
   <p>If you use Cadence without an email, this is the only place your plan exists. Clearing your browser's site data, or choosing Delete my data in your account, erases it.</p>
 
@@ -93,7 +94,7 @@
   <p>Signing in with an email is optional. If you do, Cadence stores with its database provider, Supabase:</p>
   <ul>
     <li>Your email address and the name you chose.</li>
-    <li>A copy of your plan, as described above. The copy leaves out your Anthropic API key, your Google Calendar connection and its events, and your Canvas calendar feed link. Those stay on the device where you set them up.</li>
+    <li>A copy of your plan, as described above. The copy leaves out your Anthropic API key, your Google Calendar connection and its events, your calendar links, and your chats with the assistant. Those stay on the device where you set them up.</li>
     <li>If you use Crew: check-ins for the activities you chose to share, kudos, nudges, and which partners and clubs you are connected to.</li>
     <li>A count of how many assistant requests your account made today, used only to enforce a daily limit. It is stored against an account ID, not your name or email, and is removed the following day.</li>
   </ul>
@@ -106,7 +107,7 @@
 
   <h2 id="what-cadence-reads-from-other-services">What Cadence reads from other services</h2>
   <h3 id="canvas">Canvas</h3>
-  <p>The Chrome extension reads Canvas using the Canvas login you already have in that browser. It reads your name, your courses, and your assignments (title, due date, instructions, rubric, points, submission status, and the items in the assignment's module). This is read by your own browser and saved into your plan. Cadence does not receive your Canvas password, does not create an API token, and cannot see anything in Canvas that you cannot see yourself. If you paste a Canvas calendar feed link, your browser fetches that feed directly.</p>
+  <p>The Chrome extension reads Canvas using the Canvas login you already have in that browser. It reads your name, your courses, and your assignments (title, due date, instructions, rubric, points, submission status, and the items in the assignment's module). This is read by your own browser and saved into your plan. Cadence does not receive your Canvas password, does not create an API token, and cannot see anything in Canvas that you cannot see yourself. If you paste a Canvas calendar feed link, the Chrome extension fetches it itself; on the website, Cadence's server fetches it for you, hands it back and keeps nothing.</p>
 
   <h3 id="google-calendar">Google Calendar</h3>
   <p>Connecting Google Calendar is optional, and there are two ways. You can paste its secret iCal link, and Cadence's server fetches that calendar for you each time it updates, hands it back and keeps nothing; only each event's title and time are kept, on your device, and events marked free are left out. Or, in the Chrome extension, you can sign in with Google, and Cadence reads events from the calendars you pick so it can plan around them. Those events are kept on your device and are not copied to your account. Only if you separately turn it on, Cadence adds its own planned blocks to a calendar you choose, marks them as Cadence's, and never edits or deletes any event it did not create.</p>
@@ -116,12 +117,13 @@
   <p>On a copy of Cadence that offers it, every message you send the assistant goes to Gemini, an AI model made by Google, whether you use Cadence with an email or with only a name. If you add your own Anthropic key, it goes to Claude, an AI model made by Anthropic, instead. Each time you send a message, the following is sent to that company to produce the reply:</p>
   <ul>
     <li>The message you typed.</li>
-    <li>A summary of your week: the current date and time, your school hours and days off, your sleep times, any one-day changes you have made (such as a shorter evening), your open assignments (title, course, due date, time estimate), your activities with their schedules and how many times you have done each this week, your calendar events for the next seven days (title and time, or time only for events from Google Calendar), the work blocks already planned, and anything that does not fit.</li>
+    <li>A summary of your week: the current date and time, your school hours and days off, your sleep times, any one-day changes you have made (such as a shorter evening), your open assignments (title, course, due date, time estimate), your activities with their schedules and how many times you have done each this week, your calendar events for the next seven days (title and time, or time only for events from Google Calendar, Outlook or iCloud), the work blocks already planned, and anything that does not fit.</li>
     <li>What Cadence remembers about you: your saved notes, your planning preferences, and the patterns it has noticed (for example, that you usually start homework around 7:30pm). Not the raw record those patterns come from.</li>
-    <li>Earlier messages in the same conversation.</li>
+    <li>Earlier messages in the same chat.</li>
   </ul>
+  <p>If you type /secret, the assistant offers to outline an assignment: what it asks, the steps, the names of the parts you will hand in, what to look over first and questions to think about, and it is told never to give answers. Every line, and the whole outline, is kept short and lines that look like an answer are dropped, so it cannot write the work for you. For an outline, only that assignment is sent: its title, course, due date, time estimate and instructions. With no AI model, or with your own Anthropic key (outlines use Cadence's own assistant, not your key), the outline is made on your device from what Cadence already knows, with nothing sent.</p>
   <p>This goes through Cadence's server, which adds Cadence's key and passes it on to Google. Cadence uses Google's free Gemini API. Under Google's terms for it, Google uses what it receives to improve its products, and people at Google may read it. So do not put anything in a message to the assistant that you would not want a stranger at a company to read: no health details, no passwords, and no private information about other people. If you would rather not send anything to Google, do not use the assistant: everything else in Cadence works without it. Cadence's server does not store your messages or the replies.</p>
-  <p>If you use Cadence with only a name, your browser first gets a hidden account from Supabase, Cadence's database provider, so that the server can count how many messages it sends in a day. That account is a random ID and nothing else: no name, no email and none of your plan, and the database lets it do nothing but be counted. It is kept in your browser, and removed after 30 days without use.</p>
+  <p>If you use Cadence with only a name, your browser first gets a hidden account from Supabase, Cadence's database provider, so that the server can count how many messages it sends in a day. The same hidden account is what lets Cadence's server fetch a calendar link for you. That account is a random ID and nothing else: no name, no email and none of your plan, and the database lets it do nothing but be counted. It is kept in your browser, and removed after 30 days without use.</p>
   <p>If a reply from an AI model cannot be had, the assistant reads simple sentences on your own device instead, with nothing sent anywhere. With your own key, it goes straight from your browser to Anthropic under your Anthropic account.</p>
   <p>With your own key, Cadence also sends the instructions of an assignment to Anthropic when it writes that assignment's summary, steps and time estimate, and, in the teacher tools, the text of an assignment you dictate.</p>
   <p>How Google handles what it receives is described in the <a href="https://ai.google.dev/gemini-api/terms" rel="noopener">Gemini API terms</a> and <a href="https://policies.google.com/privacy" rel="noopener">Google's privacy policy</a>, and how Anthropic does in <a href="https://www.anthropic.com/legal/privacy" rel="noopener">Anthropic's privacy policy</a>.</p>
@@ -130,10 +132,12 @@
   <h2 id="who-else-handles-your-data">Who else handles your data</h2>
   <table>
     <tr><th>Company</th><th>What for</th><th>What it handles</th></tr>
-    <tr><td>Netlify</td><td>Hosts this website, its server functions (the assistant, and fetching your Canvas feed on the website), and the contact form</td><td>Ordinary web requests, including your IP address, as any web host does. Your Canvas feed link and calendar, passing through and not kept, if you add the feed on the website. A message you send from the contact page, with the IP address and browser it came from, which it checks for spam with Akismet</td></tr>
-    <tr><td>Supabase</td><td>Email sign-in and the account database</td><td>If you sign in with an email: what is listed under "In your account", and its log of sign-ins. If you use the assistant with only a name: a hidden account that is a random ID</td></tr>
+    <tr><td>Netlify</td><td>Hosts this website, its server functions (the assistant, and fetching your calendar links), and the contact form</td><td>Ordinary web requests, including your IP address, as any web host does. Your calendar links (Canvas on the website; Google, Outlook and iCloud everywhere) and the calendars they return, passing through and not kept, if you add them. A message you send from the contact page, with the IP address and browser it came from, which it checks for spam with Akismet</td></tr>
+    <tr><td>Supabase</td><td>Email sign-in and the account database</td><td>If you sign in with an email: what is listed under "In your account", and its log of sign-ins. If you use the assistant, or connect a calendar link, with only a name: a hidden account that is a random ID</td></tr>
     <tr><td>Anthropic</td><td>The assistant, if you add your own Anthropic key</td><td>What is listed under "The assistant, and AI"</td></tr>
     <tr><td>Google</td><td>The assistant (Gemini). Sign-in emails, which are sent from a Gmail account that belongs to Cadence. Google Calendar, through its link or by signing in, if you connect it. Speech to text in Chrome, if you use the microphone</td><td>What is listed under "The assistant, and AI". Your email address and the sign-in email sent to it, if you sign in with an email. Calendar requests you have allowed. Audio you speak into the microphone button</td></tr>
+    <tr><td>Microsoft</td><td>Outlook calendars, if you connect one by its published link</td><td>A request for that published calendar, made by Cadence's server, which receives the calendar and passes it to your browser</td></tr>
+    <tr><td>Apple</td><td>iCloud calendars, if you connect one by its public link</td><td>A request for that public calendar, made by Cadence's server, which receives the calendar and passes it to your browser</td></tr>
   </table>
   <p>Cadence does not share your data with anyone else, and does not use advertising or analytics services.</p>
 
@@ -146,19 +150,19 @@
   <h2 id="what-other-people-can-see">What other people can see</h2>
   <p>Nothing, unless you use Crew. Activities are shared unless you switch sharing off for one.</p>
   <ul>
-    <li><b>An accountability partner</b> you add sees your name and your check-ins for every activity you share: the activity, how long, how it went, and any note you wrote.</li>
-    <li><b>A club or class</b> you join sees your name, your check-ins for the activities you linked to that club (with the same details), and your progress toward its weekly goal. It does not see check-ins meant for another club, or for no club.</li>
+    <li>An accountability partner you add sees your name and your check-ins for every activity you share: the activity, how long, how it went, and any note you wrote.</li>
+    <li>A club or class you join sees your name, your check-ins for the activities you linked to that club (with the same details), and your progress toward its weekly goal. It does not see check-ins meant for another club, or for no club.</li>
   </ul>
   <p>Neither can see your assignments, your calendar, or activities you do not share.</p>
   <p>You can end a partnership or leave a club at any time from Crew, and from then on they no longer see your check-ins. A club's leader can also remove you from it.</p>
 
   <h2 id="deleting-your-data">Deleting your data</h2>
   <ul>
-    <li><b>Without an email account:</b> open your account in Cadence and choose Delete my data, or clear this site's data in your browser.</li>
-    <li><b>With an email account:</b> open your account in Cadence and choose Delete account. This erases your account, the saved plan, your check-ins, and your connections to partners and clubs. It cannot be undone. It does not erase entries already in Supabase's log of sign-ins.</li>
-    <li><b>A message you sent from the contact page</b> is not part of your plan, so neither of those removes it. Ask from the <a href="/contact.html">contact page</a> and it is deleted, from Netlify and from the inbox it was sent on to.</li>
+    <li>Without an email account, open your account in Cadence and choose Delete my data, or clear this site's data in your browser. Either also deletes your chats with the assistant. To delete one chat, open Your chats in the assistant.</li>
+    <li>With an email account, open your account in Cadence and choose Delete account. This erases your account, the saved plan, your check-ins, and your connections to partners and clubs, and removes your plan and your chats with the assistant from this browser. It cannot be undone. It does not erase entries already in Supabase's log of sign-ins.</li>
+    <li>A message you sent from the contact page is not part of your plan, so neither of those removes it. Ask from the <a href="/contact.html">contact page</a> and it is deleted, from Netlify and from the inbox it was sent on to.</li>
   </ul>
-  <p>To get a copy of your plan, open your account in Cadence and choose Download my data: it saves everything in your plan as a file, the same copy that is saved to an account. You can also ask for a copy of what is stored in your account, or ask for it to be deleted, from the <a href="/contact.html">contact page</a><!--off <span data-needs="contact"> or by writing to <span data-site="contact"><mark class="pending">Contact email to be added before launch</mark></span></span> off-->.</p>
+  <p>To get a copy of your plan, open your account in Cadence and choose Download my data: it saves your plan, the same copy that is saved to an account, and your chats with the assistant, as a file. You can also ask for a copy of what is stored in your account, or ask for it to be deleted, from the <a href="/contact.html">contact page</a><span data-needs="contact"> or by writing to <span data-site="contact"><a href="mailto:cadenceaiplanner@gmail.com">cadenceaiplanner@gmail.com</a></span></span>.</p>
 
   <h2 id="age">Age</h2>
   <p>Cadence is made for high-school students. It is not meant for children under 13, and children under 13 should not use it or sign in. If you are under 18, check with a parent or guardian before signing in with an email, and follow your school's rules about the tools you use for schoolwork.</p>
@@ -180,7 +184,7 @@
     <a href="/privacy.html">Privacy</a>
     <a href="/terms.html">Terms</a>
   </nav>
-  <span class="updated-on">Site updated <span data-site="updated"><time datetime="2026-10-17">October 17, 2026</time></span></span>
+  <span class="updated-on">Site updated <span data-site="updated"><time datetime="2026-10-19">October 19, 2026</time></span></span>
 </div></footer>
 <aside class="notice" data-notice aria-label="How Cadence stores things" hidden>
   <p data-needs="no-visits">Cadence uses no cookies and no tracking. Your plan is kept in this browser&rsquo;s storage.</p>

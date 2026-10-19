@@ -67,6 +67,33 @@ def _moment(stamp):
         return str(stamp)
 
 
+
+def mock_feed_kind(raw):
+    """Which calendar a link is, by the same rules as feedAddress() in
+    netlify/functions/canvas-feed.mjs, or None when it would be refused."""
+    from urllib.parse import urlparse
+    raw = raw.strip()
+    if raw.lower().startswith('webcal:'):
+        raw = 'https:' + raw[7:]
+    try:
+        u = urlparse(raw)
+    except ValueError:
+        return None
+    if u.scheme != 'https' or not u.hostname or u.username or u.password or u.port:
+        return None
+    host, path = u.hostname.lower(), u.path
+    if '.' not in host or host == 'localhost' or re.fullmatch(r'[\d.]+', host):
+        return None
+    if re.fullmatch(r'/feeds/calendars/[A-Za-z0-9_.-]+\.ics', path):
+        return 'Canvas'
+    if host == 'calendar.google.com' and re.fullmatch(r'/calendar/ical/[A-Za-z0-9%._@+-]+/(private-[a-z0-9]+|public)/basic\.ics', path):
+        return 'Google Calendar'
+    if host in ('outlook.office365.com', 'outlook.office.com', 'outlook.live.com') and re.fullmatch(r'/owa/calendar/[A-Za-z0-9%._@+-]+/[A-Za-z0-9%._+-]+(/cid-[A-Za-z0-9]+)?/(reach)?calendar\.ics', path):
+        return 'Outlook'
+    if re.fullmatch(r'p\d{1,3}-(caldav|calendars)\.icloud\.com', host) and re.fullmatch(r'/published/\d{1,2}/[A-Za-z0-9_-]{16,}', path):
+        return 'iCloud'
+    return None
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(ROOT), **kw)
@@ -307,12 +334,28 @@ class Handler(SimpleHTTPRequestHandler):
         if not auth.startswith('Bearer ') or not TOKENS.get(auth[7:]):
             return self._json(401, {'error': 'Open Cadence again to sync Canvas.'})
         url = str(body.get('url', ''))
-        if '/feeds/calendars/' not in url:
+        kind = mock_feed_kind(url)
+        if not kind:
             return self._json(400, {'error': "That isn't a calendar link Cadence can use."})
         if 'broken' in url:
-            return self._json(404, {'error': 'Canvas did not recognise that link. Copy it again from Canvas.'})
+            return self._json(404, {'error': f'{kind} did not recognise that link. Copy it again from {kind}.'})
         import datetime
         today = datetime.date.today()
+        if kind != 'Canvas':
+            # Busy time from a personal calendar: a few timed events this week.
+            def busy(n, days, start, end, title):
+                d = (today + datetime.timedelta(days=days)).strftime('%Y%m%d')
+                return (f'BEGIN:VEVENT\r\nUID:mock-{kind}-{n}\r\nDTSTART:{d}T{start}00\r\nDTEND:{d}T{end}00\r\n'
+                        f'SUMMARY:{title}\r\nEND:VEVENT\r\n')
+            ics = ('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:mock\r\n'
+                   + busy(1, 1, '1700', '1800', 'Orthodontist') + busy(2, 2, '1830', '2000', 'Family dinner') + busy(3, 4, '1600', '1730', 'Tutoring')
+                   + 'END:VCALENDAR\r\n').encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/calendar; charset=utf-8')
+            self.send_header('Content-Length', str(len(ics)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            return self.wfile.write(ics)
         def ev(n, days, title, course):
             d = today + datetime.timedelta(days=days)
             stamp = d.strftime('%Y%m%d') + 'T065900Z'
@@ -329,9 +372,24 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(ics)
 
     def _agent(self):
-        """Stand-in for netlify/functions/agent.mjs: echoes a scripted reply."""
+        """Stand-in for netlify/functions/agent.mjs. The conversation has no
+        model behind it (501, so the app reads the message on the device), but
+        outline mode answers with a fixed sample, so its card can be seen."""
         body = self._body()
         AGENT_CALLS.append(body)
+        if body.get('mode') == 'outline':
+            auth = self.headers.get('Authorization', '')
+            if not auth.startswith('Bearer ') or not TOKENS.get(auth[7:]):
+                return self._json(401, {'error': 'Sign in to use the assistant.'})
+            title = str((body.get('assignment') or {}).get('title', 'the assignment'))[:200]
+            return self._json(200, {'outline': {
+                'asks': f'Sample outline from the mock server for "{title}": what it asks would be summed up here.',
+                'steps': ['Read the instructions and the rubric once, start to finish', 'List what you already know and what you need to look up',
+                          'Work through the first part on your own', 'Check your work against the rubric', 'Submit it on Canvas'],
+                'structure': ['Part 1: the setup', 'Part 2: your work', 'Part 3: what you found'],
+                'review': ['Your class notes on this unit', 'The rubric'],
+                'questions': ['Which part will take you longest?', 'What would a strong answer include?'],
+            }})
         self._json(501, {'error': 'The mock server has no model behind it. The assistant falls back to reading the message itself.'})
 
     def _form(self, path):

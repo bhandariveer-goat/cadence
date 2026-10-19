@@ -9,6 +9,7 @@
 import { app, persist, push, back, render, insideCanvas, DEMO, signOut, syncDown, STANDALONE, undoTo } from '../core.js';
 import { parseICS } from '../../lib/calendar.js';
 import { parseCanvasFeed, looksLikeCanvasIcs } from '../../lib/sources/canvasFeed.js';
+import { exportChats } from '../../lib/chats.js';
 import { applyImported } from '../../lib/sources/sources.js';
 import { aiAvailable } from '../../lib/ai.js';
 import { cloudConfigured } from '../../config.js';
@@ -98,8 +99,8 @@ export function viewAccount() {
 
     ${DEMO ? '' : `<div class="section-head"><h2>Account</h2></div>
     <div class="card flush">
-      ${row('account-export', I.file, 'Download my data', 'Everything in your plan, as a file you can keep or read')}
-      ${row('account-signout', I.left, 'Sign out', a.mode === 'cloud' ? 'Your plan stays saved to your account' : 'Removes your plan from this browser')}
+      ${row('account-export', I.file, 'Download my data', 'Your plan and your chats with the assistant, as a file you can keep or read')}
+      ${row('account-signout', I.left, 'Sign out', a.mode === 'cloud' ? 'Your plan stays saved to your account; chats here are deleted' : 'Removes your plan and chats from this browser')}
     </div>
     <div class="card flush danger-zone">
       ${row('account-delete', I.x, a.mode === 'cloud' ? 'Delete account' : 'Delete my data', a.mode === 'cloud' ? 'Erases your account and everything saved to it' : 'Erases everything Cadence holds in this browser', svg(I.right, 16), 'danger')}
@@ -327,8 +328,8 @@ async function signOutFlow() {
   const cloud = app.S.account?.mode === 'cloud';
   const res = await sheet(`<h2>${cloud ? `Sign out of ${esc(app.S.account.email || 'your account')}?` : 'Sign out and erase this plan?'}</h2>
     <p class="lead">${cloud
-      ? 'Your plan stays saved to your account. This browser forgets it until you sign back in.'
-      : 'This account only exists in this browser, so signing out erases the plan, activities and check-ins stored here. There is no copy to sign back in to.'}</p>
+      ? 'Your plan stays saved to your account. This browser forgets it until you sign back in. Your chats with the assistant are only in this browser, so signing out deletes them.'
+      : 'This account only exists in this browser, so signing out erases the plan, activities, check-ins and chats stored here. There is no copy to sign back in to.'}</p>
     <div class="actions"><button class="btn soft" value="cancel">Stay signed in</button>
       <button class="btn ${cloud ? 'primary' : 'danger-solid'}" name="op" value="out">${cloud ? 'Sign out' : 'Sign out and erase'}</button></div>`);
   if (res?.get('op') !== 'out') return;
@@ -375,7 +376,7 @@ async function deleteFlow() {
  * tokens for other services are left out.
  */
 function exportData() {
-  const data = { exportedFrom: 'Cadence', exportedAt: new Date().toISOString(), plan: portable(app.S) };
+  const data = { exportedFrom: 'Cadence', exportedAt: new Date().toISOString(), plan: portable(app.S), assistantChats: exportChats() };
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;

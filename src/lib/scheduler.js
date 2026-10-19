@@ -11,8 +11,14 @@
 // before it is due, so a light week stays light and a heavy week is only as
 // heavy as the work makes it. A day the student has put a number on ("ninety
 // minutes tonight") keeps that number and the rest of the week absorbs the
-// difference. Only work with no room left before its deadline comes back as
-// unplaced.
+// difference.
+//
+// Everything gets a place. When the levels run out, days go past their limit
+// (stretchDays), then past a number the student set, and as a last resort
+// work is booked after its due date (late) rather than left out. The plan
+// says which days were stretched and what will be late; the student decides
+// what to drop or move. Only work with no free time anywhere in the next two
+// weeks comes back as unplaced.
 
 import { MIN, HOUR, DAY, addDays, dateKey, clamp, startOfDay } from './util.js';
 import { freeSlots } from './calendar.js';
@@ -147,9 +153,10 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
     /**
      * Fill the remaining free pieces.
      * @param {boolean} o.relax      drop the "spread it over several days" pacing cap
-     * @param {boolean} o.cram       ignore the day's cap (used only for work due within two days)
+     * @param {false|'due'|'all'} o.cram  ignore the day's levelled cap: for work due within two days, or for everything
+     * @param {boolean} o.force      also ignore a number the student set on a day, and pacing
      */
-    function fill({ relax = false, cram = false } = {}) {
+    function fill({ relax = false, cram = false, force = false } = {}) {
       for (const piece of pieces) {
         let cursor = new Date(piece.start);
         const slotEnd = piece.end;
@@ -162,7 +169,7 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
           const key = dateKey(cursor);
           // Cramming ignores the levelled cap, never a number the student put
           // on the day herself: ninety minutes tonight stays ninety minutes.
-          const cap = cram && !firm(cursor) ? Infinity : capOf(cursor);
+          const cap = cram && (force || !firm(cursor)) ? Infinity : capOf(cursor);
           const capLeft = cap - (dayUsed.get(key) || 0);
           // A short stated budget ("twenty minutes tonight") still gets a block.
           const smallest = Math.min(sessionMin, Math.max(10, Number.isFinite(cap) ? cap : sessionMin));
@@ -172,13 +179,13 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
             .filter((c) => c.remaining > 0)
             .filter((c) => +c.deadline > +cursor)
             .filter((c) => !c.task.notBefore || +cursor >= +new Date(c.task.notBefore))
-            .filter((c) => !cram || (!c.task.commitmentId && c.task.due && +new Date(c.task.due) - +cursor < 2 * DAY))
+            .filter((c) => cram !== 'due' || (!c.task.commitmentId && c.task.due && +new Date(c.task.due) - +cursor < 2 * DAY))
             .filter((c) => windowLeft(c.task.window, cursor) >= Math.min(smallest, c.remaining))
             // Any allotment left for this task today is enough to try: a
             // 60-minute share is one 45-minute block plus 15, and refusing the
             // 15 because it is under the minimum block length made paced work
             // come up short by exactly that remainder every day.
-            .filter((c) => roomToday(c, key, relax) > 0)
+            .filter((c) => force || roomToday(c, key, relax) > 0)
             // What can only still be on time if it happens now goes first,
             // then anything already late, then earliest deadline. Late work
             // ahead of everything sounds right until it takes the last free
@@ -191,7 +198,21 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
               || (+a.deadline - +b.deadline)
               || ((b.task.priority?.score ?? 0) - (a.task.priority?.score ?? 0)));
 
-          if (!candidates.length) break;
+          if (!candidates.length) {
+            // Nothing can start yet, but something may once its time of day
+            // begins ("evenings" from 5pm on a free afternoon): wait for that
+            // instead of giving up the rest of this free time.
+            const next = open
+              .filter((c) => c.remaining > 0 && c.task.window && +c.deadline > +cursor)
+              .filter((c) => !c.task.notBefore || +cursor >= +new Date(c.task.notBefore))
+              .filter((c) => cram !== 'due' || (!c.task.commitmentId && c.task.due && +new Date(c.task.due) - +cursor < 2 * DAY))
+              .filter((c) => force || roomToday(c, key, relax) > 0)
+              .map((c) => { const [h, m] = c.task.window.start.split(':').map(Number); const at = new Date(cursor); at.setHours(h, m, 0, 0); return at; })
+              .filter((at) => +at > +cursor && +slotEnd - +at >= Math.min(sessionMin, 10) * MIN)
+              .sort((x, y) => x - y)[0];
+            if (next) { cursor = next; run = 0; continue; }
+            break;
+          }
           const switched = run >= 2 ? candidates.filter((c) => c.task.id !== runTask) : candidates;
           if (!switched.length) {
             // Nothing else can go here. Rather than a third block of the same
@@ -206,7 +227,7 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
           // using the rest of this free time.
           let pick = null, minutes = 0, hardMax = 0;
           for (const c of switched) {
-            const taskLeftToday = Math.max(roomToday(c, key, relax), Math.min(smallest, c.remaining));
+            const taskLeftToday = force ? c.remaining : Math.max(roomToday(c, key, relax), Math.min(smallest, c.remaining));
             const most = Math.floor(Math.min(
               capLeft,
               windowLeft(c.task.window, cursor),
@@ -303,10 +324,17 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
     }
     if (!best.leftover()) break;
   }
-  // Past the top level the honest answer is "this doesn't fit", which the week
-  // screen says once. The exception is assigned work actually due in the next
-  // two days, which is crammed in rather than missed.
-  if (best.leftAssigned()) best.fill({ relax: true, cram: true });
+  // Past the top level, nothing is left out. Work due in the next two days
+  // goes first, then everything else past the day's limit, then past a number
+  // the student set, and last of all after its due date. The student sees
+  // which days were stretched and what will be late, and decides from there.
+  if (best.leftAssigned()) best.fill({ relax: true, cram: 'due' });
+  if (best.leftover()) best.fill({ relax: true, cram: 'all' });
+  if (best.leftover()) best.fill({ relax: true, cram: 'all', force: true });
+  if (best.leftover()) {
+    for (const c of best.open) if (c.remaining > 0) c.deadline = horizon;
+    best.fill({ relax: true, cram: 'all', force: true });
+  }
 
   const { open, sessions, crammed } = best;
   sessions.sort((a, b) => new Date(a.start) - new Date(b.start));
@@ -334,6 +362,17 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
   }
   const unplaced = [...byTask.values()];
 
+  // What will be finished after it is due, by how much: shown to the student.
+  const late = [];
+  for (const c of open) {
+    // Work that was already late before this plan is under Catch up, not here.
+    if (c.task.commitmentId || !c.task.due || +new Date(c.task.due) < +from) continue;
+    const mine = sessions.filter((x) => x.taskId === c.task.id);
+    const last = mine.reduce((m, x) => Math.max(m, +new Date(x.end)), 0);
+    const after = mine.filter((x) => +new Date(x.end) > +new Date(c.task.due)).reduce((m, x) => m + x.minutes, 0);
+    if (last > +new Date(c.task.due)) late.push({ taskId: c.task.id, commitmentId: null, title: c.task.title, courseName: c.task.courseName, due: c.task.due, finishes: new Date(last).toISOString(), missingMin: after, late: true });
+  }
+
   const days = summarizeDays(sessions, from, horizon);
   for (const d of days) d.cap = best.capOf(new Date(`${d.date}T12:00:00`));
 
@@ -343,7 +382,8 @@ export function buildPlan(tasks, { availability, busy, settings, from = new Date
     unplaced,
     level: best.level,
     trace,
-    fits: !unplaced.length,
+    fits: !unplaced.length && !late.length,
+    late,
     stretchDays: [...crammed],
     days
   };
@@ -468,7 +508,8 @@ export function replan(state, prioritized, busy = state.busy, settings = state.s
   const prefer = planPrefs(state, now);
   let plan = run(prefer);
   if (prefer) {
-    const short = (p) => p.unplaced.filter((u) => !u.commitmentId).reduce((a, u) => a + u.missingMin, 0);
+    // Something finishing after it is due counts for far more than minutes short.
+    const short = (p) => (p.late?.length || 0) * 100000 + p.unplaced.filter((u) => !u.commitmentId).reduce((a, u) => a + u.missingMin, 0);
     const mine = short(plan);
     const plain = mine > 0 ? run(null) : null;
     if (plain && short(plain) < mine) plan = plain;
@@ -480,3 +521,10 @@ export function replan(state, prioritized, busy = state.busy, settings = state.s
   for (const d of plan.days) d.cap = dayCap(state, new Date(`${d.date}T12:00:00`), plan.level);
   return plan;
 }
+
+/**
+ * What in a plan will not be done in time: work booked after its due date
+ * (late) and anything with no free time at all (unplaced), in one list.
+ * Everything that warns the student, or tells the assistant, reads this.
+ */
+export const atRisk = (plan) => [...(plan?.late || []), ...(plan?.unplaced || [])];

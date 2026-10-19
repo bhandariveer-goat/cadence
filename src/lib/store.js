@@ -63,6 +63,9 @@ export const DEFAULT_STATE = {
     // Google Calendar's "secret address in iCal format": read-only busy time,
     // fetched through Cadence's server (netlify/functions/canvas-feed.mjs).
     googleFeed: { enabled: false, url: '', events: [], assignments: [], lastSync: null, lastTry: null, error: null },
+    // The same, for an Outlook published calendar and an iCloud public calendar.
+    outlookFeed: { enabled: false, url: '', events: [], assignments: [], lastSync: null, lastTry: null, error: null },
+    icloudFeed: { enabled: false, url: '', events: [], assignments: [], lastSync: null, lastTry: null, error: null },
     google: {
       enabled: false, clientId: '', email: '', accessToken: null, expiresAt: 0, scopes: [],
       calendars: [], selected: [], push: false, pushCalendarId: 'primary', pushed: {},

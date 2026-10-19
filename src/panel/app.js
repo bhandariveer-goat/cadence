@@ -25,6 +25,7 @@ import * as agent from './views/agent.js';
 import * as memory from './views/memory.js';
 import { openPalette, installShortcuts, shortcutsSheet } from './views/palette.js';
 import { maybeStartTour, startTour } from './tour.js';
+import { maybeStartSetup, open as openSetup } from './setup.js';
 import { checkinPicker } from './views/commitments.js';
 
 mountShell();
@@ -61,6 +62,7 @@ const ACTIONS = {
   back: () => back(),
   palette: () => openPalette(),
   'tour-start': () => startTour({ force: true }),
+  'calendar-setup': (el) => openSetup({ from: 'calendars', focus: el?.dataset?.id || null }),
   shortcuts: () => shortcutsSheet(),
   'theme-toggle': () => window.CadenceTheme?.set(window.CadenceTheme.current() === 'dark' ? 'light' : 'dark'),
   streak: () => {
@@ -108,6 +110,8 @@ function renderApp() {
       $('#agent').hidden = true;
       document.body.classList.remove('agent-open');
       $('#view').innerHTML = gate === 'signin' ? signin.viewSignIn() : onboarding.viewOnboarding();
+      // A new student connects their calendars first, in a dialog over setup.
+      if (gate === 'onboarding') maybeStartSetup();
       return;
     }
 

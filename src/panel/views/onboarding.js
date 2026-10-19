@@ -1,22 +1,18 @@
-// First run, after signing in: where your homework comes from, what you do
-// outside class, and when is school. Three screens, or two inside Canvas,
-// where assignments come in on their own.
+// First run, after signing in: what you do outside class, and when is school.
 //
-// The homework screen comes first because a plan with nobody's homework in it
-// is a plan nobody comes back to. On the website the Canvas calendar feed is
-// one pasted link (fetched through Cadence's server, see
-// netlify/functions/canvas-feed.mjs), and it keeps bringing in new work.
+// Before these two screens comes the "Connect your calendars" dialog
+// (src/panel/setup.js): Canvas for what is due, and Google, Outlook or iCloud
+// for when you are busy. It comes first because a plan with nobody's homework
+// in it is a plan nobody comes back to.
 //
 // It used to be five, and two of them asked when you like to work and how much
 // a night. Nobody knows the answer to either, and the answers made every
 // Tuesday identical whether or not Tuesday had a meet. Cadence works both out
 // from the calendar now (lib/daymodel.js), so the questions are gone.
 
-import { app, persist, render, insideCanvas, syncCanvas, loadCrew, refreshSources, keepStorage } from '../core.js';
-import { svg, I, esc, KIND_ICON, daysLabel, range, plural, activityColor } from '../ui.js';
-import { looksLikeFeedUrl } from '../../lib/sources/canvasFeed.js';
-import { CONFIG } from '../../config.js';
-import { ART, scheduleLabel } from './parts.js';
+import { app, persist, render, insideCanvas, syncCanvas, loadCrew } from '../core.js';
+import { svg, I, esc, KIND_ICON, daysLabel, range, activityColor } from '../ui.js';
+import { scheduleLabel } from './parts.js';
 import { presetCommitment } from './commitments.js';
 import { interpret, applyOps } from '../../lib/agent.js';
 
@@ -32,12 +28,12 @@ const TILES = [
 ];
 
 function draft() {
-  app.ob ||= { step: 0, picks: [], said: '', feedUrl: '', feedError: '', feedBusy: false };
+  app.ob ||= { step: 0, picks: [], said: '' };
   return app.ob;
 }
 
-/** The screens, in order. Inside Canvas the extension reads assignments itself. */
-const steps = () => (insideCanvas ? ['activities', 'school'] : ['homework', 'activities', 'school']);
+/** The screens, in order (calendars are connected before these, in setup.js). */
+const steps = () => ['activities', 'school'];
 const stepName = () => steps()[Math.min(draft().step, steps().length - 1)];
 
 const foot = (next, back, style = 'primary') => `<div class="foot">
@@ -50,8 +46,6 @@ export function viewOnboarding() {
   const first = String(S.account?.name || S.profile.name || '').split(' ')[0];
   const list = (S.commitments || []).filter((c) => !c.archived);
   const name = stepName();
-
-  if (name === 'homework') return homeworkStep(o, first);
 
   if (name === 'activities') {
     const greet = o.step === 0 ? `${first ? `Hi ${esc(first)}.` : 'Welcome.'} ` : '';
@@ -93,75 +87,6 @@ export function viewOnboarding() {
   </div>`;
 }
 
-function homeworkStep(o, first) {
-  const cf = app.S.sources?.canvasFeed || {};
-  const connected = !!(cf.enabled && cf.url && !cf.error && cf.lastSync);
-  const found = (cf.assignments || []).length;
-  return `<div class="ob">
-    <h1>${first ? `Hi ${esc(first)}.` : 'Welcome.'} Let's bring in your homework.</h1>
-    <p class="lead">Cadence plans around what is due. Your Canvas calendar feed is a single link: every due date comes in, and new assignments keep arriving on their own.</p>
-    <div class="card soft small m0">
-      <b>Where to find it</b>
-      <ol class="ob-how">
-        <li>Open Canvas in a browser and go to Calendar.</li>
-        <li>At the bottom right, choose Calendar Feed and copy the link.</li>
-        <li>Paste it below.</li>
-      </ol>
-      <div class="muted">On a phone, use Canvas in your browser. The Canvas app does not show the feed.</div>
-    </div>
-    <form class="mt4" data-form="ob-feed" autocomplete="off" novalidate>
-      <label class="field"><span>Canvas feed link</span>
-        <input type="text" name="url" value="${esc(o.feedUrl || cf.url || '')}" placeholder="https://school.instructure.com/feeds/calendars/user_….ics" spellcheck="false" inputmode="url"></label>
-      <p class="hint up">Treat it like a password: anyone with the link can read your Canvas calendar.</p>
-      ${o.feedError ? `<p class="field-error" role="alert">${esc(o.feedError)}</p>` : ''}
-      <p class="form-success" role="status">${connected ? `Connected. ${found ? `${plural(found, 'assignment')} found, and Cadence is planning them.` : 'Nothing is due right now; new assignments will come in on their own.'}` : ''}</p>
-      <button class="btn ${connected ? 'soft' : 'primary'}" type="submit" ${o.feedBusy ? 'aria-busy="true"' : ''}>${o.feedBusy ? 'Connecting…' : connected ? 'Use a different link' : 'Connect Canvas'}</button>
-    </form>
-    <p class="hint mt4">No Canvas at your school? Skip this. You can add assignments yourself, or tell the assistant something like “bio test Friday”.</p>
-    ${extensionOffer()}
-    ${foot(connected ? 'Next' : 'Skip for now', false, connected ? 'primary' : 'ghost')}
-  </div>`;
-}
-
-/** On a computer with Chrome, the extension reads more of Canvas than the feed. Only once it is published. */
-function extensionOffer() {
-  const url = /^https:\/\/chromewebstore\.google\.com\//.test(CONFIG.site?.extensionUrl || '') ? CONFIG.site.extensionUrl : '';
-  if (typeof chrome !== 'undefined' && chrome.runtime?.id) return '';     // this is the extension
-  const desktopChrome = /Chrome\//.test(navigator.userAgent) && !/Mobile|Android|CrOS/.test(navigator.userAgent);
-  const chromebook = /CrOS/.test(navigator.userAgent);
-  if (!url || !(desktopChrome || chromebook)) return '';
-  return `<p class="hint">Using Chrome on this computer? <a href="${esc(url)}" target="_blank" rel="noopener">Add the Cadence extension</a> and it reads Canvas for you, with points and what you have already submitted.</p>`;
-}
-
-/** Save the feed link and fetch it once, so the student sees their own work come in. */
-async function connectFeed(raw) {
-  const o = draft();
-  if (o.feedBusy) return;
-  const url = String(raw || '').trim().replace(/^webcal:/i, 'https:');
-  o.feedUrl = url;
-  o.feedError = '';
-  if (!url) { o.feedError = 'Paste the link from Canvas first.'; return render(); }
-  if (!looksLikeFeedUrl(url)) { o.feedError = 'That is not a Canvas feed link. It contains /feeds/calendars/ and ends in .ics.'; return render(); }
-  o.feedBusy = true;
-  render();
-  try {
-    await persist((st) => { st.sources.canvasFeed = { ...st.sources.canvasFeed, url, enabled: true, error: null }; }, { recalc: false });
-    const results = await refreshSources({ only: 'canvasFeed', quiet: true });
-    const r = results?.canvasFeed;
-    if (r?.ok) keepStorage();
-    if (!r?.ok) {
-      o.feedError = r?.error || 'Cadence could not reach Canvas. Check the link and try again.';
-      // A link that does not work is not left switched on.
-      await persist((st) => { st.sources.canvasFeed = { ...st.sources.canvasFeed, enabled: false, url: '' }; }, { recalc: false });
-    }
-  } catch (e) {
-    o.feedError = e?.message || 'Cadence could not reach Canvas. Try again.';
-  } finally {
-    o.feedBusy = false;
-    render();
-  }
-}
-
 async function finish() {
   app.ob = null;
   app.stack = [];
@@ -175,21 +100,6 @@ async function finish() {
 async function next() {
   const o = draft();
   const name = stepName();
-  if (name === 'homework') {
-    // A link pasted but not yet connected is connected now rather than lost.
-    const typed = String(document.querySelector('[data-form="ob-feed"] input[name="url"]')?.value || '').trim();
-    const cf = app.S.sources?.canvasFeed || {};
-    // A link that already failed is not tried again: the button says Skip.
-    const failed = o.feedError && typed === o.feedUrl;
-    if (typed && !failed && !(cf.enabled && cf.url === typed.replace(/^webcal:/i, 'https:') && !cf.error)) {
-      await connectFeed(typed);
-      if (draft().feedError) return;
-    }
-    o.feedError = '';
-    o.step += 1;
-    document.getElementById('view').scrollTop = 0;
-    return render();
-  }
   if (name === 'activities') {
     const said = o.said.trim();
     await persist((st) => {
@@ -222,9 +132,7 @@ export const actions = {
   'ob-back': () => { const o = draft(); o.step = Math.max(0, o.step - 1); render(); }
 };
 
-export const submitActions = {
-  'ob-feed': (form, data) => connectFeed(data.get('url'))
-};
+export const submitActions = {};
 
 /** The free-text box keeps its value across renders without a round trip. */
 export function handleOnboardingInput(ev) {

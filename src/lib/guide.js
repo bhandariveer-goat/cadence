@@ -152,6 +152,8 @@ function topicOf(task) {
   const parts = title.split(/\s+[—–-]\s+|:\s+/);
   const scope = /^(ch(?:apters?)?|pages?|sections?|unit|part|week|problems?|first draft|draft|final)\b/i;
   let t = parts.length > 1 ? (scope.test(parts[1].trim()) ? parts[0] : parts.slice(1).join(' ')) : title;
+  // "The Great Gatsby, chapters 4 to 6": the part after the comma is the scope, not the topic.
+  t = t.replace(/,\s*(ch(?:apters?)?|pages?|sections?|unit|part|week|problems?)\b.*$/i, '');
   t = t.replace(/\b(lab report|lab|report|essay|paper|worksheet|problem set|pset|quiz|test|exam|reading|discussion|presentation|project|writeup|write-up|first draft|draft|assignment|homework|hw|vocab(?:ulary)?|research|final|rough)\b/gi, ' ')
     .replace(/\b(?:unit|set|#)?\s*\d+\b/gi, ' ').replace(/\s+/g, ' ').trim();
   if (t.length < 3) return '';

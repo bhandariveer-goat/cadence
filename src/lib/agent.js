@@ -904,11 +904,13 @@ function narrate(applied, diff, next, now) {
   if (stuck.length) {
     const s = stuck[0];
     const due = s.due ? ` before it is due ${dayWord(dateKey(new Date(s.due)), now)}` : '';
-    parts.push(`${list(stuck.map((u) => u.title))} ${stuck.length === 1 ? 'does' : 'do'} not fully fit${due}: ${mins(stuck.reduce((a, u) => a + u.minutes, 0))} short.`);
+    parts.push(stuck.every((u) => u.late)
+      ? `${list(stuck.map((u) => u.title))} ${stuck.length === 1 ? 'is' : 'are'} planned, but ${mins(stuck.reduce((a, u) => a + u.minutes, 0))} of it lands after it is due${s.due ? ` ${dayWord(dateKey(new Date(s.due)), now)}` : ''}. Add time somewhere or move something.`
+      : `${list(stuck.map((u) => u.title))} ${stuck.length === 1 ? 'does' : 'do'} not fully fit${due}: ${mins(stuck.reduce((a, u) => a + u.minutes, 0))} short.`);
     if (night && !night.off) chips.push({ label: `Add ${mins(Math.min(60, Math.ceil(s.minutes / 15) * 15))} tonight`, text: `I can do ${mins((night.budgetMin || 0) + Math.min(60, Math.ceil(s.minutes / 15) * 15))} of work tonight` });
     chips.push({ label: 'What is due first?', text: 'What is due this week?' });
   } else if (practice.length) {
-    parts.push(`${list(practice.map((u) => u.title))} will be short a session this week. Everything with a due date still fits.`);
+    parts.push(`${list(practice.map((u) => u.title))} has no free time left this week. Everything with a due date still fits.`);
   } else if (applied.some((o) => ['day', 'event', 'school', 'sleep', 'move', 'limit', 'activity', 'task', 'remove', 'done', 'estimate'].includes(o.kind))) {
     parts.push(moved.length || night ? 'Everything due still fits.' : 'Your plan is rebuilt around it and everything still fits.');
   }

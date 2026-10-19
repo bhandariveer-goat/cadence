@@ -3,7 +3,7 @@
 
 import { app, persist, refreshSources, pushGoogleBlocks, back, insideCanvas, undoTo } from '../core.js';
 import { pushedItems } from '../../lib/replanner.js';
-import { SOURCE_META, canvasFeed, google, looksLikeGoogleIcs } from '../../lib/sources/sources.js';
+import { SOURCE_META, LINK_FEEDS, canvasFeed, google, looksLikeGoogleIcs } from '../../lib/sources/sources.js';
 import { fmtMinutes } from '../../lib/util.js';
 import { svg, I, esc, sheet, toast, ago, plural } from '../ui.js';
 
@@ -12,6 +12,8 @@ export function viewCalendars() {
   const cf = S.sources.canvasFeed;
   const g = S.sources.google;
   const gf = S.sources.googleFeed || {};
+  const of = S.sources.outlookFeed || {};
+  const icf = S.sources.icloudFeed || {};
   const auto = S.autoSync || {};
 
   return `
@@ -19,6 +21,7 @@ export function viewCalendars() {
     <section class="hello">
       <h1>Calendars</h1>
       <p>Cadence plans around everything it can see. Connect a source once and it stays current on its own.</p>
+      <button class="btn primary mt3" data-act="calendar-setup">Connect calendars</button>
     </section>
 
     ${sourceCard({
@@ -40,6 +43,22 @@ export function viewCalendars() {
       sub: gf.enabled ? `${plural((gf.events || []).length, 'event')} · read only` : 'Paste one link and your Google events count as busy time. Works on the website and on phones',
       primary: gf.enabled ? 'Change link' : 'Add Google Calendar link',
       action: 'google-feed-sheet'
+    })}
+
+    ${sourceCard({
+      id: 'outlookFeed', icon: I.cal, color: '#3b82f6', cfg: of,
+      title: 'Outlook calendar link',
+      sub: of.enabled ? `${plural((of.events || []).length, 'event')} · read only` : 'A published Outlook or school Microsoft calendar, as busy time',
+      primary: of.enabled ? 'Change link' : 'Add Outlook link',
+      action: 'calendar-setup', data: 'outlookFeed'
+    })}
+
+    ${sourceCard({
+      id: 'icloudFeed', icon: I.cal, color: '#3b82f6', cfg: icf,
+      title: 'iCloud calendar link',
+      sub: icf.enabled ? `${plural((icf.events || []).length, 'event')} · read only` : 'A public iCloud calendar from your iPhone or Mac, as busy time',
+      primary: icf.enabled ? 'Change link' : 'Add iCloud link',
+      action: 'calendar-setup', data: 'icloudFeed'
     })}
 
     ${sourceCard({
@@ -120,7 +139,7 @@ function pushCard(g) {
   </div>`;
 }
 
-function sourceCard({ id, icon, color, cfg, title, sub, primary, action }) {
+function sourceCard({ id, icon, color, cfg, title, sub, primary, action, data = '' }) {
   const status = cfg.error
     ? `<span class="pill amber">${svg(I.flag, 12)} Needs attention</span>`
     : cfg.enabled ? `<span class="status">${cfg.lastSync ? `Synced ${ago(cfg.lastSync)}` : 'Connected'}</span>`
@@ -134,7 +153,7 @@ function sourceCard({ id, icon, color, cfg, title, sub, primary, action }) {
     </div>
     ${cfg.error ? `<div class="card warm small mt3">${esc(cfg.error)}</div>` : ''}
     <div class="row mt3 gap2">
-      <button class="btn small ${cfg.enabled ? 'soft' : 'primary'}" data-act="${action}">${esc(primary)}</button>
+      <button class="btn small ${cfg.enabled ? 'soft' : 'primary'}" data-act="${action}"${data ? ` data-id="${esc(data)}"` : ''}>${esc(primary)}</button>
       ${cfg.enabled ? `<button class="btn small ghost" data-act="source-refresh" data-id="${id}">Refresh</button>
         <span class="grow"></span>
         <button class="btn small ghost danger" data-act="source-disconnect" data-id="${id}">Disconnect</button>` : ''}
@@ -358,7 +377,7 @@ export const actions = {
     if (!res) return;
     await persist((st) => {
       const keep = id === 'google' ? { clientId: st.sources.google.clientId } : {};
-      const link = id === 'googleFeed' ? { url: '' } : {};
+      const link = LINK_FEEDS[id] ? { url: '' } : {};
       st.sources[id] = { ...st.sources[id], ...keep, ...link, enabled: false, events: [], assignments: [], error: null, accessToken: null, expiresAt: 0 };
     });
     toast('Disconnected');

@@ -415,6 +415,10 @@ export async function signOut({ wipe = true, force = false } = {}) {
     for (const slot of ['cadence.assistant-session', 'cadence.pending-invite', 'cadence.consented-at']) {
       try { localStorage.removeItem(slot); } catch { /* nothing stored */ }
     }
+    // And their chats with the assistant, which only ever lived here.
+    const { clearChats } = await import('../lib/chats.js');
+    clearChats();
+    app.agent = null;
   } else {
     await persist((st) => { st.account = { mode: 'none', id: null, email: '', name: '', createdAt: null }; st.cloud.session = null; }, { recalc: false, edit: false });
   }

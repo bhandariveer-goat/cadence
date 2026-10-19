@@ -4,17 +4,22 @@
 // cannot fetch a student's Canvas calendar feed itself (the Chrome extension
 // can, and does not use this for Canvas). This function fetches it and hands
 // the calendar straight back. It keeps nothing: not the link, not the
-// calendar. It also fetches a Google Calendar "secret address in iCal
-// format", for the website and the extension alike.
+// calendar. It also fetches the read-only calendar links of Google Calendar
+// (the "secret address in iCal format"), Outlook (a published calendar's ICS
+// link) and Apple iCloud (a public calendar's link), for the website and the
+// extension alike.
 //
 // So that it is not an open relay for the internet, a request is accepted only
 //   1. with a Supabase session that Supabase confirms (an email account, or the
 //      hidden anonymous account a name-only student gets), and
 //   2. for an https address whose path is a Canvas calendar feed
 //      (/feeds/calendars/<name>.ics) on a named host, never a bare IP
-//      address or localhost, or a Google Calendar iCal address
-//      (calendar.google.com/calendar/ical/<calendar>/private-<key>/basic.ics). Redirects are followed only to addresses that
-//      pass the same test.
+//      address or localhost, or one of these exact calendar addresses:
+//        Google   calendar.google.com/calendar/ical/<calendar>/private-<key>/basic.ics
+//        Outlook  outlook.office365.com, outlook.office.com or outlook.live.com
+//                 /owa/calendar/<id>/<key>[/cid-<id>]/calendar.ics (or reachcalendar.ics)
+//        iCloud   p<n>-caldav.icloud.com or p<n>-calendars.icloud.com /published/<n>/<key>
+//      Redirects are followed only to addresses that pass the same test.
 // What comes back must be a calendar, and at most 5 MB.
 //
 // Environment variables (Netlify > Project configuration > Environment
@@ -28,6 +33,7 @@ const CORS = {
 };
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'content-type': 'application/json', 'cache-control': 'no-store' } });
 const MAX_BYTES = 5 * 1024 * 1024;
+const OUTLOOK_HOSTS = new Set(['outlook.office365.com', 'outlook.office.com', 'outlook.live.com']);
 
 /** The feed address, cleaned up, or null when it is not one this will fetch. */
 export function feedAddress(raw) {
@@ -39,8 +45,19 @@ export function feedAddress(raw) {
   if (/^[\d.]+$/.test(host) || host.includes(':') || host.startsWith('[')) return null;   // no bare IP addresses
   const canvas = /^\/feeds\/calendars\/[A-Za-z0-9_.-]+\.ics$/.test(u.pathname);
   const googleCal = host === 'calendar.google.com' && /^\/calendar\/ical\/[A-Za-z0-9%._@+-]+\/(private-[a-z0-9]+|public)\/basic\.ics$/.test(u.pathname);
-  if (!canvas && !googleCal) return null;
+  const outlook = OUTLOOK_HOSTS.has(host) && /^\/owa\/calendar\/[A-Za-z0-9%._@+-]+\/[A-Za-z0-9%._+-]+(\/cid-[A-Za-z0-9]+)?\/(reach)?calendar\.ics$/.test(u.pathname);
+  const icloud = /^p\d{1,3}-(caldav|calendars)\.icloud\.com$/.test(host) && /^\/published\/\d{1,2}\/[A-Za-z0-9_-]{16,}$/.test(u.pathname);
+  if (!canvas && !googleCal && !outlook && !icloud) return null;
   return u.href;
+}
+
+/** Who a checked address belongs to, for messages. */
+export function sourceName(address) {
+  const host = new URL(address).hostname;
+  if (host === 'calendar.google.com') return 'Google Calendar';
+  if (OUTLOOK_HOSTS.has(host)) return 'Outlook';
+  if (host.endsWith('.icloud.com')) return 'iCloud';
+  return 'Canvas';
 }
 
 export default async (req) => {
@@ -63,7 +80,7 @@ export default async (req) => {
   let body;
   try { body = await req.json(); } catch { return json(400, { error: 'Send JSON.' }); }
   let address = feedAddress(body?.url);
-  if (!address) return json(400, { error: "That isn't a calendar link Cadence can use. A Canvas feed contains /feeds/calendars/; a Google one is the secret address in iCal format and ends in basic.ics." });
+  if (!address) return json(400, { error: "That isn't a calendar link Cadence can use. A Canvas feed contains /feeds/calendars/; a Google one is the secret address in iCal format; an Outlook one is a published calendar's ICS link; an iCloud one is a public calendar's link." });
 
   const stop = new AbortController();
   const timer = setTimeout(() => stop.abort(), 8000);
@@ -73,10 +90,10 @@ export default async (req) => {
       res = await fetch(address, { redirect: 'manual', signal: stop.signal, headers: { accept: 'text/calendar' } });
       if (![301, 302, 303, 307, 308].includes(res.status)) break;
       const next = feedAddress(new URL(res.headers.get('location') || '', address).href);
-      if (!next || hops >= 3) return json(502, { error: 'Canvas sent the feed somewhere Cadence will not follow.' });
+      if (!next || hops >= 3) return json(502, { error: `${sourceName(address)} sent the calendar somewhere Cadence will not follow.` });
       address = next;
     }
-    const from = new URL(address).hostname === 'calendar.google.com' ? 'Google Calendar' : 'Canvas';
+    const from = sourceName(address);
     if (res.status === 404 || res.status === 401 || res.status === 403) return json(404, { error: `${from} did not recognise that link. Copy it again from ${from}.` });
     if (!res.ok) return json(502, { error: `${from} answered ${res.status}. Try again later.` });
     if (Number(res.headers.get('content-length') || 0) > MAX_BYTES) return json(502, { error: 'That calendar is too large to sync.' });

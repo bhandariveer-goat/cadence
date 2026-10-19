@@ -19,6 +19,8 @@ says what they are for, so a change can be checked against them.
 | `--green`, `--amber`, `--red` | | Done, careful, wrong. Never decoration |
 | `--k-school`, `--k-event`, `--k-activity`, `--k-work` | grey, blue, green, orange | What kind of thing is on a calendar |
 | `--a-practice` ... `--a-custom` | one per kind of activity | Which activity: its ring, its icon, its block in the day strip |
+| `--stage` | `#1d3c9c` (dark `#1c2d6e`) | The homepage only: the evening-blue field of the first screen and the closing call, where the live app sits. Never a button |
+| `--band` | `#f7f6f4` | The homepage only: every other section, so colour, not a rule, marks where one ends |
 
 Colour says one of four things: what you can do next (orange), what state
 something is in (green, amber, red), what kind of time it is (the four `--k`
@@ -89,6 +91,12 @@ before weight. Times and counts use tabular figures so columns of them line up.
 - A short form is a sheet: beside the page on a wide screen, rising from the bottom on a narrow one.
 - A question with no fields is a small dialog in the middle. If it destroys something it names the thing, says what goes, and opens with focus on the way out.
 - Anything that can be put back is not asked about; it is done and offers Undo.
+- The first thing a new student sees after signing in is "Connect your calendars" (`src/panel/setup.js`): one dialog, two steps (connect each source by its link; then what came in for the next two weeks). Rows inside one frame, one orange button per step, step marks are small squares. In the middle on a wide screen, the whole screen on a phone and in the extension. It replaces asking for the Canvas link during setup, and the same dialog opens from Calendars.
+
+## The assistant
+
+- Separate chats: a list in the panel (newest first, the open one marked, each with its own delete that offers Undo) and New chat. They live in this browser only (`src/lib/chats.js`), never in the account.
+- "/secret" opens outline mode (`src/lib/outline.js`): pick an assignment and get what it asks, the steps, the parts to hand in, what to look over first and questions to think about. Never the work itself; the size of every line is cut in code on the server and the device. The reveal is a quiet dashed frame: it is found, not advertised.
 
 ## Motion
 

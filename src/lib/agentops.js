@@ -18,6 +18,7 @@ import { recomputeState, allBusy, plannable } from './replanner.js';
 import { workWindows, isSchoolDay, schoolEnd, overrideFor } from './daymodel.js';
 import { freeSlots } from './calendar.js';
 import { addNote, forgetNote, setPrefs, memoryView } from './memory.js';
+import { atRisk } from './scheduler.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 export const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
@@ -114,9 +115,10 @@ export function describe(op, state, now = new Date()) {
       if (op.clear) return `Back to a normal day ${which}`;
       if (op.off) return `No work ${which}`;
       const bits = [];
-      if (Number.isFinite(op.budgetMin)) bits.push(`${dur(op.budgetMin)} of work`);
+      // These are the limits the student set; what is actually planned can be less.
+      if (Number.isFinite(op.budgetMin)) bits.push(`up to ${dur(op.budgetMin)} of work`);
       if (isTime(op.startAt)) bits.push(`starting ${clock(op.startAt)}`);
-      if (isTime(op.until)) bits.push(`done by ${clock(op.until)}`);
+      if (isTime(op.until)) bits.push(`stopping by ${clock(op.until)}`);
       return `${which[0].toUpperCase()}${which.slice(1)}: ${bits.join(', ')}`;
     }
     case 'school': {
@@ -391,8 +393,8 @@ export function diffPlans(before, after, now = new Date()) {
   // What left tonight matters most; then order by how soon it lands.
   moved.sort((x, y) => Number(y.from.includes(today)) - Number(x.from.includes(today)) || String(x.to[0] || '').localeCompare(String(y.to[0] || '')));
 
-  const wasUnplaced = new Set((before.plan?.unplaced || []).map((u) => u.commitmentId || u.taskId));
-  const newlyUnplaced = (after.plan?.unplaced || []).filter((u) => !wasUnplaced.has(u.commitmentId || u.taskId));
+  const wasUnplaced = new Set(atRisk(before.plan).map((u) => u.commitmentId || u.taskId));
+  const newlyUnplaced = atRisk(after.plan).filter((u) => !wasUnplaced.has(u.commitmentId || u.taskId));
   const last = tonightAfter.at(-1);
 
   return {
@@ -404,7 +406,7 @@ export function diffPlans(before, after, now = new Date()) {
     },
     moved: moved.slice(0, 6),
     movedCount: moved.length,
-    unplaced: (after.plan?.unplaced || []).map((u) => ({ title: u.title, minutes: u.missingMin, due: u.due, assigned: !u.commitmentId })),
+    unplaced: atRisk(after.plan).map((u) => ({ title: u.title, minutes: u.missingMin, due: u.due, assigned: !u.commitmentId, late: !!u.late })),
     newlyUnplaced: newlyUnplaced.map((u) => ({ title: u.title, minutes: u.missingMin, due: u.due, assigned: !u.commitmentId })),
     level: { before: before.plan?.level ?? null, after: after.plan?.level ?? null }
   };
@@ -462,12 +464,12 @@ export function answer(query, state, now = new Date()) {
     const days = (state.plan?.days || []).filter((d) => d.date >= today).slice(0, 7);
     const due = Object.values(state.tasks || {}).filter((t) => plannable(t, state) && t.due && +new Date(t.due) < +addDays(now, 7))
       .sort((x, y) => new Date(x.due) - new Date(y.due));
-    const unplaced = state.plan?.unplaced || [];
+    const unplaced = atRisk(state.plan);
     const heavy = days.slice().sort((x, y) => y.minutes - x.minutes)[0];
     const text = [
       due.length ? `${due.length} thing${due.length === 1 ? '' : 's'} due in the next week.` : 'Nothing is due in the next week.',
       heavy?.minutes ? `The heaviest day is ${dayWord(heavy.date, now)} at ${dur(heavy.minutes)}.` : '',
-      unplaced.length ? `${unplaced.map((u) => u.title).join(', ')} ${unplaced.length === 1 ? 'does' : 'do'} not fully fit yet.` : 'Everything fits.'
+      unplaced.length ? `${unplaced.map((u) => u.title).join(', ')} ${unplaced.length === 1 ? 'is' : 'are'} planned to finish after ${unplaced.length === 1 ? 'its' : 'their'} due date.` : 'Everything fits.'
     ].filter(Boolean).join(' ');
     return {
       text,
@@ -540,7 +542,7 @@ export function planView(state, now = new Date(), days = 7) {
       // Events that came from Google Calendar are passed on as a time with no
       // title: Cadence needs to plan around them, the model doesn't need to
       // know what they are.
-      .map((b) => ({ id: b.id, title: b.source === 'google' || b.source === 'googleFeed' ? 'Busy' : b.title, date: dateKey(new Date(b.start)), start: hm(b.start), end: hm(b.end) })).slice(0, 80),
+      .map((b) => ({ id: b.id, title: ['google', 'googleFeed', 'outlookFeed', 'icloudFeed'].includes(b.source) ? 'Busy' : b.title, date: dateKey(new Date(b.start)), start: hm(b.start), end: hm(b.end) })).slice(0, 80),
     plannedWork: sessions.map((s) => ({ item: s.taskId || s.commitmentId, title: s.title, date: dateKey(new Date(s.start)), start: hm(s.start), minutes: s.minutes })),
     perDay: (state.plan?.days || []).filter((d) => d.date >= today && d.date < until).map((d) => ({ date: d.date, plannedMinutes: d.minutes, school: isSchoolDay(state, noon(d.date)) })),
     doesNotFit: (state.plan?.unplaced || []).map((u) => ({ title: u.title, minutes: u.missingMin, due: u.due || null }))

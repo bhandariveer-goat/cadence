@@ -11,9 +11,10 @@
 //   2. that account, and the site as a whole, are under today's limits
 //      (counted in Postgres by bump_agent_usage(), which an account cannot
 //      reset and new accounts cannot get round; see schema.sql);
-//   3. the body is a list of messages within the size limits.
-// The model, the instructions and the tools are fixed here (lib/agentspec.js).
-// A client sends messages and nothing else.
+//   3. the body is a list of messages within the size limits, or, for outline
+//      mode ("/secret" in the assistant), one assignment within its limits.
+// The model, the instructions and the tools are fixed here (lib/agentspec.js,
+// lib/outline.js). A client sends messages, or an assignment, and nothing else.
 //
 // Environment variables, set in Netlify > Project configuration > Environment
 // variables (never in netlify.toml, which functions cannot read, and never in
@@ -40,8 +41,9 @@
 //                         requests while tools run; those are capped per
 //                         account in the database, not counted here.
 
-import { API_URL, API_VERSION, BETAS, requestBody, checkMessages } from '../../src/lib/agentspec.js';
-import { GEMINI_MODEL, geminiUrl, geminiRequest, fromGemini } from '../../src/lib/gemini.js';
+import { API_URL, API_VERSION, BETAS, MODEL, requestBody, checkMessages } from '../../src/lib/agentspec.js';
+import { GEMINI_MODEL, geminiUrl, geminiRequest, fromGemini, thinkingFor } from '../../src/lib/gemini.js';
+import { OUTLINE_SYSTEM, GEMINI_OUTLINE_SCHEMA, OUTLINE_TOOL, sanitizeOutline, checkAssignment, outlinePrompt } from '../../src/lib/outline.js';
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -79,13 +81,19 @@ export default async (req) => {
 
   let body;
   try { body = await req.json(); } catch { return json(400, { error: 'Send JSON.' }); }
-  const problem = checkMessages(body?.messages);
+  // Two kinds of request: the conversation (messages), or outline mode, which
+  // sends one assignment and gets back an outline (src/lib/outline.js). The
+  // mode is one of these two words; its instructions live here, not in the request.
+  const outline = body?.mode === 'outline';
+  if (body?.mode !== undefined && !outline) return json(400, { error: 'Unknown mode.' });
+  const problem = outline ? checkAssignment(body.assignment) : checkMessages(body?.messages);
   if (problem) return json(400, { error: problem });
 
-  // A question starts from something the student typed. The requests that
-  // follow while the model uses tools end with tool results instead.
-  const last = body.messages[body.messages.length - 1];
-  const isStep = last.role === 'user' && Array.isArray(last.content) && last.content.length > 0 && last.content.every((b) => b.type === 'tool_result');
+  // A question starts from something the student typed (or an outline asked
+  // for). The requests that follow while the model uses tools end with tool
+  // results instead.
+  const last = outline ? null : body.messages[body.messages.length - 1];
+  const isStep = !outline && last.role === 'user' && Array.isArray(last.content) && last.content.length > 0 && last.content.every((b) => b.type === 'tool_result');
 
   const limit = Math.max(1, Number(process.env.AGENT_DAILY_LIMIT) || 60);
   const siteLimit = Math.max(1, Number(process.env.AGENT_DAILY_TOTAL) || 1500);
@@ -126,7 +134,9 @@ export default async (req) => {
     if (row.anon_account && Number(row.anon_total) > siteLimit * 0.3) return refuse({ error: 'The assistant is busy right now. Add an email to your account to keep using it, or try again later.' });
   }
 
-  const res = provider === 'gemini' ? await askGemini(gemini, body.messages) : await askClaude(anthropic, body.messages);
+  const res = outline
+    ? (provider === 'gemini' ? await outlineGemini(gemini, body.assignment) : await outlineClaude(anthropic, body.assignment))
+    : provider === 'gemini' ? await askGemini(gemini, body.messages) : await askClaude(anthropic, body.messages);
   if (!res.ok) { await refund(); return res; }
   res.headers.set('x-cadence-remaining', String(remaining));
   return res;
@@ -183,6 +193,81 @@ async function askGemini(key, messages) {
   const reply = fromGemini(data);
   if (reply.stop_reason === 'error') return failed(502);
   return json(200, reply);
+}
+
+// ------------------------------------------------------------ outline mode
+
+/** The outline as Cadence sends it on: cut to size here, whatever the model wrote. */
+const outlineReply = (raw) => {
+  const out = sanitizeOutline(raw);
+  return out ? json(200, { outline: out }) : failed(502);
+};
+
+async function outlineGemini(key, assignment) {
+  const wanted = String(process.env.GEMINI_MODEL || '').trim();
+  const model = /^gemini-[a-z0-9.-]+$/.test(wanted) ? wanted : GEMINI_MODEL;
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), 9000);
+  let upstream;
+  try {
+    upstream = await fetch(geminiUrl(model), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: OUTLINE_SYSTEM }] },
+        contents: [{ role: 'user', parts: [{ text: outlinePrompt(assignment) }] }],
+        generationConfig: {
+          maxOutputTokens: 1500,
+          responseMimeType: 'application/json',
+          responseSchema: GEMINI_OUTLINE_SCHEMA,
+          thinkingConfig: { thinkingLevel: thinkingFor(model) }
+        }
+      }),
+      signal: stop.signal
+    });
+  } catch {
+    clearTimeout(timer);
+    return stop.signal.aborted ? json(504, { error: 'The assistant took too long to answer.' }) : json(502, { error: 'The assistant could not be reached. Try again.' });
+  }
+  clearTimeout(timer);
+  if (!upstream.ok) return failed(upstream.status);
+  const data = await upstream.json().catch(() => null);
+  const text = (data?.candidates?.[0]?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || '').join('');
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch { /* not JSON: refused below */ }
+  return outlineReply(parsed);
+}
+
+async function outlineClaude(key, assignment) {
+  // This model does not take a forced tool choice, so it is told to answer
+  // with the tool and anything else comes back as no outline (refunded).
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), 9000);
+  let upstream;
+  try {
+    upstream = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': API_VERSION },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 8000,
+        system: `${OUTLINE_SYSTEM}\n\nAlways answer by calling the outline tool, once.`,
+        tools: [OUTLINE_TOOL],
+        tool_choice: { type: 'auto' },
+        output_config: { effort: 'low' },
+        messages: [{ role: 'user', content: outlinePrompt(assignment) }]
+      }),
+      signal: stop.signal
+    });
+  } catch {
+    clearTimeout(timer);
+    return stop.signal.aborted ? json(504, { error: 'The assistant took too long to answer.' }) : json(502, { error: 'The assistant could not be reached. Try again.' });
+  }
+  clearTimeout(timer);
+  if (!upstream.ok) return failed(upstream.status);
+  const data = await upstream.json().catch(() => null);
+  const call = (data?.content || []).find((b) => b.type === 'tool_use' && b.name === OUTLINE_TOOL.name);
+  return outlineReply(call?.input);
 }
 
 export const config = { path: '/api/agent' };

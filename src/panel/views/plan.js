@@ -21,6 +21,7 @@ import {
 import { ART } from './parts.js';
 import { stepSchedule, ensureGuide } from './guide.js';
 import { clockOf, dayWord } from '../../lib/agentops.js';
+import { atRisk } from '../../lib/scheduler.js';
 
 export function viewPlan() {
   return `
@@ -405,18 +406,18 @@ export function side(mode = 'school') {
 export function weekShape() {
   const today = dateKey(new Date());
   const days = (app.S.plan?.days || []).filter((d) => d.date >= today).slice(0, 7);
-  const unplaced = app.S.plan?.unplaced || [];
+  const unplaced = atRisk(app.S.plan);
   const most = Math.max(60, ...days.map((d) => Math.max(d.minutes, d.cap || 0)));
   const busiest = days.slice().sort((a, b) => b.minutes - a.minutes)[0];
   const assigned = unplaced.filter((u) => !u.commitmentId);
 
   return `
     ${unplaced.length ? `<div class="card warm">
-      <div class="card-title">${assigned.length ? 'Does not fit yet' : 'A session short'}</div>
+      <div class="card-title">${assigned.length ? (assigned.every((u) => u.late) ? 'Planned, but after it is due' : 'No free time left') : 'No free time left for practice'}</div>
       <div class="card-sub">${unplaced.slice(0, 3).map((u) => `${esc(u.title)}${u.due && !u.commitmentId ? `, due ${esc(dayWord(dateKey(new Date(u.due))))}` : ''}`).join('. ')}${unplaced.length > 3 ? `, and ${unplaced.length - 3} more` : ''}.</div>
       <button class="btn small primary mt3" data-act="agent-open" data-seed="${assigned.length ? 'I can do more on ' : ''}">${assigned.length ? 'Tell Cadence when you have more time' : 'Ask Cadence to move things'}</button>
     </div>` : `<div class="card good"><div class="card-title">Everything fits</div>
-      <div class="card-sub">Every assignment lands before it is due.</div></div>`}
+      <div class="card-sub">Every assignment lands before it is due${(app.S.plan?.stretchDays || []).some((d) => d >= today) ? ', with some days heavier than usual (marked below)' : ''}.</div></div>`}
 
     <div class="section-head"><h2>The next seven days</h2></div>
     <div class="card flush">
