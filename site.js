@@ -487,11 +487,29 @@ function initSections() {
   };
   for (const a of links) a.addEventListener('click', () => mark(a.getAttribute('href').slice(1)));
   if (!('IntersectionObserver' in window)) return;
+  // The section under a line just below the header is the one being read.
+  // Positions are measured, not guessed from what is "in view": a link jumps
+  // a section's top to exactly where the one before it ends, and both
+  // touching that edge used to leave the mark on the section above.
+  // Sections the header does not list count as the listed one before them.
   const hero = $('.hero');
-  const targets = [hero, ...$$('main section[id]')].filter(Boolean);
-  const seen = new Set();
-  const here = new IntersectionObserver((entries) => { for (const e of entries) { if (e.isIntersecting) seen.add(e.target); else seen.delete(e.target); } const first = targets.find((t) => seen.has(t)); if (first === hero) mark(null); else if (first && byId.has(first.id)) mark(first.id); }, { rootMargin: '-80px 0px -60% 0px' });
-  for (const t of targets) here.observe(t);
+  const targets = [hero, ...$$('main section[id]').filter((t) => byId.has(t.id))].filter(Boolean);
+  const LINE = 120;
+  const pick = () => {
+    let cur = null;
+    for (const t of targets) if (t.getBoundingClientRect().top <= LINE) cur = t;
+    mark(cur && cur !== hero ? cur.id : null);
+  };
+  // Told whenever a section starts or stops crossing that line.
+  let here = null;
+  const watch = () => {
+    here?.disconnect();
+    here = new IntersectionObserver(pick, { rootMargin: `-${LINE}px 0px -${Math.max(0, innerHeight - LINE - 1)}px 0px` });
+    for (const t of targets) here.observe(t);
+  };
+  watch();
+  addEventListener('resize', watch);
+  addEventListener('hashchange', () => setTimeout(pick, 0));
 }
 
 function initCtaBar() {

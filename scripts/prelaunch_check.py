@@ -161,7 +161,7 @@ ALLOWED_SCROLL = {
     'site.js': [
         # The header link for the section being read (initSections).
         "if (!('IntersectionObserver' in window)) return;",
-        "const here = new IntersectionObserver((entries) => { for (const e of entries) { if (e.isIntersecting) seen.add(e.target); else seen.delete(e.target); } const first = targets.find((t) => seen.has(t)); if (first === hero) mark(null); else if (first && byId.has(first.id)) mark(first.id); }, { rootMargin: '-80px 0px -60% 0px' });",
+        'here = new IntersectionObserver(pick, { rootMargin: `-${LINE}px 0px -${Math.max(0, innerHeight - LINE - 1)}px 0px` });',
         "if ('IntersectionObserver' in window) {",
         "new IntersectionObserver(([entry]) => { top.hidden = entry.isIntersecting; }, { rootMargin: '150% 0px 0px 0px' }).observe(marker);",
         "if (!('IntersectionObserver' in window)) return;",
