@@ -18,7 +18,7 @@ says what they are for, so a change can be checked against them.
 | `--on-accent` | `#1c1b19` | Text on an orange fill (5.8:1; white would be 3:1) |
 | `--green`, `--amber`, `--red` | | Done, careful, wrong. Never decoration |
 | `--k-school`, `--k-event`, `--k-activity`, `--k-work` | grey, blue, green, orange | What kind of thing is on a calendar |
-| `--a-practice` ... `--a-custom` | one per kind of activity | Which activity: its ring, its icon, its block in the day strip |
+| `--a-practice` ... `--a-custom` | one per kind of activity | Which activity: its ring, its icon, its block on Today |
 | `--stage` | `#1d3c9c` (dark `#1c2d6e`) | The homepage only: the evening-blue field of the first screen and the closing call, where the live app sits. Never a button |
 | `--band` | `#f7f6f4` | The homepage only: every other section, so colour, not a rule, marks where one ends |
 
@@ -32,10 +32,11 @@ colour. Courses are not given colours of their own.
 ### The loud part
 
 Today opens with the one place the design raises its voice: the date, a big
-greeting, one sentence about the day, and the day strip, a bar from waking to
-bed with school, plans, activities and homework in their colours and a mark
-for now. The card for the next thing to do is tinted with that thing's colour.
-Everything else stays quiet so these read first.
+greeting and one sentence about the day. The card for the next thing to do is
+tinted with that thing's colour. Everything else stays quiet so these read
+first. (A bar of the whole day used to sit under the greeting; on a real day
+of class periods and short blocks it was a row of unreadable slivers, so it
+was taken out. The Calendar tab shows the day properly.)
 
 ### Light and dark
 

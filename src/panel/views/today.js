@@ -7,7 +7,7 @@ import {
 import { cloudConfigured } from '../../config.js';
 import { weekProgress, pendingCheckins, showUpStreak, sessionMinutes, weekStart, weeklyReview, activeDates } from '../../lib/habits.js';
 import { dateKey, fmtTime, fmtMinutes, fmtDay, addDays, fmtClock } from '../../lib/util.js';
-import { ringsDeck, timeline, ART, commitmentIcon, dayStrip } from './parts.js';
+import { ringsDeck, timeline, ART, commitmentIcon } from './parts.js';
 import { svg, I, esc, greeting, avatar, ago, colorFor, mmss, plural, KIND_ICON, dueLabel, isWide, activityColor } from '../ui.js';
 import { dayWord } from '../../lib/agentops.js';
 import { atRisk } from '../../lib/scheduler.js';
@@ -32,7 +32,6 @@ export function viewToday() {
       <p class="hero-date">${esc(date)}</p>
       <h1>${greeting(S.profile.name)}</h1>
       <p class="hero-sum">${summaryLine()}</p>
-      ${dayStrip(k)}
     </section>
 
     ${nudge ? nudgeBanner(nudge) : ''}

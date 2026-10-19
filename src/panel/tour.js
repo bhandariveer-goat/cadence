@@ -9,7 +9,7 @@ import { esc } from './ui.js';
 import { clamp } from '../lib/util.js';
 
 const STEPS = [
-  { sel: '[data-act="tab"][data-tab="today"]', title: 'Today', text: 'What to do next, and your whole day at a glance. Press Start block when you sit down to work.' },
+  { sel: '[data-act="tab"][data-tab="today"]', title: 'Today', text: 'What to do next, and what is left today. Press Start block when you sit down to work.' },
   { sel: '[data-act="tab"][data-tab="calendar"]', title: 'Calendar', text: 'Your week in one place: school, practice, plans, and the time set aside for homework.' },
   { sel: '[data-act="tab"][data-tab="plan"]', title: 'School', text: 'Every assignment and how long it should take. Open one to see the steps to finish it.' },
   { sel: '[data-act="tab"][data-tab="activities"]', title: 'Activities', text: 'Practice, clubs, a job. Check in after each one to fill its ring for the week.' },

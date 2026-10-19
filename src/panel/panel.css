@@ -413,38 +413,6 @@ button.card.tap:hover, .card.tap[role="button"]:hover { border-color: var(--line
 .today-hero h1 { margin-top: var(--s1); font-size: 2.027rem; font-weight: var(--display-weight); line-height: 1.1; letter-spacing: var(--display-track); }
 .hero-sum { margin-top: var(--s2); max-width: 62ch; color: var(--text-2); font-size: var(--t-body); line-height: 1.5; }
 
-.day-strip { margin-top: var(--s4); }
-.ds-bar {
-  position: relative; height: 44px; border-radius: var(--r-lg); overflow: hidden;
-  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line);
-}
-.ds-seg {
-  position: absolute; top: 4px; bottom: 4px; min-width: 3px; container-type: inline-size;
-  display: flex; align-items: center; padding: 0 var(--s2); border-radius: var(--r);
-  background: color-mix(in srgb, var(--c) 26%, var(--surface)); box-shadow: inset 0 -3px 0 var(--c), 0 0 0 1px var(--surface);
-  color: var(--text); font-size: var(--t-meta); font-weight: 600; line-height: 1.2; overflow: hidden;
-}
-.ds-seg > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Things that overlap share the bar's height in rows; their names get smaller. */
-.ds-seg.row { line-height: 1.1; padding: 0 var(--s1); box-shadow: inset 0 -2px 0 var(--c), 0 0 0 1px var(--surface); }
-/* School under everything else: no bottom rule, so what sits on it reads first. */
-.ds-seg.backdrop { box-shadow: 0 0 0 1px var(--surface); }
-/* Measured inside the padding: a segment narrower than 52px drops its label. */
-@container (max-width: 36px) { .ds-seg > span { display: none; } }
-.ds-seg.k-school { background: color-mix(in srgb, var(--c) 18%, var(--surface)); color: var(--text-2); font-weight: 500; }
-/* Over or done: the colour fades, the words stay readable. */
-.ds-seg.past { background: color-mix(in srgb, var(--c) 10%, var(--surface)); box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--c) 40%, var(--surface)), 0 0 0 1px var(--surface); color: var(--text-2); font-weight: 500; }
-@media screen {
-  :root[data-theme="dark"] .ds-seg { background: color-mix(in srgb, var(--c) 38%, var(--surface)); }
-  :root[data-theme="dark"] .ds-seg.k-school { background: color-mix(in srgb, var(--c) 18%, var(--surface)); }
-  :root[data-theme="dark"] .ds-seg.past { background: color-mix(in srgb, var(--c) 14%, var(--surface)); }
-}
-.ds-now { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); }
-.ds-now::before { content: ""; position: absolute; top: -1px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 2px var(--surface-2); }
-.ds-axis { position: relative; height: 18px; margin-top: var(--s1); color: var(--muted); font-size: var(--t-meta); font-variant-numeric: tabular-nums; }
-.ds-axis span { position: absolute; top: 0; white-space: nowrap; }
-.ds-axis .mid { transform: translateX(-50%); }
-.ds-axis .end { transform: translateX(-100%); }
 
 /* --------------------------------------------------------------- rings */
 
