@@ -111,8 +111,9 @@ the three dots while the assistant is thinking.
 
 Nothing animates because the page was scrolled. Three things on the public
 pages know where the scroll is, and `scripts/prelaunch_check.py` allows those
-three by name and fails on any other: a 2px reading-progress line on the
-lower edge of the header (CSS only, hidden with "reduce motion"), the
+three by name and fails on any other: on the homepage, a 2px line under the
+header link of the section being read, which moves a link at a time and never
+by how far the page has scrolled, the
 back-to-top button, which appears once the top of the page is a screen and a
 half behind, and the bar of two buttons at the bottom of the homepage on a
 phone, which is there only while the page's own two buttons are off screen.

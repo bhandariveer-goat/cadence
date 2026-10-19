@@ -19,7 +19,7 @@ House style (so the site does not read as generated):
   * no em dashes and no emoji in anything a person reads
   * no scroll-triggered or cursor animation, no counters. Three things know
     where the page is scrolled to and are allowed by name, and only those: the
-    2px reading-progress line under the header, the back-to-top button
+    marker under the header link of the section being read, the back-to-top button
     appearing once the top of the page is out of sight, and the bar of two
     buttons on a phone, which is there only while the page's own buttons are
     not. None of them is an animation
@@ -158,11 +158,10 @@ check('No emoji', not found, '; '.join(found[:5]))
 # The two uses of scroll position that are allowed, written out exactly. Take
 # these lines away and nothing else on the public pages may know about scroll.
 ALLOWED_SCROLL = {
-    'site.css': [
-        '@supports (animation-timeline: scroll()) {',
-        'animation: read-progress linear both; animation-timeline: scroll(root block);',
-    ],
     'site.js': [
+        # The header link for the section being read (initSections).
+        "if (!('IntersectionObserver' in window)) return;",
+        "const here = new IntersectionObserver((entries) => { for (const e of entries) { if (e.isIntersecting) seen.add(e.target); else seen.delete(e.target); } const first = targets.find((t) => seen.has(t)); if (first === hero) mark(null); else if (first && byId.has(first.id)) mark(first.id); }, { rootMargin: '-80px 0px -60% 0px' });",
         "if ('IntersectionObserver' in window) {",
         "new IntersectionObserver(([entry]) => { top.hidden = entry.isIntersecting; }, { rootMargin: '150% 0px 0px 0px' }).observe(marker);",
         "if (!('IntersectionObserver' in window)) return;",
@@ -184,8 +183,8 @@ MOTION = re.compile(
     r'|requestAnimationFrame|\.scrollY\b|\.pageYOffset\b|\.scrollTop\b|cursor:\s*url')
 motion = [name for name in PAGES + ['site.css', 'site.js'] if MOTION.search(scroll_free(name))]
 check('No scroll-triggered or cursor animation on the public pages', not motion, ', '.join(motion))
-check('The reading-progress line is off for people who asked for less motion',
-      '@media (prefers-reduced-motion: reduce) { .nav::after { display: none; } }' in read('site.css'))
+check('The section marker in the header does not animate',
+      'animation-timeline' not in without_comments(read('site.css')) and '.nav::after' not in without_comments(read('site.css')))
 check('No counters or testimonials on the homepage', not re.search(r'testimonial|data-count|countup|students? (use|trust)|rated \d|\d[\d,]*\+? (students|users|schools)', read('index.html'), re.I))
 
 # ------------------------------------------------- things that must stay true

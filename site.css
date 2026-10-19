@@ -124,19 +124,6 @@ a { color: var(--accent-strong); text-underline-offset: 2px; }
 
 /* ----------------------------------------------------------------- nav */
 .nav { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--line); background: var(--bg); }
-/* How far down the page you are, as a 2px line on the header's lower edge.
-   It is tied to the scroll position by the browser (no script runs while
-   scrolling) and only where the browser supports that; elsewhere, and for
-   anyone who has asked for less motion, there is no line. */
-@supports (animation-timeline: scroll()) {
-  .nav::after {
-    content: ""; position: absolute; left: 0; bottom: -1px; width: 100%; height: 2px;
-    background: var(--accent); transform-origin: 0 50%; transform: scaleX(0);
-    animation: read-progress linear both; animation-timeline: scroll(root block);
-  }
-  @keyframes read-progress { to { transform: scaleX(1); } }
-  @media (prefers-reduced-motion: reduce) { .nav::after { display: none; } }
-}
 .nav .wrap { display: flex; align-items: center; gap: var(--s6); height: 64px; }
 .brand { display: flex; align-items: center; gap: var(--s2); color: var(--text); font-size: var(--t-body); font-weight: 600; letter-spacing: -.01em; text-decoration: none; }
 a.brand { position: relative; }
@@ -146,6 +133,11 @@ a.brand::after { content: ""; position: absolute; inset: -8px -4px; }
 .nav .links a { position: relative; color: var(--text-2); font-size: var(--t-sm); font-weight: 500; text-decoration: none; white-space: nowrap; }
 .nav .links a::after { content: ""; position: absolute; inset: -12px -4px; }
 .nav .links a:hover { color: var(--text); }
+/* On the homepage, the link to the section you are reading has a 2px line
+   under it on the header's lower edge (site.js initSections). It moves a link
+   at a time, never by how far the page has scrolled, and does not animate. */
+.nav .links a[aria-current="location"] { color: var(--text); }
+.nav .links a[aria-current="location"]::before { content: ""; position: absolute; left: 0; right: 0; bottom: calc((100% - 64px) / 2 - 1px); height: 2px; background: var(--accent); pointer-events: none; }
 .nav .links a[aria-current="page"] { color: var(--text); text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 6px; }
 .nav .spacer, footer .spacer { flex: 1; }
 .nav .actions { display: flex; gap: var(--s2); }

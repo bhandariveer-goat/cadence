@@ -471,6 +471,29 @@ function initFloaters() {
 // same button is never there twice. Nothing runs while the page scrolls: the
 // browser reports when a pair of buttons comes into or leaves the screen.
 
+// ------------------------------------------------- where you are on the page
+// The header link for the section being read is marked (aria-current, and a
+// line under it in site.css). It changes a link at a time as a section's top
+// reaches the upper part of the screen, and goes away back in the intro.
+function initSections() {
+  const links = $$('.nav .links a[href^="#"]');
+  if (!links.length) return;
+  const byId = new Map(links.map((a) => [a.getAttribute('href').slice(1), a]));
+  const mark = (id) => {
+    for (const [k, a] of byId) {
+      if (k === id) a.setAttribute('aria-current', 'location');
+      else if (a.getAttribute('aria-current') === 'location') a.removeAttribute('aria-current');
+    }
+  };
+  for (const a of links) a.addEventListener('click', () => mark(a.getAttribute('href').slice(1)));
+  if (!('IntersectionObserver' in window)) return;
+  const hero = $('.hero');
+  const targets = [hero, ...$$('main section[id]')].filter(Boolean);
+  const seen = new Set();
+  const here = new IntersectionObserver((entries) => { for (const e of entries) { if (e.isIntersecting) seen.add(e.target); else seen.delete(e.target); } const first = targets.find((t) => seen.has(t)); if (first === hero) mark(null); else if (first && byId.has(first.id)) mark(first.id); }, { rootMargin: '-80px 0px -60% 0px' });
+  for (const t of targets) here.observe(t);
+}
+
 function initCtaBar() {
   const bar = $('[data-cta-bar]');
   const pairs = $$('main .cta');
@@ -553,6 +576,7 @@ initCopy();
 initEnquiry();
 initFloaters();
 initCtaBar();
+initSections();
 initNotice();
 openTarget();
 addEventListener('hashchange', openTarget);
