@@ -1118,3 +1118,14 @@ dialog.setup .lead { margin-top: var(--s2); color: var(--text-2); font-size: var
   .su-foot { padding: var(--s3) var(--s4) max(var(--s3), env(safe-area-inset-bottom)); }
   .su-foot .btn { flex: 1; }
 }
+
+/* ------------------------------------------- the homepage demo's taps
+   autoplay.js marks each tap of its tour with a soft circle where a finger
+   would land, as a phone demo is filmed. Opacity and transform only. */
+.tap-hint {
+  position: fixed; z-index: 100; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 16%, transparent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 28%, transparent);
+  pointer-events: none; opacity: 0; transform: scale(.6);
+}
+.tap-hint.on { animation: tap-hint 700ms var(--ease-out) forwards; }
+@keyframes tap-hint { 30% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.15); } }

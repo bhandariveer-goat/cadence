@@ -339,4 +339,8 @@ document.addEventListener('cadence:act', (e) => {
   if (fn) fn({ dataset: { act, ...rest } });
 });
 
-boot().then(() => { if (app.linkProblem) { toast(app.linkProblem); app.linkProblem = null; } });
+boot().then(() => {
+  if (app.linkProblem) { toast(app.linkProblem); app.linkProblem = null; }
+  // In the homepage's frame, the demo shows itself around (autoplay.js).
+  if (EMBEDDED) import('./autoplay.js').then((m) => m.startAutoplay());
+});

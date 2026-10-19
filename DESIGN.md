@@ -109,6 +109,12 @@ Loading has three forms and no others: the ring on a busy button, a line or
 two of placeholder that breathes slowly where text is about to arrive, and
 the three dots while the assistant is thinking.
 
+One thing moves by itself: the live app on the homepage plays a short tour
+of its own tabs (`src/panel/autoplay.js`), marking each tap with a soft
+circle. It only looks, never changes the demo week, does not play for anyone
+who asked for less motion, and stops for good at the visitor's first click,
+tap, scroll or key press.
+
 Nothing animates because the page was scrolled. Three things on the public
 pages know where the scroll is, and `scripts/prelaunch_check.py` allows those
 three by name and fails on any other: on the homepage, a 2px line under the

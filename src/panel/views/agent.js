@@ -344,7 +344,7 @@ export function render() {
   const box = el.querySelector('#ag-input');
   if (box) {
     autosize(box);
-    if (!a.busy && (hadFocus || a.focusNext)) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+    if (!a.busy && (hadFocus || a.focusNext)) { box.focus({ preventScroll: true }); box.setSelectionRange(box.value.length, box.value.length); }
   }
   a.focusNext = false;
 }
@@ -385,7 +385,7 @@ function toggleMic() {
 
 export const actions = {
   'agent-open': (el) => { const a = ensureAgent(); a.open = true; a.focusNext = true; if (el?.dataset?.seed && !a.draft) a.draft = el.dataset.seed; render(); },
-  'agent-close': () => { ensureAgent().open = false; render(); $('#btn-agent')?.focus(); },
+  'agent-close': () => { ensureAgent().open = false; render(); $('#btn-agent')?.focus({ preventScroll: true }); },
   'agent-toggle': () => { const a = ensureAgent(); a.open = !a.open; a.focusNext = a.open; render(); },
   'agent-say': (el) => { const a = ensureAgent(); if (!a.open) { a.open = true; } send(el.dataset.text); },
   'agent-mic': () => toggleMic(),
