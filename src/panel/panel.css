@@ -1119,10 +1119,14 @@ dialog.setup .lead { margin-top: var(--s2); color: var(--text-2); font-size: var
   .su-foot .btn { flex: 1; }
 }
 
-/* ------------------------------------------- moving between tabs
-   app.js slides the current tab's mark from the old tab to the new one, as a
-   copy laid over the bar (.tab-glide), while the real mark waits underneath.
-   The page then comes in from the side of the tab that was picked. */
+/* ------------------------------------------- the homepage demo's tour
+   Only in the homepage's frame (autoplay.js): the current tab's mark springs
+   from the old tab to the new one as a copy laid over the bar (.tab-glide)
+   while the real mark waits underneath, and the old page (.view-leaving)
+   slides away over the new one. While the tour plays the app does not
+   scroll, so a wheel or swipe over the frame scrolls the homepage. */
+.showing main { overflow: hidden; overscroll-behavior: auto; }
+.view-leaving { position: absolute; left: 0; right: 0; box-sizing: border-box; pointer-events: none; }
 .tabbar { position: relative; }
 .tab-glide { position: absolute; z-index: 0; pointer-events: none; background: var(--accent-soft); }
 .tabbar.gliding .tab[aria-current="page"] svg { background: none; }

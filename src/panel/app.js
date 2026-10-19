@@ -27,6 +27,7 @@ import { openPalette, installShortcuts, shortcutsSheet } from './views/palette.j
 import { maybeStartTour, startTour } from './tour.js';
 import { maybeStartSetup, open as openSetup } from './setup.js';
 import { checkinPicker } from './views/commitments.js';
+import * as showcase from './autoplay.js';
 
 mountShell();
 document.body.classList.toggle('web', STANDALONE);
@@ -79,59 +80,8 @@ const SUBMIT = { ...plan.submitActions, ...create.submitActions, ...agent.submit
 
 let rendering = false, again = false;
 
-// ------------------------------------------------------------------ moving between tabs
-// Picking another tab is shown rather than just swapped: the mark under the
-// current tab slides across to the new one, and the page comes in from the
-// side of the tab that was picked. Opacity and transform only, about a third
-// of a second, and nothing at all for someone who has asked for less motion.
-
+// The tab last drawn, so the homepage's frame can show a change of tab (autoplay.js).
 let shownTab = null;
-let glide = null;   // ends the slide in progress, if there is one
-const motionOK = () => !matchMedia('(prefers-reduced-motion: reduce)').matches && typeof Element.prototype.animate === 'function';
-const EASE = 'cubic-bezier(.2, .8, .2, 1)';
-
-/** Where a tab's mark is drawn, relative to the tab bar: the tinted tab behind
-    the icon on a phone (panel.css), the underline on a wider screen (web.css). */
-function markBox(tab) {
-  if (!tab) return null;
-  const bar = $('#tabs').getBoundingClientRect();
-  const x = (r) => r.left - bar.left + $('#tabs').scrollLeft;
-  const under = getComputedStyle(tab, '::before');
-  if (under.content !== 'none' && under.position === 'absolute') {
-    const r = tab.getBoundingClientRect();
-    const left = parseFloat(under.left) || 0, right = parseFloat(under.right) || 0, h = parseFloat(under.height) || 2;
-    return { left: x(r) + left, top: r.bottom - bar.top - h + 1, width: r.width - left - right, height: h, radius: under.borderRadius, color: 'var(--accent)' };
-  }
-  const icon = tab.querySelector('svg');
-  if (!icon) return null;
-  const r = icon.getBoundingClientRect();
-  return { left: x(r), top: r.top - bar.top, width: r.width, height: r.height, radius: getComputedStyle(icon).borderRadius, color: 'var(--accent-soft)' };
-}
-
-function showTabChange(from, step) {
-  const bar = $('#tabs');
-  const to = markBox(bar.querySelector('.tab[aria-current]'));
-  glide?.();
-  if (from && to && from.width && to.width) {
-    const el = Object.assign(document.createElement('span'), { className: 'tab-glide' });
-    el.setAttribute('aria-hidden', 'true');
-    Object.assign(el.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px`, borderRadius: to.radius, background: to.color, transformOrigin: '0 0' });
-    bar.append(el);
-    bar.classList.add('gliding');
-    const run = el.animate([
-      { transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})` },
-      { transform: 'none' }
-    ], { duration: 320, easing: EASE });
-    // Ended straight away by the next change, so a quick second click starts clean.
-    const end = () => { if (glide !== end) return; glide = null; run.cancel(); el.remove(); bar.classList.remove('gliding'); };
-    glide = end;
-    run.onfinish = end;
-  }
-  const dx = Math.sign(step) * 28;
-  for (const child of $('#view').children) {
-    child.animate([{ opacity: 0, transform: `translateX(${dx}px)` }, { opacity: 1, transform: 'none' }], { duration: 340, easing: EASE });
-  }
-}
 
 function renderApp() {
   if (!app.S) return;
@@ -176,13 +126,15 @@ function renderApp() {
     const tabs = TABS[teacher ? 'teacher' : 'student'];
     const active = activeTab();
     const unseen = (app.crew.nudges || []).some((n) => !n.seen);
-    const moved = shownTab && shownTab !== active && tabs.some(([id]) => id === shownTab) && motionOK();
-    const from = moved ? markBox($('#tabs .tab[aria-current]')) : null;
+    const moved = showcase.on() && shownTab && shownTab !== active && tabs.some(([id]) => id === shownTab);
+    const from = moved ? showcase.markBox($('#tabs .tab[aria-current]')) : null;
+    const leaving = moved ? [...$('#view').childNodes] : null;
     $('#tabs').innerHTML = tabs.map(([id, label, ic]) => `<button class="tab" data-act="tab" data-tab="${id}" ${active === id ? 'aria-current="page"' : ''}>
       ${svg(ic)}<span>${label}</span>${id === 'crew' && unseen ? '<i class="dot-badge" role="img" aria-label="New"></i>' : ''}</button>`).join('');
 
     $('#view').innerHTML = VIEWS[app.view]();
-    if (moved) showTabChange(from, tabs.findIndex(([id]) => id === active) - tabs.findIndex(([id]) => id === shownTab));
+    if (moved) showcase.tabChange(from, leaving, tabs.findIndex(([id]) => id === active) - tabs.findIndex(([id]) => id === shownTab));
+    else if (showcase.on()) showcase.redrawn();
     shownTab = active;
     // An invite link opened before signing in is offered once the app is up.
     if (!DEMO && pendingInvite()) setTimeout(() => crew.offerPendingInvite(), 0);
@@ -401,5 +353,5 @@ document.addEventListener('cadence:act', (e) => {
 boot().then(() => {
   if (app.linkProblem) { toast(app.linkProblem); app.linkProblem = null; }
   // In the homepage's frame, the demo shows itself around (autoplay.js).
-  if (EMBEDDED) import('./autoplay.js').then((m) => m.startAutoplay());
+  showcase.startAutoplay();
 });

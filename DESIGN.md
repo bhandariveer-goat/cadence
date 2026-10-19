@@ -109,15 +109,16 @@ Loading has three forms and no others: the ring on a busy button, a line or
 two of placeholder that breathes slowly where text is about to arrive, and
 the three dots while the assistant is thinking.
 
-Changing tabs is the one longer move, about a third of a second: the mark
-under the current tab slides to the new one and the page comes in from that
-side (`showTabChange` in `src/panel/app.js`).
-
-One thing moves by itself: the live app on the homepage steps through its
-own tabs every few seconds (`src/panel/autoplay.js`), with that same
-change. It only looks, never changes the demo week, does not play for anyone
-who asked for less motion, and stops for good at the visitor's first click,
-tap, scroll or key press.
+One thing moves by itself, and it is the only place anything moves for
+show: the live app on the homepage (`src/panel/autoplay.js`). As the page
+opens, Today comes in a piece at a time; then the app steps through its own
+tabs every few seconds, the mark under the tab springing across, the old
+page sliding away and the new one arriving from that side, rows a beat
+behind their blocks. Inside the app itself tabs change instantly. The tour
+only looks, never changes the demo week, and does not play for anyone who
+asked for less motion. While it plays the frame does not scroll, so a wheel
+over it scrolls the homepage; the visitor's first click, tap or key press
+stops it for good.
 
 Nothing animates because the page was scrolled. Three things on the public
 pages know where the scroll is, and `scripts/prelaunch_check.py` allows those
