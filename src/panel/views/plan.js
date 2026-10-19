@@ -130,7 +130,8 @@ function breakdown(t) {
 
 const FEEL = { faster: 0.75, right: 1, longer: 1.35 };
 const fmtHM = (d) => { const x = new Date(d); return `${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}`; };
-const CHEERS = ['Done and dusted.', 'One less thing on your plate.', "That's off your list.", 'Nicely done.'];
+/** What a finished assignment says: its own name, plainly. */
+const doneLine = (title) => (title ? `${title} is done.` : 'Done.');
 
 async function startSession(id) {
   await persist((st) => {
@@ -241,8 +242,8 @@ async function finishSession(id) {
     }
   });
   const msg = !finished ? 'Block done.'
-    : drift > 0.2 ? 'Done! Next time Cadence will plan more time for these.'
-      : drift < -0.2 ? 'Done, and quicker than planned. Cadence will remember.' : CHEERS[Math.floor(Math.random() * CHEERS.length)];
+    : drift > 0.2 ? 'Done. Next time Cadence plans more time for this kind of work.'
+      : drift < -0.2 ? 'Done, and quicker than planned. Next time Cadence plans less.' : doneLine(app.S.plan?.sessions?.find((y) => y.id === id)?.title);
   toast(msg, undoTo(snap));
 }
 
@@ -294,7 +295,7 @@ async function completeTask(taskId) {
   const snap = structuredClone(app.S);
   if (app.view === 'guide') { app.view = app.stack.pop()?.view || 'plan'; }
   await persist((st) => { finishTask(st, st.tasks[taskId], actual === 'skip' ? 0 : Number(actual)); });
-  toast(CHEERS[Math.floor(Math.random() * CHEERS.length)], undoTo(snap));
+  toast(doneLine(app.S.tasks?.[taskId]?.title), undoTo(snap));
 }
 
 async function dismissTask(taskId) {

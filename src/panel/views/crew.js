@@ -23,7 +23,7 @@ export function viewCrew() {
   return `
     <section class="hello">
       <h1>${teacher ? 'Clubs & classes' : 'Your crew'}</h1>
-      <p>${teacher ? "See who is on track and cheer them on, without chasing anyone." : 'The people who notice when you show up.'}</p>
+      <p>${teacher ? "See who has checked in this week, and nudge anyone who has not." : 'The people who notice when you show up.'}</p>
     </section>
     ${error ? `<div class="card warm small">${esc(error)}</div>` : ''}
 
@@ -53,10 +53,10 @@ export function viewCrew() {
 
 function connectCrew(teacher) {
   return `<div class="empty">
-    <h2>${teacher ? 'Run clubs and classes' : 'Showing up is easier with someone watching'}</h2>
+    <h2>${teacher ? 'Run clubs and classes' : 'Check in with a friend or your club'}</h2>
     <p>${teacher
-      ? "Set a team goal, see who's keeping up each week, and cheer people on, without chasing anyone."
-      : 'Invite a friend, join your team or club, and cheer each other on. People who know someone is watching show up more.'}</p>
+      ? "Set a weekly goal for your team and see who has checked in."
+      : "Invite a friend or join your club. You see each other's check-ins and can send a nudge."}</p>
     <div class="card left mt4 stack">
       ${[[I.users, 'Partners', 'See each other\'s check-ins and send a nudge'],
         [I.trophy, 'Clubs', 'Team goals with a shared ring toward the big event'],

@@ -96,11 +96,45 @@ export function dayStrip(k) {
     .map((g) => ({ ...g, a: Math.max(g.a, start), b: Math.min(g.b, end) }))
     .filter((g) => g.b > g.a);
 
-  const bars = shown.slice().sort((x, y) => order[x.kind] - order[y.kind] || x.a - y.a).map((g) => {
+  // School is the backdrop: anything during school hours (class periods from
+  // a calendar, a dentist visit) sits on top of it, and School keeps its name
+  // only where nothing covers it. Everything else that overlaps shares the
+  // height in rows, so nothing hides another or cuts its name short.
+  const overlaps = (x, y) => x.a < y.b && y.a < x.b;
+  const rest = shown.filter((g) => g.kind !== 'school').sort((x, y) => x.a - y.a || order[x.kind] - order[y.kind]);
+  const folds = [];
+  let cluster = [], clusterEnd = -Infinity;
+  const flush = () => {
+    const lanes = [];
+    for (const g of cluster) {
+      let i = lanes.findIndex((endAt) => endAt <= g.a);
+      if (i < 0) { lanes.push(g.b); i = lanes.length - 1; } else lanes[i] = g.b;
+      g.lane = i;
+    }
+    if (lanes.length <= 2) { for (const g of cluster) g.lanes = lanes.length; return; }
+    // Three or more at once: the first row stays, the rest fold into one
+    // "+N" block in the second row, as on the week grid.
+    const others = cluster.filter((g) => g.lane >= 1);
+    for (const g of cluster) { g.lanes = 2; if (g.lane >= 1) g.folded = true; }
+    folds.push({ a: Math.min(...others.map((g) => g.a)), b: Math.max(...others.map((g) => g.b)), kind: others[0].kind, title: `+${others.length}`, lane: 1, lanes: 2, past: others.every((g) => g.past) });
+  };
+  for (const g of rest) {
+    if (cluster.length && g.a >= clusterEnd) { flush(); cluster = []; clusterEnd = -Infinity; }
+    cluster.push(g); clusterEnd = Math.max(clusterEnd, g.b);
+  }
+  if (cluster.length) flush();
+
+  const seg = (g, extra = '', named = true) => {
     const left = pct(g.a), width = Math.max(0.6, pct(g.b) - left);
     const colour = g.c ? `;--c:${activityColor(g.c)}` : '';
-    return `<span class="ds-seg k-${g.kind}${g.past || g.done ? ' past' : ''}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%${colour}"><span>${esc(g.title)}</span></span>`;
-  }).join('');
+    const rows = g.lanes > 1 ? `;top:calc(4px + (100% - 8px) * ${g.lane} / ${g.lanes});bottom:auto;height:calc((100% - 8px) / ${g.lanes} - 2px)` : '';
+    return `<span class="ds-seg k-${g.kind}${g.past || g.done ? ' past' : ''}${g.lanes > 1 ? ' row' : ''}${extra}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%${colour}${rows}">${named ? `<span>${esc(g.title)}</span>` : ''}</span>`;
+  };
+  const bars = [
+    ...shown.filter((g) => g.kind === 'school').map((g) => seg(g, ' backdrop', !rest.some((o) => overlaps(o, g)))),
+    ...rest.filter((g) => !g.folded).map((g) => seg(g)),
+    ...folds.map((g) => seg(g))
+  ].join('');
 
   const marker = today && nowMin >= start && nowMin <= end
     ? `<span class="ds-now" style="left:${pct(nowMin).toFixed(2)}%"></span>` : '';

@@ -425,6 +425,10 @@ button.card.tap:hover, .card.tap[role="button"]:hover { border-color: var(--line
   color: var(--text); font-size: var(--t-meta); font-weight: 600; line-height: 1.2; overflow: hidden;
 }
 .ds-seg > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Things that overlap share the bar's height in rows; their names get smaller. */
+.ds-seg.row { line-height: 1.1; padding: 0 var(--s1); box-shadow: inset 0 -2px 0 var(--c), 0 0 0 1px var(--surface); }
+/* School under everything else: no bottom rule, so what sits on it reads first. */
+.ds-seg.backdrop { box-shadow: 0 0 0 1px var(--surface); }
 /* Measured inside the padding: a segment narrower than 52px drops its label. */
 @container (max-width: 36px) { .ds-seg > span { display: none; } }
 .ds-seg.k-school { background: color-mix(in srgb, var(--c) 18%, var(--surface)); color: var(--text-2); font-weight: 500; }

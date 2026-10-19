@@ -59,7 +59,7 @@ function summaryLine() {
   const mins = todays.reduce((a, s) => a + s.minutes, 0);
   const streak = showUpStreak(S);
   const dueToday = (S.commitments || []).filter((c) => !c.archived && weekProgress(c, S.checkins).left > 0).length;
-  if (!todays.length && !dueToday) return 'Nothing planned today. A good day to rest or get ahead.';
+  if (!todays.length && !dueToday) return 'Nothing is planned today.';
   const bits = [todays.length ? `${plural(todays.length, 'block')} planned today, about ${fmtMinutes(mins)}.` : 'Your plan for today is clear.'];
   // Say so when the day was shaped around how this student works.
   const moved = S.plan?.adapted?.start?.[k];
