@@ -12,8 +12,13 @@ import { svg, I, esc, ago, longDay, DOW_SHORT, isDesktop } from '../ui.js';
 import { timeline } from './parts.js';
 import { weekGrid, shownWeek, dueOn, LEGEND } from './week.js';
 
+// A date as "Oct 19".
 const monthDay = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 
+/** The Calendar tab: a box to add an event, the week being shown, and then
+    either the week as a grid (on a wide screen) or a strip of its days with
+    the chosen day's timeline (on a phone, or when the day view is picked).
+    Any source that failed to sync is named at the top. */
 export function viewCalendar() {
   const S = app.S;
   const mode = app.calMode === 'day' || !isDesktop() ? 'day' : 'week';
@@ -75,6 +80,7 @@ export function viewCalendar() {
     </p>`;
 }
 
+/** The line under "Calendar", with which sources are connected and when they last synced. */
 function subtitle(connected) {
   const base = 'School, activities, events and the time planned for your work, in one place.';
   if (!connected.length) return base;
@@ -82,6 +88,7 @@ function subtitle(connected) {
   return `${base} ${connected.map(([id]) => SOURCE_META[id]?.short || id).join(' and ')} synced${last ? ` ${ago(last)}` : ''}.`;
 }
 
+/** How much work is still planned on day `k`. */
 function dayLoad(k) {
   const mins = sessionsOn(k).filter((s) => !s.done).reduce((a, s) => a + s.minutes, 0);
   return mins ? `${fmtMinutes(mins)} of work planned` : 'No work planned';

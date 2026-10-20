@@ -29,6 +29,7 @@ const AUTH_ERRORS = {
   signup_disabled: 'New accounts are switched off for this copy of Cadence.',
   email_provider_disabled: 'Email sign-in is switched off for this copy of Cadence.'
 };
+// A sign-in error in plain words: ours for the codes we know, else what the server said.
 const authMessage = (data, status) => AUTH_ERRORS[data.error_code]
   || (status === 429 ? AUTH_ERRORS.over_request_rate_limit : '')
   || data.msg || data.error_description || data.message || `Sign-in failed (${status})`;
@@ -55,6 +56,9 @@ export class PlanChanged extends Error {
   constructor() { super('Your plan was changed somewhere else.'); this.changed = true; }
 }
 
+/** The connection to the account (Supabase): signing in with an emailed code,
+    keeping the session fresh, and reading and writing the saved plan.
+    `onSession` is told whenever the session changes, so it can be kept. */
 export function createCloud({ url, anonKey, session = null, onSession = () => {} }) {
   const base = String(url || '').replace(/\/+$/, '');
   let current = session;
@@ -65,6 +69,7 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
     ...(auth && current?.access_token ? { authorization: `Bearer ${current.access_token}` } : {})
   });
 
+  /** A call to the sign-in service, with errors in plain words and a clear one when offline. */
   async function authCall(path, body) {
     let res;
     try { res = await fetch(`${base}/auth/v1/${path}`, { method: 'POST', headers: headers(false), body: JSON.stringify(body) }); }
@@ -74,6 +79,7 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
     return data;
   }
 
+  /** Keeps a new session (and passes it to onSession). */
   function keep(data) {
     current = {
       access_token: data.access_token,
@@ -87,6 +93,7 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
 
   /** A token that is good for at least another minute, refreshing if needed. */
   let refreshing = null;
+  /** Makes sure the session is good for at least another minute, renewing it if not. */
   async function fresh() {
     if (!current) throw new Error('Sign in first');
     if (Date.now() > (current.expires_at || 0) - 60000) {
@@ -113,6 +120,7 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
     return current.access_token;
   }
 
+  /** A database call as the signed-in student. */
   async function rest(path, { method = 'GET', body, prefer } = {}) {
     await fresh();
     let res;

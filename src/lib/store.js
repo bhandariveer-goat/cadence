@@ -10,11 +10,16 @@ const HAS_CHROME = typeof chrome !== 'undefined' && chrome.storage && chrome.sto
 const KEYS = { real: 'cadence.state.v1', demo: 'cadence.demo.v1' };
 let KEY = KEYS.real;
 
+/** Chooses which saved plan this page reads and writes: the real one, or the
+    demo's, so trying the demo never touches a real plan. */
 export function useBucket(name) {
   KEY = KEYS[name] || KEYS.real;
 }
+// Which saved plan is in use.
 export const currentBucket = () => (KEY === KEYS.demo ? 'demo' : 'real');
 
+// A new plan. Every field the app reads is here, so a saved plan missing some
+// (from an older version) is filled in from this when it is loaded.
 export const DEFAULT_STATE = {
   profile: {
     name: '',
@@ -109,6 +114,8 @@ export const DEFAULT_STATE = {
   lastSync: null
 };
 
+/** `base` with `patch` laid over it, object by object. Lists and plain values
+    in `patch` replace those in `base` whole. */
 function deepMerge(base, patch) {
   if (Array.isArray(base) || typeof base !== 'object' || base === null) return patch ?? base;
   const out = { ...base };
@@ -118,6 +125,8 @@ function deepMerge(base, patch) {
   return out;
 }
 
+/** Loads the saved plan (from the extension's storage, or the browser's on
+    the website), filled out with defaults and brought up to date. */
 export async function loadState() {
   let raw = null;
   if (HAS_CHROME) {
@@ -201,6 +210,7 @@ function migrate(state) {
   return state;
 }
 
+/** Saves the plan, stamping when. */
 export async function saveState(state) {
   state.updatedAt = new Date().toISOString();
   if (HAS_CHROME) await chrome.storage.local.set({ [KEY]: state });
@@ -215,6 +225,7 @@ export async function update(fn) {
   return saveState(next);
 }
 
+/** Removes the saved plan and returns a new one. */
 export async function resetState() {
   if (HAS_CHROME) await chrome.storage.local.remove(KEY);
   else localStorage.removeItem(KEY);

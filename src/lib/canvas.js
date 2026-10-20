@@ -14,6 +14,8 @@ let transport = null;
 /** @param {(req:{path:string,method?:string,body?:any}) => Promise<{ok:boolean,status:number,data:any,link?:string}>} fn */
 export function setTransport(fn) { transport = fn; }
 
+/** A Canvas API call made through the Canvas page (with the student's own
+    session), turning a failure into an error that says what Canvas said. */
 async function api(path, opts = {}) {
   if (!transport) throw new Error('No Canvas connection. Open Cadence from a Canvas tab.');
   const res = await transport({ path, method: opts.method || 'GET', body: opts.body });
@@ -24,6 +26,7 @@ async function api(path, opts = {}) {
   return res;
 }
 
+/** A Canvas list across pages, following its "next" links, at most `max` pages. */
 async function apiAll(path, { max = 4 } = {}) {
   let out = [];
   let next = path;
@@ -36,11 +39,13 @@ async function apiAll(path, { max = 4 } = {}) {
   return out;
 }
 
+/** The signed-in Canvas user. */
 export async function whoAmI() {
   const res = await api('/api/v1/users/self');
   return res.data;
 }
 
+/** The student's current courses, with whether they take or teach each one. */
 export async function listCourses() {
   const raw = await apiAll('/api/v1/courses?enrollment_state=active&per_page=50&include[]=term');
   return raw
@@ -64,6 +69,7 @@ export async function fetchPlannerItems({ daysBack = 3, daysAhead = 30 } = {}) {
   return apiAll(`/api/v1/planner/items?start_date=${start}&end_date=${end}&per_page=50`);
 }
 
+/** A course's assignments, soonest due first, with the student's submission for each. */
 export async function fetchCourseAssignments(courseId) {
   return apiAll(`/api/v1/courses/${courseId}/assignments?per_page=50&order_by=due_at&include[]=submission`);
 }
@@ -166,6 +172,7 @@ export async function createAssignment(courseId, draft) {
 const MODULE_KIND = { File: 'file', Page: 'page', Discussion: 'discussion', Quiz: 'quiz', Assignment: 'assignment', ExternalUrl: 'link', ExternalTool: 'link' };
 const GENERIC = new Set(['assignment', 'homework', 'worksheet', 'quiz', 'test', 'reading', 'essay', 'paper', 'draft', 'first', 'final', 'report', 'problem', 'problems', 'set', 'unit', 'chapter', 'chapters', 'discussion', 'project', 'with', 'from', 'your', 'the', 'and', 'for']);
 
+// A Canvas rubric as criteria with a title, detail and points.
 const mapRubric = (r) => (r || []).map((c) => ({ title: c.description || 'Criterion', detail: c.long_description || '', points: c.points ?? null }));
 
 /**

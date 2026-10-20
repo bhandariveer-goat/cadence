@@ -39,6 +39,8 @@ export const LINK_FEEDS = {
  * descriptions: only the title and time are kept, on this device.
  */
 const ID_PREFIX = { googleFeed: 'gfeed', outlookFeed: 'ofeed', icloudFeed: 'ifeed' };
+/** Fetches a calendar link (Google, Outlook or iCloud) and reads it as busy
+    events, leaving out "free" ones and anything that is not a calendar. */
 async function fetchLinkFeed(id, url, horizonDays, fetchImpl) {
   const name = LINK_FEEDS[id].name;
   const res = await fetchImpl(url);
@@ -54,10 +56,12 @@ async function fetchLinkFeed(id, url, horizonDays, fetchImpl) {
     .map((e) => ({ ...e, id: `${ID_PREFIX[id]}_${e.id}`, source: id, description: '', url: '' }));
 }
 
+/** A source that has never been connected. */
 export function emptySource() {
   return { enabled: false, events: [], assignments: [], lastSync: null, error: null, syncing: false };
 }
 
+// Whether a source is switched on.
 const ok = (state, id) => !!state.sources?.[id]?.enabled;
 
 // A source that can't fetch on its own — a Canvas feed that came from an

@@ -44,9 +44,14 @@ export function startByDate(estimateMin, deadline, availability, busy, settings)
 /** Past-due by more than this and we assume it no longer needs submitting. */
 export const STALE_AFTER_DAYS = 30;
 
+/** An assignment so long overdue (STALE_AFTER_DAYS) that it is no longer planned. */
 export function isStale(task, now = Date.now()) {
   return !!task.due && +new Date(task.due) < +now - STALE_AFTER_DAYS * DAY;
 }
+/** The date to aim to finish by. Normally a buffer before the real due date
+    (12 hours unless set), so work is not left to the last minute; but the
+    real due date if the buffer would leave too little free time to do it.
+    Late work gets a week, and an activity's block keeps its own day. */
 export function effectiveDeadline(due, estimateMin, ctx = {}) {
   const { availability, busy, settings = {}, now = new Date(), noBuffer = false } = ctx;
   // Practice sessions belong to their day — no "finish the night before".

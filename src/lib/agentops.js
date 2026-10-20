@@ -20,6 +20,9 @@ import { freeSlots } from './calendar.js';
 import { addNote, forgetNote, setPrefs, memoryView } from './memory.js';
 import { atRisk } from './scheduler.js';
 
+// Time and date helpers: two-digit numbers, "HH:MM" to minutes and back
+// (wrapping round midnight), checks for a time and a YYYY-MM-DD date, and
+// noon on a date (safe from daylight-saving edges).
 const pad = (n) => String(n).padStart(2, '0');
 export const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
 export const fromMin = (t) => { const m = ((Math.round(t) % 1440) + 1440) % 1440; return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
@@ -34,6 +37,7 @@ export const clock = fmtClock;
 export const clockOf = (d) => { const x = new Date(d); return clock(`${pad(x.getHours())}:${pad(x.getMinutes())}`); };
 
 const DOW_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Weekday numbers as "Mon, Wed and Fri" in week order from Monday, or "day" for all seven ("every day"). */
 export function joinDays(days = []) {
   const names = [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => DOW_ABBR[d]);
   if (names.length === 7) return 'day';
@@ -49,12 +53,14 @@ export function dayWord(k, now = new Date()) {
   if (diff > 1 && diff < 7) return noon(k).toLocaleDateString([], { weekday: 'long' });
   return noon(k).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
+// "tonight" for today, otherwise the day's word; and minutes for a reply.
 const nightWord = (k, now) => (k === dateKey(now) ? 'tonight' : dayWord(k, now));
 const dur = (min) => fmtMinutes(Math.max(0, Math.round(min)));
 
 // --------------------------------------------------------------- finding
 
 const STOP = new Set(['the', 'a', 'an', 'my', 'of', 'for', 'to', 'and', 'on', 'in', 'at', 'hw', 'homework', 'assignment', 'thing', 'stuff', 'work']);
+// The words in a phrase that say which thing is meant (STOP words dropped).
 const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w && !STOP.has(w));
 
 /**
@@ -356,6 +362,7 @@ const APPLY = {
 
 // ------------------------------------------------------------------ diff
 
+// Blocks still to do, and those on day `k` in time order.
 const openSessions = (state) => (state.plan?.sessions || []).filter((s) => !s.done);
 const onDay = (sessions, k) => sessions.filter((s) => dateKey(new Date(s.start)) === k).sort((a, b) => new Date(a.start) - new Date(b.start));
 
@@ -434,8 +441,13 @@ export function freeOn(state, k, now = new Date()) {
   return open.map((s) => ({ start: s.start, end: s.end, minutes: Math.round((s.end - s.start) / MIN) }));
 }
 
+// A block as "6pm Lab report (45m)".
 const blockLine = (s) => `${clockOf(s.start)} ${s.title} (${dur(s.minutes)})`;
 
+/** Answers a question about the plan without changing it, by `query.kind`:
+    what is now or next ('now'), today ('today'), the week ('week'), when there
+    is free time ('free'), when something is planned ('when'), and how the
+    activities are going ('activities'). */
 export function answer(query, state, now = new Date()) {
   const today = dateKey(now);
   const open = openSessions(state);

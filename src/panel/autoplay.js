@@ -41,6 +41,7 @@ export function on() {
   return enabled;
 }
 
+// The app's page column.
 const view = () => document.getElementById('view');
 
 /** The pieces of the page on screen, each with how long it waits to move. */
@@ -112,6 +113,9 @@ const CHANGE = 1600;   // milliseconds a change takes, all pieces in
 const LEAVE = 170;     // the new page waits this long, until the old one is all but gone
 let changeStart = -Infinity, changeDir = 1;
 
+/** The new page coming in, a piece at a time, from the side `dir` (1 right,
+    -1 left). `gone` is how far into the change it already is, for picking it
+    up after a redraw. Returns the animations. */
 function comeIn(dir, gone) {
   return pieces().map(({ el, delay, row }) => el.animate(
     [{ opacity: 0, transform: `translateX(${dir * (row ? 36 : 56)}px)` }, { opacity: 1, transform: 'none' }],
@@ -181,6 +185,7 @@ async function wait(ms) {
   if (stopped) throw new Stop();
 }
 
+/** The tour itself: Today for a moment, then the next tab every few seconds, round and round. */
 async function tour() {
   await wait(FIRST);
   for (;;) {
@@ -198,6 +203,7 @@ function takeOver(e) {
   document.body.classList.remove('showing');
 }
 
+/** Starts the tour in the homepage's frame. */
 export function startAutoplay() {
   if (!on()) return;
   document.body.classList.add('showing');

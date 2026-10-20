@@ -27,6 +27,7 @@ const TILES = [
   { kind: 'wellness', label: 'Health and fitness', sub: 'Workouts, running', title: 'Workout' }
 ];
 
+/** The answers given so far in onboarding, kept until it is finished. */
 function draft() {
   app.ob ||= { step: 0, picks: [], said: '' };
   return app.ob;
@@ -34,12 +35,17 @@ function draft() {
 
 /** The screens, in order (calendars are connected before these, in setup.js). */
 const steps = () => ['activities', 'school'];
+// The screen being shown.
 const stepName = () => steps()[Math.min(draft().step, steps().length - 1)];
 
+// The buttons at the bottom of each screen: back (when there is a screen
+// before) and next.
 const foot = (next, back, style = 'primary') => `<div class="foot">
   ${back ? '<button class="btn ghost" data-act="ob-back">Go back</button>' : ''}
   <button class="btn ${style}" data-act="ob-next">${next}</button></div>`;
 
+/** Onboarding, one screen at a time: the activities the student does
+    (tiles to tap, or a sentence), then their school days and hours. */
 export function viewOnboarding() {
   const o = draft();
   const S = app.S;
@@ -87,6 +93,8 @@ export function viewOnboarding() {
   </div>`;
 }
 
+/** Ends onboarding and opens Today, starting the first Canvas sync and
+    loading the crew where those are available. */
 async function finish() {
   app.ob = null;
   app.stack = [];
@@ -97,6 +105,8 @@ async function finish() {
   if (app.sync?.available) loadCrew();
 }
 
+/** Saves the current screen's answers and moves on. Picked activities are
+    added from their presets, skipping kinds the student already has. */
 async function next() {
   const o = draft();
   const name = stepName();

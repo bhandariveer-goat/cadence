@@ -29,11 +29,14 @@ const LIMITS = { notes: 40, noteChars: 160, starts: 60, focus: 60, pushes: 200, 
 // How much evidence a pattern needs before it is used.
 const NEED = { startDays: 5, lateShare: 0.6, lateBy: 20, focusBlocks: 6, pushes: 3, pushShare: 0.5, speedSamples: 2, speedGap: 0.15 };
 
+// Time helpers: "HH:MM" to minutes and back, a moment's time of day as
+// "HH:MM", the middle value of a list, and whether a value is a time.
 const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
 const fromMin = (t) => { const m = ((Math.round(t) % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 const hm = (d) => fromMin(new Date(d).getHours() * 60 + new Date(d).getMinutes());
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); const n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null; };
 const isTime = (v) => /^\d{1,2}:\d{2}$/.test(String(v || ''));
+// A class name in one form, so "AP Bio" and "ap  bio" are the same class.
 export const courseKey = (name) => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 /** The memory record on a plan, created and filled out when missing. */
@@ -78,6 +81,7 @@ export function addNote(state, text, by = 'you', now = new Date()) {
   return { note };
 }
 
+/** Forgets one thing the student told Cadence. Returns whether it was there. */
 export function forgetNote(state, id) {
   const m = memoryOf(state);
   const before = m.notes.length;
@@ -118,6 +122,7 @@ export function setPrefs(state, { startSchool, startFree, firstCourse, blockMin,
 
 // ----------------------------------------------------------- observations
 
+// Only what happened in the last LIMITS.keepDays days counts.
 const recent = (list, now) => {
   const from = dateKey(addDays(startOfDay(now), -LIMITS.keepDays));
   return list.filter((x) => x.date >= from);

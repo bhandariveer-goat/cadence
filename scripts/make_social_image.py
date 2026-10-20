@@ -50,6 +50,7 @@ def mix(colour, share, base=BG):
     return '#%02x%02x%02x' % tuple(round(c[i] * share + b[i] * (1 - share)) for i in range(3))
 
 
+# A size in points to pixels at the image's scale (it is drawn large, then shrunk).
 def px(v):
     return int(round(v * S))
 
@@ -88,6 +89,7 @@ def week(d, x, y, w, h):
     top, bottom = y + head + 12, y + h - 12
     span = bottom - top
 
+    # One block on the little week: a tinted bar with a solid edge.
     def block(day, start, end, colour, share=.16):
         left = x + day * col + 8
         d.rounded_rectangle([px(left), px(top + span * start), px(left + col - 16), px(top + span * end)], radius=px(4), fill=mix(colour, share))
@@ -105,6 +107,8 @@ def week(d, x, y, w, h):
         block(day, start, end, K_WORK, .18)                # the work, planned around all of it
 
 
+# Draws the share image (the mark and name, the headline, the line under it and
+# a sample week) and saves it.
 def main():
     img = Image.new('RGB', (W * S, H * S), BG)
     d = ImageDraw.Draw(img)

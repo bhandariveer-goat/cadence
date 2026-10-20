@@ -31,6 +31,7 @@ export const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 /** How much the model thinks first. Flash-Lite allows "minimal" (fastest); full Flash refuses it. */
 export const thinkingFor = (model) => (/flash-lite/.test(model) ? 'MINIMAL' : 'LOW');
+// Where a Gemini request goes, for a model.
 export const geminiUrl = (model = GEMINI_MODEL) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
@@ -54,8 +55,12 @@ export function geminiRequest(messages, model = GEMINI_MODEL) {
 // Ids Cadence makes up for a call that Gemini sent without one. Gemini is not
 // sent these back. They only need to be unique within one conversation.
 const LOCAL = 'local_';
+// An id for a tool call Gemini made, since Gemini does not give its calls ids.
 const uniqueId = () => globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 
+/** The conversation, kept in Anthropic's shape, as Gemini's "contents".
+    Gemini's own turns are given back exactly as it sent them (with their
+    thought signatures); tool results are matched to their tool by name. */
 function toContents(messages) {
   const names = new Map();                       // tool_use id -> tool name
   return messages.map((m) => {
@@ -84,6 +89,7 @@ function toContents(messages) {
   });
 }
 
+/** JSON if it is JSON, else the text as it is. */
 function parsed(text) {
   try { return JSON.parse(text); } catch { return text; }
 }

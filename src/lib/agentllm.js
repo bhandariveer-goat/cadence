@@ -29,12 +29,16 @@ import { atRisk } from './scheduler.js';
 
 export class AssistantUnavailable extends Error {}
 
+// Checks and tidying for what the model sends back: a YYYY-MM-DD date, an
+// "H:MM" time (padded to "HH:MM"), weekday numbers 0 to 6, and minutes as
+// "45m" or "1h 30m" for replies.
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 const isTime = (v) => /^\d{1,2}:\d{2}$/.test(String(v || ''));
 const pad2 = (v) => { const [h, m] = String(v).split(':'); return `${String(h).padStart(2, '0')}:${m}`; };
 const days = (v) => (Array.isArray(v) ? v.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6) : []);
 const dur = (m) => { const r = Math.round(m); if (r < 60) return `${r}m`; const h = Math.floor(r / 60), x = r % 60; return x ? `${h}h ${x}m` : `${h}h`; };
 
+/** Which kind of activity a title sounds like, when the model did not say. */
 function guessType(title) {
   const t = String(title).toLowerCase();
   if (/soccer|football|basketball|baseball|softball|volleyball|tennis|swim|track|cross|lacrosse|hockey|wrestl|golf|gym|cheer|karate|run|lift|workout/.test(t)) return 'sport';
@@ -227,6 +231,8 @@ function outcome(diff, now) {
 
 // ------------------------------------------------------------- transport
 
+/** Reads a model reply, turning any failure into AssistantUnavailable so the
+    caller can fall back to reading the message on the device. */
 async function parse(res) {
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new AssistantUnavailable(data?.error?.message || data?.error || `The assistant returned ${res.status}`);

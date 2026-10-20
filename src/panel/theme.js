@@ -22,6 +22,7 @@
   // works for as long as the page is open.
   var remembered = null;
 
+  /** The choice saved in this browser, or the one remembered if storage is blocked. */
   function stored() {
     try {
       var v = localStorage.getItem(KEY);
@@ -29,13 +30,16 @@
     } catch (e) { /* fall through */ }
     return remembered;
   }
+  /** The choice in force: the saved one, else the page's default (light unless it asks for system). */
   function preference() {
     return stored() || (root.getAttribute('data-theme-default') === 'system' ? 'system' : 'light');
   }
+  /** Light or dark for a choice, reading the device's setting for "system". */
   function resolve(pref) {
     if (pref === 'system') return media && media.matches ? 'dark' : 'light';
     return pref;
   }
+  /** Puts the theme on the page and returns which one it is. */
   function apply() {
     var theme = resolve(preference());
     root.setAttribute('data-theme', theme);

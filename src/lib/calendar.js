@@ -66,10 +66,14 @@ export function freeMinutesBetween(from, to, availability, busy, opts) {
 
 // ---------------------------------------------------------------- ICS import
 
+/** Joins the lines a calendar file wraps (a line starting with a space or tab continues the one before). */
 function unfold(text) {
   return text.replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '');
 }
 
+/** Reads a calendar file date: UTC (a Z, or TZID=UTC), a whole day, or
+    otherwise this device's local time. Returns the date and whether it is
+    all day. */
 function parseIcsDate(value, params = '') {
   // 20260910T153000Z | 20260910T153000 | 20260910 (all-day)
   const m = value.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
@@ -120,6 +124,9 @@ export function parseICS(text, { horizonDays = 60 } = {}) {
   return events;
 }
 
+/** One event as the busy items it covers up to `horizon`: once (if it has
+    not already ended), or every time it repeats for a daily or weekly RRULE,
+    until its UNTIL date or the horizon, whichever is first. */
 function expand(ev, horizon) {
   const base = {
     title: ev.title || 'Busy',

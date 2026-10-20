@@ -14,6 +14,9 @@ import { svg, I, esc, ring, toast, copyFrom, KIND_ICON, daysLabel, plural, activ
 import { scheduleLabel, ART } from './parts.js';
 import { insights } from '../../lib/memory.js';
 
+/** The Activities tab: a ring per activity for this week, any check-ins
+    still waiting, the show-up streak, and the way into the record. With no
+    activities yet, it offers to add one, or to tell the assistant instead. */
 export function viewActivities() {
   const S = app.S;
   const active = (S.commitments || []).filter((c) => !c.archived);
@@ -75,6 +78,8 @@ export function viewActivities() {
 
 // ------------------------------------------------------------ the record
 
+/** The activities record: every activity's hours, weeks and highlights, in
+    the shape the Common App asks for, with a button to copy it all. */
 export function viewRecord() {
   const S = app.S;
   const active = (S.commitments || []).filter((c) => !c.archived);
@@ -115,6 +120,8 @@ export function viewRecord() {
   `;
 }
 
+/** The activities record as plain text, one paragraph per activity, for
+    pasting into an application. */
 function recordText() {
   const S = app.S;
   return (S.commitments || []).filter((c) => !c.archived).map((c) => {
@@ -130,6 +137,9 @@ function recordText() {
 
 // ------------------------------------------------------------------ review
 
+/** The week in review: days shown up, homework finished, hours on each
+    activity against its target, what Cadence has learned, and a box for the
+    student's own note on the week. */
 export function viewReview() {
   const S = app.S;
   const rv = weeklyReview(S);

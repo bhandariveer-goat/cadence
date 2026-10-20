@@ -21,6 +21,9 @@ const site = CONFIG.site || {};
 // The 404 page is served at whatever address was asked for, so nothing here
 // may assume the page it is running on sits next to its neighbours.
 const ROOT = new URL('.', import.meta.url);
+// Small helpers: a page's full address from the site root, the first or every
+// element matching a selector, text made safe for HTML, whether the visitor
+// asked their device for less motion, and browser storage that never throws.
 const at = (path) => new URL(path, ROOT).href;
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -33,7 +36,7 @@ const store = {
 
 // The date the public pages last changed. scripts/prelaunch_check.py fails if
 // this is older than the newest commit that touched them, so it cannot rot.
-const SITE_UPDATED = '2026-10-19';
+const SITE_UPDATED = '2026-10-20';
 
 const ICON = {
   search: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
@@ -47,6 +50,9 @@ const ICON = {
 
 const pending = (what) => `<mark class="pending">${what} to be added before launch</mark>`;
 
+/** Fills in what the pages say from the site settings (src/config.js): the
+    operator's name, the contact email, the reply time and the last-updated
+    date, or a visible "to be added before launch" note where one is missing. */
 function fillSite() {
   const date = new Date(`${SITE_UPDATED}T12:00:00Z`);
   // Written the way the page already has it (stamp_pages.py), not in the
@@ -79,6 +85,8 @@ function fillSite() {
 
 const slug = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'section';
 
+/** Gives every heading and question on the page an id from its words, so a
+    search result or a shared link can point straight at it. */
 function nameSections(root) {
   const used = new Set($$('[id]', root).map((el) => el.id));
   for (const el of $$('main h2, main h3, main summary', root)) {
@@ -102,10 +110,12 @@ function openTarget() {
 
 // ------------------------------------------------------------------ theme
 
+/** What the theme button says it will do. */
 function themeLabel() {
   return window.CadenceTheme?.current() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
 }
 
+/** Shows the light and dark buttons and keeps them in step with the theme. */
 function initTheme() {
   if (!window.CadenceTheme) return;
   const paint = () => {
@@ -157,6 +167,7 @@ function initMenu() {
 
 // /, /index.html, /privacy and /privacy.html are the same pages under two names.
 const pathKey = (p) => p.replace(/index\.html$/, '').replace(/\.html$/, '').replace(/\/$/, '') || '/';
+// Whether an address is this page (with or without .html or a trailing slash).
 const samePage = (url) => url.origin === location.origin && pathKey(url.pathname) === pathKey(location.pathname);
 
 const PAGES = [
@@ -175,6 +186,7 @@ function shownText(el) {
   return copy.textContent;
 }
 
+/** A page cut into sections for search: each heading with the text under it. */
 function sectionsOf(doc, page) {
   nameSections(doc);
   const main = $('main', doc);
@@ -199,6 +211,8 @@ function sectionsOf(doc, page) {
   return out;
 }
 
+/** Reads the public pages once (this one from the page itself, the others by
+    fetching them) and keeps their sections for searching. */
 function buildIndex() {
   indexing ||= Promise.all(PAGES.map(async (page) => {
     if (samePage(new URL(page.url, location.href))) return sectionsOf(document, page);
@@ -215,6 +229,8 @@ function buildIndex() {
 // "microphone", which is what someone typing it expects.
 const wordStart = (t) => new RegExp(`(?:^|[^a-z0-9])${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
 
+/** The sections where every word of the query starts a word, best first
+    (a word in the title counts more), each with a short excerpt. */
 function searchIndex(sections, query) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
@@ -245,6 +261,8 @@ const mark = (text, terms) => {
   return out + escapeHtml(text.slice(last));
 };
 
+/** The site search: a dialog over the public pages, opened by the search
+    button or a key, with results that update as the visitor types. */
 function initSearch() {
   const openers = $$('[data-search]');
   if (!openers.length || !window.HTMLDialogElement) return;
@@ -341,6 +359,7 @@ function initSearch() {
 
 // ------------------------------------------------------------ copy buttons
 
+/** Copy buttons (data-copy): copy the text, say so on the button, and put the label back after a moment. */
 function initCopy() {
   document.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-copy]');
@@ -436,6 +455,7 @@ function initEnquiry() {
 
 // ------------------------------------------------ back to top, and contact
 
+/** The buttons that sit in the corner: back to the top, and the way to the contact page. */
 function initFloaters() {
   // The way to the contact page, except on the contact pages themselves.
   const onContact = /\/(contact|thanks)$/.test(pathKey(location.pathname));
@@ -512,6 +532,8 @@ function initSections() {
   addEventListener('hashchange', () => setTimeout(pick, 0));
 }
 
+/** On a phone, the bar with the homepage's two buttons, shown only while
+    the page's own pair of buttons is off screen. */
 function initCtaBar() {
   const bar = $('[data-cta-bar]');
   const pairs = $$('main .cta');

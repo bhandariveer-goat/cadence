@@ -39,6 +39,9 @@ const DURATIONS = [
   [/\b(drive|driving|commute)\b/, 30], [/\b(dinner with|party|hangout|hang out)\b/, 120]
 ];
 
+// Small helpers for times: two-digit numbers, "HH:MM" to minutes and back
+// (wrapping past midnight), a capital first letter, and a number from digits
+// or a word ("two", "half").
 const pad = (n) => String(n).padStart(2, '0');
 const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
 const fromMin = (m) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
@@ -162,6 +165,9 @@ function readRange(text, hint = 'day', nowMin = null) {
 // what kind of day it is. On a school day the morning is spoken for.
 const MORNING_CTX = /\b(morning|breakfast|brunch|before school|appointment|dentist|doctor|orthodontist|haircut|church)\b/;
 const EVENING_CTX = /\b(tonight|night|evening|dinner|supper|party|movie|concert|show|sleepover|hang(?:ing)? ?out|go(?:ing)? out|after (?:school|practice|work|dinner|rehearsal|the game)|home|bed)\b/;
+/** Which side of noon a time without am or pm probably means, for clause `t`:
+    'day' (morning words, or a day off), 'eve' (evening words), 'eve?' (a
+    school day, so probably after school), or 'ahead' (later today). */
 function hintFor(t, when, state, now) {
   if (MORNING_CTX.test(t)) return 'day';
   if (EVENING_CTX.test(t)) return 'eve';
@@ -171,6 +177,7 @@ function hintFor(t, when, state, now) {
   if (state && isSchoolDay(state, d)) return 'eve?';
   return dateKey(d) === dateKey(now) ? 'ahead' : 'day';
 }
+// Minutes after midnight for a moment.
 const minuteOf = (now) => now.getHours() * 60 + now.getMinutes();
 const TIME_SRC = '(\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?|midnight|noon)';
 const FREE_FROM = new RegExp(`\\b(?:get|getting|got|be|i'?m|i am|i'll be|will be)\\s+(?:out of|done with|finished with|back from|home from)\\s+[\\w' ]{1,30}?\\s+(?:at|by|around)\\s+${TIME_SRC}`);
@@ -192,6 +199,8 @@ function readDuration(text) {
   return null;
 }
 
+/** How long something usually lasts when the message does not say: by the
+    kind of thing it is (DURATIONS), else an hour. */
 function defaultDuration(text) {
   for (const [re, min] of DURATIONS) if (re.test(text)) return min;
   return 60;
@@ -202,9 +211,11 @@ function defaultDuration(text) {
 // "SAT prep", "the SAT" and "I sat down" are not Saturday. Letters are added
 // to the word so the day patterns pass over it; showSat() takes them out again.
 const SAT_MARK = 'qzq';
+// Adds the mark after "sat" wherever it is not a day.
 const hideSat = (text) => String(text)
   .replace(/\bsat(?=\s+(?:prep|test|exam|scores?|class|tutor(?:ing)?|subject|math|reading|writing|essay|book|vocab|study|review|registration|down|there|here|through|with|next to)\b)/gi, (m) => m + SAT_MARK)
   .replace(/\b(?:the|my|take|taking|took|retake|i|we|just)\s+sat\b/gi, (m) => m + SAT_MARK);
+// Takes the mark out again.
 const showSat = (text) => String(text).replace(/qzq/gi, '');
 
 /**
@@ -265,6 +276,7 @@ function readDays(text, now = new Date()) {
   return out;
 }
 
+/** The next date that falls on weekday `dow` (0 is Sunday), never today: "on Friday" said on a Friday means next week. */
 function nextWeekday(now, dow) {
   const d = startOfDay(now);
   const delta = (dow - d.getDay() + 7) % 7;
@@ -295,6 +307,8 @@ const WHEN_RE = /\b(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?|midnight|noon|to
 const CONTINUES = /^(?:sun|mon|tue|wed|thu|fri|sat|\d|then\b|the\b|a\b|an\b)/i;
 const SEP = /,\s*(?:and\s+)?|\s+and\s+/gi;
 
+/** Splits one clause at "and" or a comma where both sides have their own
+    when ("dinner at 6, practice Tue 4-6"), but not inside a list of days. */
 function splitCompound(piece) {
   SEP.lastIndex = 0;
   let m;
@@ -361,6 +375,7 @@ export function readSpan(text) {
   return null;
 }
 
+// A moment rounded up to the next five minutes, and as "HH:MM".
 const roundUp5 = (date) => new Date(Math.ceil(+date / (5 * MIN)) * 5 * MIN);
 const hhmm = (date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
@@ -378,6 +393,8 @@ const SELF_CARE = [
   [/\b(walk|walk the dog)\b/, 'Walk', 20]
 ];
 
+/** Which kind of activity a phrase is about (sport, practice, service, club,
+    work, project, study), or 'custom' when nothing matches. */
 function activityType(t) {
   if (/\b(soccer|football|basketball|baseball|softball|volleyball|tennis|swim|track|cross[- ]country|xc|lacrosse|hockey|wrestling|golf|gymnastics|cheer|karate|taekwondo|run|lift|workout|training)\b/.test(t)) return 'sport';
   if (/\b(piano|guitar|violin|cello|drums|sing|choir|band|orchestra|draw|paint|dance|theat(?:er|re)|drama|rehearsal|lesson)\b/.test(t)) return 'practice';
@@ -786,6 +803,8 @@ export { applyOps } from './agentops.js';
 
 // ---------------------------------------------------------------- respond
 
+// Words for replies: a list as "a, b and c", and minutes as "45 minutes",
+// "1h 30m" or "2 hours".
 const list = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
 const mins = (m) => { const r = Math.round(m); if (r < 60) return `${r} minutes`; const h = Math.floor(r / 60), x = r % 60; return x ? `${h}h ${x}m` : `${h} hour${h === 1 ? '' : 's'}`; };
 

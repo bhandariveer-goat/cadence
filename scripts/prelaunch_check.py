@@ -56,15 +56,18 @@ STYLES = ['site.css', 'src/panel/panel.css', 'src/panel/web.css', 'src/panel/tou
 results = []
 
 
+# Records one check's result, with a detail line to show when it fails.
 def check(name, ok, detail=''):
     results.append((name, bool(ok), detail))
 
 
+# A file in the repository as text, or '' if it is not there.
 def read(rel):
     p = ROOT / rel
     return p.read_text(encoding='utf-8') if p.is_file() else ''
 
 
+# Every JavaScript file that is shipped: the app, the site script and the server functions.
 def shipped_js():
     return sorted(p for p in (ROOT / 'src').rglob('*.js')) + [ROOT / 'site.js'] + sorted((ROOT / 'netlify').rglob('*.mjs'))
 
@@ -170,6 +173,9 @@ ALLOWED_SCROLL = {
 }
 
 
+# A file's code with its comments and its allowed scroll-aware lines taken
+# out, so whatever is left can be searched for anything else that watches
+# the scroll.
 def scroll_free(name):
     text = without_comments(read(name)) if name.endswith(('.js', '.css')) else read(name)
     for allowed in ALLOWED_SCROLL.get(name, []):

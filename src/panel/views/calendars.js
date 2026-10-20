@@ -7,6 +7,9 @@ import { SOURCE_META, LINK_FEEDS, canvasFeed, google, looksLikeGoogleIcs } from 
 import { fmtMinutes } from '../../lib/util.js';
 import { svg, I, esc, sheet, toast, ago, plural } from '../ui.js';
 
+/** The Calendars screen: one card per source (the Canvas feed, the Google,
+    Outlook and iCloud links, and Google Calendar through the extension), then
+    how often everything is checked again. */
 export function viewCalendars() {
   const S = app.S;
   const cf = S.sources.canvasFeed;
@@ -139,6 +142,9 @@ function pushCard(g) {
   </div>`;
 }
 
+/** One source's card: what it is, whether it is connected and when it last
+    synced, any error it hit, and its buttons (connect or change, refresh,
+    disconnect). `action` is the data-act of the main button. */
 function sourceCard({ id, icon, color, cfg, title, sub, primary, action, data = '' }) {
   const status = cfg.error
     ? `<span class="pill amber">${svg(I.flag, 12)} Needs attention</span>`
@@ -163,6 +169,9 @@ function sourceCard({ id, icon, color, cfg, title, sub, primary, action, data = 
 
 // ------------------------------------------------------------------ Canvas
 
+/** The sheet for adding, changing or removing the Canvas feed link. A link
+    without /feeds/calendars/ and .ics is still allowed after a second "Try
+    it", in case a school's link is shaped differently. Removing can be undone. */
 async function canvasFeedSheet() {
   const cfg = app.S.sources.canvasFeed;
   const res = await sheet(`
@@ -201,6 +210,9 @@ async function canvasFeedSheet() {
 
 // --------------------------------------------------------- Google link
 
+/** The sheet for the Google Calendar secret iCal link. Unlike the Canvas link,
+    this one has to match Google's own format exactly: a wrong link would fail
+    every sync, so it is refused up front. A webcal: link is read as https:. */
 async function googleFeedSheet() {
   const cfg = app.S.sources.googleFeed || {};
   const res = await sheet(`
@@ -236,6 +248,9 @@ async function googleFeedSheet() {
 
 // ------------------------------------------------------------------ Google
 
+/** Signs in to Google Calendar through the Chrome extension (read only). The
+    first time, it asks for the OAuth client ID the student made in Google
+    Cloud, then picks their main calendar and any shown ones to read. */
 async function googleConnect() {
   if (!google.available()) return toast('Google sync needs the Chrome extension');
   const cfg = app.S.sources.google;
@@ -276,6 +291,7 @@ async function googleConnect() {
   }
 }
 
+/** Which of the student's Google calendars count as busy time. */
 async function googleCalendarsSheet() {
   const g = app.S.sources.google;
   const cals = g.calendars || [];
@@ -292,6 +308,9 @@ async function googleCalendarsSheet() {
   await refreshSources({ only: 'google' });
 }
 
+/** Turns on adding Cadence's blocks to Google Calendar: asks Google for write
+    access as well, and picks the main calendar unless one was chosen before.
+    Nothing is written until the student opts an activity or assignment in. */
 async function enablePush() {
   const g = app.S.sources.google;
   try {
@@ -309,6 +328,8 @@ async function enablePush() {
   }
 }
 
+/** Turns adding blocks off, and asks whether the blocks already added should
+    stay on the calendar or be removed. */
 async function disablePush() {
   const res = await sheet(`<h2>Stop adding blocks?</h2>
     <p class="lead">Cadence will stop writing to Google Calendar. Blocks it already added can stay or go.</p>
@@ -321,6 +342,8 @@ async function disablePush() {
   toast('Stopped');
 }
 
+/** Deletes every event Cadence added to the Google calendar it writes to.
+    Only events tagged as Cadence's are touched, never the student's own. */
 async function removeBlocks({ quiet = false } = {}) {
   const g = app.S.sources.google;
   try {
@@ -336,6 +359,8 @@ async function removeBlocks({ quiet = false } = {}) {
   }
 }
 
+/** Chooses which Google calendar Cadence writes its blocks to. Only calendars
+    the student can edit are offered. */
 async function pickPushCalendar() {
   const g = app.S.sources.google;
   const writable = (g.calendars || []).filter((c) => c.canWrite !== false);
@@ -349,6 +374,7 @@ async function pickPushCalendar() {
   pushGoogleBlocks();
 }
 
+// Buttons on this screen and its sheets, by data-act.
 export const actions = {
   'google-push-now': () => pushGoogleBlocks(),
   'google-push-calendar': () => pickPushCalendar(),
@@ -369,6 +395,8 @@ export const actions = {
   'google-connect': () => googleConnect(),
   'google-calendars-sheet': () => googleCalendarsSheet(),
   'source-refresh': (el) => refreshSources({ only: el.dataset.id }),
+  // Disconnecting forgets the cached events and any token, but keeps the Google
+  // client ID so connecting again does not mean setting it up again.
   'source-disconnect': async (el) => {
     const id = el.dataset.id;
     const res = await sheet(`<h2>Disconnect ${esc(SOURCE_META[id]?.short || 'this calendar')}?</h2>
@@ -386,6 +414,8 @@ export const actions = {
     .then(() => { chrome?.runtime?.sendMessage?.({ type: 'cadence:arm-autosync' }); toast('Updated'); })
 };
 
+// Checkboxes on this screen, by data-act. Both auto-sync changes tell the
+// extension, which owns the background timer, to set it again.
 export const changeActions = {
   'google-push-toggle': (el) => (el.checked ? enablePush() : disablePush()),
   'autosync-toggle': (el) => persist((st) => { st.autoSync.enabled = el.checked; }, { recalc: false })

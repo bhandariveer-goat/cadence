@@ -69,6 +69,7 @@ async function autoSync() {
   }
 }
 
+/** The next time the clock reads hour:minute, today or tomorrow, in milliseconds. */
 function nextAt(hour, minute) {
   const d = new Date();
   d.setHours(hour, minute, 0, 0);
@@ -138,6 +139,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   });
 });
 
+/** The morning notification: how much work is planned today, if there is any. */
 function dailyNudge() {
   loadState().then((state) => {
     const today = new Date().toDateString();
@@ -153,6 +155,7 @@ function dailyNudge() {
   });
 }
 
+/** Shows a notification with Cadence's icon. */
 function notify(id, opts) {
   chrome.notifications.create(id, {
     type: 'basic',

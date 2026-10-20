@@ -12,6 +12,7 @@ import { MARK } from '../shell.js';
 // should point at what to do, not decorate the fact that it is empty.
 export const ART = `<span class="mark">${MARK.replace('width="18" height="18"', 'width="24" height="24"')}</span>`;
 
+/** The icon for an activity's kind (a star for a kind without one). */
 export function commitmentIcon(c, size) {
   return svg(KIND_ICON[c?.kind] || I.star, size);
 }
@@ -120,6 +121,8 @@ export function weekDots(c, weeks = 8) {
   return `<span class="week-dots" role="img" data-tip="${label}" aria-label="${label}">${out.join('')}</span>`;
 }
 
+/** How an activity's schedule reads: "Mon and Wed · 3:45pm to 5:30pm" for set
+    times, "3× a week · 30m · evenings" for flexible ones. */
 export function scheduleLabel(c, daysLabel) {
   if (isFixed(c)) return `${daysLabel(c.schedule.days)} · ${range(c.schedule.start, c.schedule.end)}`;
   const t = { morning: ' · mornings', afternoon: ' · afternoons', evening: ' · evenings' }[c.time] || '';

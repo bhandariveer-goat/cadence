@@ -31,6 +31,8 @@ const CORS = {
   'access-control-allow-methods': 'POST, OPTIONS',
   'access-control-max-age': '86400'
 };
+// A JSON reply that is never cached; the largest feed it will pass on (5 MB);
+// and the Outlook addresses a published calendar can come from.
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'content-type': 'application/json', 'cache-control': 'no-store' } });
 const MAX_BYTES = 5 * 1024 * 1024;
 const OUTLOOK_HOSTS = new Set(['outlook.office365.com', 'outlook.office.com', 'outlook.live.com']);

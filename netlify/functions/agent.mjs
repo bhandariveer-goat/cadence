@@ -53,8 +53,14 @@ const CORS = {
   'access-control-max-age': '86400'
 };
 
+// A JSON reply that is never cached.
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...CORS, 'content-type': 'application/json', 'cache-control': 'no-store' } });
 
+/** The assistant's server. Checks the student's sign-in, checks the request
+    (a conversation, or outline mode for one assignment), counts it against
+    the day's limits (per account, per site, and a share for accounts without
+    an email), then asks Gemini or Claude, whichever this site is set up with.
+    Anything refused or failed is given back from the day's count. */
 export default async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json(405, { error: 'Use POST.' });
@@ -149,6 +155,7 @@ const failed = (status) => {
   return json(busy ? 429 : 502, { error: busy ? 'The assistant is busy. Try again in a moment.' : 'The assistant had a problem. Try again.' });
 };
 
+/** One turn of the conversation with Claude, with the site's model, instructions and tools. */
 async function askClaude(key, messages) {
   let upstream;
   try {
@@ -165,6 +172,9 @@ async function askClaude(key, messages) {
   return new Response(text, { status: 200, headers: { ...CORS, 'content-type': 'application/json', 'cache-control': 'no-store' } });
 }
 
+/** One turn of the conversation with Gemini, translated to and from the
+    conversation's own shape (src/lib/gemini.js), giving up before Netlify's
+    ten-second limit. */
 async function askGemini(key, messages) {
   const wanted = String(process.env.GEMINI_MODEL || '').trim();
   const model = /^gemini-[a-z0-9.-]+$/.test(wanted) ? wanted : GEMINI_MODEL;
@@ -203,6 +213,7 @@ const outlineReply = (raw) => {
   return out ? json(200, { outline: out }) : failed(502);
 };
 
+/** An outline for one assignment from Gemini, cut to size and checked (src/lib/outline.js). */
 async function outlineGemini(key, assignment) {
   const wanted = String(process.env.GEMINI_MODEL || '').trim();
   const model = /^gemini-[a-z0-9.-]+$/.test(wanted) ? wanted : GEMINI_MODEL;
@@ -238,6 +249,7 @@ async function outlineGemini(key, assignment) {
   return outlineReply(parsed);
 }
 
+/** An outline for one assignment from Claude, cut to size and checked (src/lib/outline.js). */
 async function outlineClaude(key, assignment) {
   // This model does not take a forced tool choice, so it is told to answer
   // with the tool and anything else comes back as no outline (refunded).

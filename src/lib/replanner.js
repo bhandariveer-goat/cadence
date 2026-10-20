@@ -42,11 +42,16 @@ export function planContext(st) {
   };
 }
 
+/** Whether an assignment still needs time planned: open, not hidden, not too
+    old, and with a due date (or added by the student, or picked to do first). */
 export function plannable(t, st) {
   if (t.status === 'done' || st.dismissed?.[t.id] || isStale(t)) return false;
   return !!(t.due || t.source === 'manual' || t.pinned);
 }
 
+/** Clears out what is no longer needed: assignments too far overdue, ones
+    finished over a month ago, and busy times that have passed (imported
+    calendar files are kept). */
 export function pruneTasks(st) {
   const monthAgo = Date.now() - 30 * DAY;
   for (const [id, t] of Object.entries(st.tasks)) {

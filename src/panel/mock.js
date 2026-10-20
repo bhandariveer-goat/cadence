@@ -3,8 +3,10 @@
 
 import { addDays, atTime } from '../lib/util.js';
 
+// A moment `days` from today at "HH:MM", so the sample week is always current.
 const at = (days, hhmm) => atTime(addDays(new Date(), days), hhmm).toISOString();
 
+/** The demo's assignments, due over the coming days. */
 export function mockTasks() {
   // Relative to today, and deliberately only one thing overdue: a demo week
   // that opens with seven late assignments reads as a warning, not a plan.
@@ -105,6 +107,7 @@ export function mockCommitments() {
   ];
 }
 
+/** The date `offset` days from today, as YYYY-MM-DD. */
 function isoDay(offset) {
   const d = addDays(new Date(), offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -311,6 +314,8 @@ const MOCK_GUIDES = {
   }
 };
 
+/** What Canvas would give a guide for a demo assignment: its instructions,
+    rubric and materials, or just its description. */
 export function mockGuideData(task) {
   const g = MOCK_GUIDES[task.id];
   return g ? structuredClone(g) : { description: task.description || '' };

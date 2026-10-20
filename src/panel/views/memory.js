@@ -8,6 +8,10 @@ import { memoryOf, addNote, forgetNote, setPrefs, insights, clearNoticed } from 
 import { svg, I, esc, sheet, toast, timeSelect, ago } from '../ui.js';
 import { fmtClock } from '../../lib/util.js';
 
+/** "What Cadence knows about you": the notes the student told it, their
+    preferences (earliest start on school days and days off, the class to do
+    first), and what it has noticed from how they work, each with a way to
+    change or forget it. */
 export function viewMemory() {
   const S = app.S;
   const m = memoryOf(S);
@@ -78,6 +82,7 @@ function courseNames(S) {
   return [...set].sort((a, b) => a.localeCompare(b));
 }
 
+/** Sets the time to start work on school days or on free days. */
 async function startSheet(field, title) {
   const now = memoryOf(app.S).prefs[field];
   const res = await sheet(`
@@ -91,6 +96,7 @@ async function startSheet(field, title) {
   toast('Saved. Your plan moved with it.');
 }
 
+/** Picks the class that goes first when two things are due the same day. */
 async function firstSheet() {
   const courses = courseNames(app.S);
   if (!courses.length) return toast('Add or sync some assignments first, then pick a class.');
@@ -106,6 +112,9 @@ async function firstSheet() {
   toast(`${pick} goes first now.`);
 }
 
+/** Forgets everything Cadence noticed (start times, block lengths, classes
+    that get moved, how long assignments take), after asking. Things the
+    student told it stay, and the toast offers Undo. */
 async function clearNoticedFlow() {
   const res = await sheet(`<h2>Clear what Cadence noticed?</h2>
     <p class="lead">This forgets when you usually start, how long your blocks last, which classes get moved, and how long assignments take you, so estimates go back to typical ones. Things you told Cadence stay.</p>
@@ -116,6 +125,7 @@ async function clearNoticedFlow() {
   toast('Cleared. Cadence starts learning again from here.', undoTo(snap));
 }
 
+// Buttons on this screen, by data-act.
 export const actions = {
   'memory-forget': async (el) => {
     const snap = structuredClone(app.S);

@@ -15,6 +15,8 @@ import { uid, addDays, dateKey, startOfDay } from './util.js';
 
 const PEOPLE_COLORS = ['#8b5cf6', '#10b981', '#3b82f6', '#ec4899', '#d97706', '#14b8a6'];
 
+/** How Crew reaches other people: made-up friends in the demo, the account
+    when signed in with email, otherwise nothing (Crew needs an account). */
 export function createSync(state, { demo = false, cloud = null } = {}) {
   if (demo) return demoAdapter(state);
   if (cloud?.signedIn) return supabaseAdapter(cloud);
@@ -27,6 +29,7 @@ class CrewUnavailable extends Error {
 
 // ------------------------------------------------------------------ local
 
+/** Crew without an account: empty lists, and anything that needs other people says to sign in. */
 function localAdapter() {
   const no = async () => { throw new CrewUnavailable(); };
   return {
@@ -43,6 +46,8 @@ function localAdapter() {
 
 let demoCache = null;
 
+/** Crew in the demo: sample partners, clubs and check-ins, kept for the page,
+    so everything can be tried without anyone real. */
 function demoAdapter(state) {
   const now = Date.now();
   const ago = (min) => new Date(now - min * 60000).toISOString();
@@ -163,6 +168,8 @@ function demoAdapter(state) {
 
 // --------------------------------------------------------------- supabase
 
+/** Crew through the account's database: partners, clubs, the feed, kudos,
+    nudges and invites, each a call the database's own rules check. */
 function supabaseAdapter(cloud) {
   // Sign-in and token refresh live in lib/cloud.js; crew is one more thing the
   // same account can do, not a separate login.

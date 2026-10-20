@@ -66,6 +66,7 @@ HEAD_OPEN, HEAD_CLOSE = '<!-- stamp:head -->', '<!-- /stamp:head -->'
 
 # ------------------------------------------------------------------ reading
 
+# A file in the repository as text.
 def read(rel):
     return (ROOT / rel).read_text(encoding='utf-8')
 
@@ -100,6 +101,7 @@ def js_source(text):
 _ESCAPES = {'n': '\n', 't': '\t', 'r': '\r', 'b': '\b', 'f': '\f', 'v': '\v', '0': '\0'}
 
 
+# One JavaScript escape (é, \u{1F600}, \x41 or \n) as the character it stands for.
 def _unescape(m):
     body = m.group(1)
     if body[0] == 'u' and body[1:2] == '{':
@@ -137,6 +139,7 @@ def is_secret_key(key):
         return True
 
 
+# The site settings from src/config.js that the pages need.
 def config():
     text = js_source(read('src/config.js'))
     field = lambda key: js_string(text, key)
@@ -155,6 +158,7 @@ def config():
     }
 
 
+# The SITE_UPDATED date from site.js, the date the public pages last changed.
 def site_updated():
     m = re.search(r"const SITE_UPDATED = '(\d{4}-\d{2}-\d{2})'", read('site.js'))
     if not m:
@@ -162,11 +166,13 @@ def site_updated():
     return m.group(1)
 
 
+# A YYYY-MM-DD date as "October 20, 2026".
 def long_date(iso):
     d = datetime.date.fromisoformat(iso)
     return f'{d.strftime("%B")} {d.day}, {d.year}'
 
 
+# A page's title and description, which its share and search tags repeat.
 def title_and_description(page_html, name):
     t = re.search(r'<title>(.*?)</title>', page_html, re.S)
     d = re.search(r'<meta name="description" content="([^"]*)">', page_html)
@@ -177,6 +183,7 @@ def title_and_description(page_html, name):
 
 # ------------------------------------------------------------------ writing
 
+# Text made safe for HTML, quotes included.
 def esc(text):
     return html.escape(text, quote=True)
 
@@ -186,6 +193,8 @@ def ld(data):
     return '<script type="application/ld+json">' + json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/') + '</script>'
 
 
+# The lines that go in a page's head: its canonical address, share tags and
+# structured data, written from the page itself and the site settings.
 def head_block(name, address, listed, trail, page_html, cfg):
     base = f'https://{cfg["domain"]}' if cfg['domain'] else ''
     title, description = title_and_description(page_html, name)
@@ -223,6 +232,7 @@ def head_block(name, address, listed, trail, page_html, cfg):
     return lines
 
 
+# Puts those lines between the page's head markers, replacing what was there.
 def stamp_head(page_html, name, lines):
     m = re.search(rf'^([ \t]*){re.escape(HEAD_OPEN)}.*?{re.escape(HEAD_CLOSE)}', page_html, re.S | re.M)
     if not m:
@@ -232,10 +242,14 @@ def stamp_head(page_html, name, lines):
     return page_html[:m.start()] + block + page_html[m.end():]
 
 
+# The visible note where a setting is still missing.
 def pending(what):
     return f'<mark class="pending">{what} to be added before launch</mark>'
 
 
+# Writes the settings into the page wherever it has data-site or
+# data-site-href, and keeps only the version of a sentence that is true for
+# this set-up (data-needs).
 def stamp_body(page_html, cfg, updated):
     values = {
         'operator': esc(cfg['operator']) if cfg['operator'] else pending('Operator name'),
@@ -246,6 +260,7 @@ def stamp_body(page_html, cfg, updated):
     if cfg['domain']:
         values['domain'] = esc(cfg['domain'])
 
+    # One data-site element with its value written in.
     def fill(m):
         return m.group(1) + values[m.group(3)] + m.group(5) if m.group(3) in values else m.group(0)
     page_html = re.sub(r'(<(\w+)\b[^<>]*\sdata-site="([a-z]+)"[^<>]*>)(.*?)(</\2>)', fill, page_html, flags=re.S)
@@ -308,6 +323,7 @@ def last_changed(name, page_html, updated):
     return m.group(1) if m else updated
 
 
+# robots.txt: everything open to crawlers, and where the sitemap is.
 def robots(cfg):
     lines = [
         '# Everything a visitor can read, a crawler can read.',
@@ -325,6 +341,7 @@ def robots(cfg):
     return '\n'.join(lines) + '\n'
 
 
+# sitemap.xml: every listed page with the date it last changed.
 def sitemap(cfg, dates):
     base = f'https://{cfg["domain"]}'
     out = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
@@ -353,6 +370,7 @@ def build():
     return out, cfg
 
 
+# Writes every stamped file. With --check, writes nothing and fails if any file is out of date.
 def main():
     check = '--check' in sys.argv
     files, cfg = build()

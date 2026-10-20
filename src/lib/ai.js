@@ -21,13 +21,18 @@ const API = 'https://api.anthropic.com/v1/messages';
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 
 const CATEGORY_ENUM = ['reading', 'problemset', 'essay', 'lab', 'project', 'quiz', 'discussion', 'presentation', 'worksheet', 'admin'];
+// Keeping the model's answers in bounds: a whole number between `lo` and `hi`
+// (or `fallback` if it is not a number), and a trimmed string of at most `max`.
 const clampInt = (v, lo, hi, fallback) => (Number.isFinite(Number(v)) ? Math.max(lo, Math.min(hi, Math.round(Number(v)))) : fallback);
 const str = (v, max) => String(v ?? '').trim().slice(0, max);
 
+/** Whether the student has their own Anthropic key and has it switched on. */
 export function aiAvailable(settings) {
   return !!(settings?.useAI && settings?.apiKey);
 }
 
+/** One request to Claude with the student's key. With `schema`, the answer
+    comes back as JSON in that shape. */
 async function callClaude(settings, { system, user, schema, effort = 'low' }) {
   const body = {
     model: DEFAULT_MODEL,
@@ -95,6 +100,9 @@ const ESTIMATE_SCHEMA = {
   }
 };
 
+/** Asks the model how long up to 25 assignments should take, from their
+    instructions and what Cadence knows of this student's speed. Returns
+    estimates by assignment id. */
 export async function refineEstimates(settings, tasks, history = {}) {
   if (!aiAvailable(settings) || !tasks.length) return {};
   const payload = tasks.slice(0, 25).map((t) => ({
@@ -213,6 +221,8 @@ const PARSE_SCHEMA = {
   }
 };
 
+/** Turns a teacher's spoken assignment into fields (title, course, due date,
+    points, estimate, instructions), with relative dates made real. */
 export async function parseDictation(settings, transcript, { courses = [], now = new Date() } = {}) {
   if (!aiAvailable(settings)) return null;
   const system = [
@@ -237,6 +247,7 @@ export async function parseDictation(settings, transcript, { courses = [], now =
 
 // ----------------------------------------------------------------- coach
 
+/** Two sentences at most on what to focus on next, from a summary of the plan. */
 export async function reviewPlan(settings, summary) {
   if (!aiAvailable(settings)) return null;
   return callClaude(settings, {

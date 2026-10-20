@@ -95,9 +95,11 @@ def mock_feed_kind(raw):
     return None
 
 class Handler(SimpleHTTPRequestHandler):
+    # Serves files from the repository root.
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(ROOT), **kw)
 
+    # Every reply: never cached, and with the live site's security headers.
     def end_headers(self):
         self.send_header('Cache-Control', 'no-store')
         # The same security headers the live site sends (netlify.toml), so a
@@ -111,11 +113,13 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header(name, value)
         super().end_headers()
 
+    # Quiet, except for the mock account and API calls, which are worth seeing.
     def log_message(self, fmt, *args):
         if MOCK and ('/auth/' in self.path or '/rest/' in self.path or '/api/' in self.path):
             sys.stderr.write('mock %s\n' % (fmt % args))
 
     # ------------------------------------------------------------ helpers
+    # A JSON reply, readable from any origin (as the real services are).
     def _json(self, status, body, extra=None):
         raw = json.dumps(body).encode()
         self.send_response(status)
@@ -127,6 +131,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    # The request's JSON body, or {} if it has none or it is not JSON.
     def _body(self):
         n = int(self.headers.get('Content-Length') or 0)
         if not n:
@@ -136,10 +141,12 @@ class Handler(SimpleHTTPRequestHandler):
         except ValueError:
             return {}
 
+    # The mock user a request's bearer token belongs to, if any.
     def _user(self):
         auth = self.headers.get('Authorization', '')
         return TOKENS.get(auth.replace('Bearer ', '', 1))
 
+    # A new mock sign-in for an email, in the shape Supabase answers with.
     def _session(self, email):
         uid = USERS.setdefault(email, str(uuid.uuid4()))
         token = 'tok_' + uuid.uuid4().hex
@@ -148,6 +155,7 @@ class Handler(SimpleHTTPRequestHandler):
                 'user': {'id': uid, 'email': email}}
 
     # ------------------------------------------------------------- routes
+    # The CORS preflight the browser sends before a cross-origin call.
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -170,6 +178,8 @@ class Handler(SimpleHTTPRequestHandler):
             return
         super().send_error(code, message, explain)
 
+    # GET: the mock's inspection pages (visits, enquiries, CSP reports), the mock
+    # services in --mock mode, otherwise a file from the repository.
     def do_GET(self):
         path = urlparse(self.path).path
         if MOCK and path == '/mock/visits':
@@ -202,6 +212,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    # HEAD: the same clean addresses as GET.
     def do_HEAD(self):
         self._clean_address()
         return super().do_HEAD()
@@ -213,6 +224,7 @@ class Handler(SimpleHTTPRequestHandler):
         if name and '.' not in name and '/' not in name and (ROOT / f'{name}.html').is_file():
             self.path = f'/{name}.html' + (('?' + parts.query) if parts.query else '')
 
+    # POST: CSP reports, form sends and the mock services in --mock mode.
     def do_POST(self):
         path = urlparse(self.path).path
         if MOCK and path == '/mock/csp-report':
@@ -239,6 +251,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     do_PATCH = do_POST
 
+    # The stand-ins for Supabase (sign-in with a code, the saved plan, Crew) and
+    # Cadence's server functions, kept in memory for as long as the server runs.
     def _mock(self, method, path):
         body = self._body() if method != 'GET' else {}
         query = urlparse(self.path).query

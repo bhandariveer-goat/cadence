@@ -11,6 +11,7 @@ import {
 } from '../ui.js';
 import { weekDots, scheduleLabel } from './parts.js';
 
+// The three faces for "How did it go?", drawn as SVG paths inside a circle.
 const FACE = {
   great: '<circle cx="12" cy="12" r="9.5"/><path d="M7.8 13.5a4.6 4.6 0 0 0 8.4 0M8.8 9.5h.01M15.2 9.5h.01"/>',
   good: '<circle cx="12" cy="12" r="9.5"/><path d="M8.5 14.5h7M8.8 9.5h.01M15.2 9.5h.01"/>',
@@ -19,6 +20,11 @@ const FACE = {
 
 // --------------------------------------------------------------- check in
 
+/** The check-in sheet for an activity: how it went, how long, and an optional
+    note. The suggested length is the timed block if one was running (3
+    minutes or more), else the planned block, with half and one and a half
+    times that as the other choices. `day` checks in for an earlier day. The
+    toast says whether the week's ring closed, and offers Undo either way. */
 export async function checkinFlow(commitmentId, { sessionId = null, day = null } = {}) {
   const c = commitmentById(commitmentId);
   if (!c) return;
@@ -87,12 +93,15 @@ export async function checkinFlow(commitmentId, { sessionId = null, day = null }
   }
 }
 
+/** An example note for the kind of activity, so the box shows what fits. */
 function notePlaceholder(c) {
   return { practice: 'Bars 1–32 of the nocturne', sport: '5 mile tempo run', club: 'Finished the intake arm CAD', service: 'Sorted 400 lbs of produce', study: 'Drafted the opening paragraph', work: 'Trained a new hire', project: 'Shipped the first prototype' }[c.kind] || 'One sentence is plenty';
 }
 
 // ------------------------------------------------------------ add / edit
 
+// What a new activity of each kind starts as. Every field can be changed in
+// the editor; these only spare the student typing the common cases.
 const PRESETS = {
   practice: { title: 'Instrument practice', schedule: { mode: 'flexible' }, target: { sessions: 5, minutes: 30 }, time: 'evening' },
   sport: { title: 'Team practice', schedule: { mode: 'fixed', days: [1, 2, 3, 4], start: '15:45', end: '17:45' }, target: { sessions: 4, minutes: 120 } },
@@ -105,10 +114,16 @@ const PRESETS = {
   custom: { title: '', schedule: { mode: 'flexible' }, target: { sessions: 3, minutes: 30 } }
 };
 
+/** A new activity of `kind`, from its preset, with `extra` fields on top. */
 export function presetCommitment(kind, extra = {}) {
   return newCommitment({ kind, ...structuredClone(PRESETS[kind] || PRESETS.custom), ...extra });
 }
 
+/** The add or edit sheet for an activity. The sheet redraws itself as choices
+    change (fixed times or flexible, days, length, grades), keeping open any
+    sections that were open. A fixed activity's weekly target is worked out
+    from its days and times. Returns the saved activity, or null if the sheet
+    was closed, the activity removed, or something needed fixing first. */
 export async function commitmentEditor(existing = null, { kind = null, afterSave = null } = {}) {
   const c = existing ? structuredClone(existing) : presetCommitment(kind || 'practice');
   let draft = c;
@@ -257,6 +272,9 @@ export async function commitmentEditor(existing = null, { kind = null, afterSave
 
 // ------------------------------------------------------------------ detail
 
+/** The detail sheet you get by tapping an activity's ring: this week's
+    progress, its streak, the record it builds, recent check-ins and the
+    countdown to its big day if it has one. */
 export async function commitmentDetail(id) {
   const c = commitmentById(id);
   if (!c) return;
@@ -298,6 +316,7 @@ export async function commitmentDetail(id) {
   if (res.get('op') === 'checkin') return checkinFlow(c.id);
 }
 
+// Buttons for activities and check-ins anywhere in the app, by data-act.
 export const actions = {
   'add-commit': () => commitmentEditor(null, { kind: 'practice' }),
   'open-commit': (el) => commitmentDetail(el.dataset.id),

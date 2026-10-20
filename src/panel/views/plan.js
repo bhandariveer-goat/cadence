@@ -23,6 +23,7 @@ import { stepSchedule, ensureGuide } from './guide.js';
 import { clockOf, dayWord } from '../../lib/agentops.js';
 import { atRisk } from '../../lib/scheduler.js';
 
+/** The School tab: how much work is open, and every assignment in groups. */
 export function viewPlan() {
   return `
     <section class="hello"><h1>School</h1><p>${schoolSubtitle()}</p></section>
@@ -31,12 +32,17 @@ export function viewPlan() {
 
 // ------------------------------------------------------------------ school
 
+/** The line under "School": how many open assignments and about how long they take in all. */
 function schoolSubtitle() {
   const open = Object.values(app.S.tasks).filter((t) => plannable(t));
   if (!open.length) return 'No assignments right now.';
   return `${plural(open.length, 'assignment')}, about ${fmtMinutes(open.reduce((a, t) => a + (t.estimateMin || 0), 0))} of work. Open one to see what it is and how to break it down.`;
 }
 
+/** The box for adding an assignment, then the assignments in groups: Start
+    today, This week, Catch up, Later on, Whenever (no due date) and Finished
+    this week, each one a row that opens to show its steps. With none, it says
+    how to bring them in. */
 function schoolList() {
   const all = rankedTasks();
   const open = all.filter((t) => t.status !== 'done' && !app.S.dismissed?.[t.id] && !isStale(t));
@@ -73,6 +79,8 @@ function schoolList() {
       ${!insideCanvas && !app.S.sources?.canvasFeed?.enabled ? '<button class="btn primary" data-act="canvas-feed-sheet">Connect Canvas</button>' : ''}</div></div>` : ''}`;
 }
 
+/** One assignment: its due date tab, title, class and estimate, a tick to
+    mark it done, and (when opened) its steps and the blocks planned for it. */
 function taskRow(t) {
   const isDone = t.status === 'done';
   const open = app.openTask === t.id && !isDone;
@@ -129,10 +137,14 @@ function breakdown(t) {
 // -------------------------------------------------------------- homework flows
 
 const FEEL = { faster: 0.75, right: 1, longer: 1.35 };
+// A time as 24-hour HH:MM, the way a time field wants it.
 const fmtHM = (d) => { const x = new Date(d); return `${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}`; };
 /** What a finished assignment says: its own name, plainly. */
 const doneLine = (title) => (title ? `${title} is done.` : 'Done.');
 
+/** Starts the timer on a block (stopping any other running one), and notes
+    when homework really began, which is how Cadence learns when this student
+    gets going. */
 async function startSession(id) {
   await persist((st) => {
     for (const s of st.plan?.sessions || []) if (s.startedAt && !s.done && s.id !== id) s.startedAt = null;
@@ -155,6 +167,10 @@ async function startSession(id) {
   go('today');
 }
 
+/** Stops a running block early. Under five minutes it simply stops and the
+    block stays planned. Longer, an activity goes to its check-in, and homework
+    is saved as progress, with the rest planned again; stopping before the
+    block was up also teaches Cadence how long this student focuses. */
 async function stopSession(id) {
   const s = findSession(app.S, id);
   if (!s?.startedAt) return;
@@ -176,6 +192,9 @@ async function stopSession(id) {
   toast(worked < 5 ? 'Stopped. It stays on your plan.' : `Saved ${fmtMinutes(worked)} of progress. The rest is rescheduled.`);
 }
 
+/** Marks an assignment done inside a state change, and teaches the estimator
+    from how long it really took. Returns how far off the estimate was (0.25
+    means it took a quarter longer), or 0 when there is nothing to compare. */
 function finishTask(st, t, actualMin) {
   t.status = 'done';
   t.completedAt = new Date().toISOString();
@@ -188,6 +207,11 @@ function finishTask(st, t, actualMin) {
   return 0;
 }
 
+/** Marks a block done. An activity goes to its check-in. Homework asks how
+    long it took (or uses the timer if it ran for three minutes or more) and
+    whether that finishes the whole assignment; if the planned work ran out
+    but the assignment is not done, more time is added for it. A block ticked
+    off before its time is moved to when it actually happened. */
 async function finishSession(id) {
   const s = findSession(app.S, id);
   if (!s) return;
@@ -247,6 +271,9 @@ async function finishSession(id) {
   toast(msg, undoTo(snap));
 }
 
+/** Takes back a finished block: an activity's check-in is removed, and
+    homework's minutes are taken off the assignment, reopening it if that block
+    had finished it. */
 async function undoSession(id) {
   const s = findSession(app.S, id);
   if (s?.commitmentId) {
@@ -262,6 +289,9 @@ async function undoSession(id) {
   });
 }
 
+/** Skips a block for now: its time is marked busy, so the planner moves the
+    work somewhere else, and the toast says where it went. Skipping homework
+    also counts as that class being pushed back, for what Cadence notices. */
 async function skipSession(id) {
   const s = findSession(app.S, id);
   if (!s) return;
@@ -277,6 +307,8 @@ async function skipSession(id) {
     undoTo(snap));
 }
 
+/** Marks a whole assignment finished from the list, asking roughly how long
+    it took overall so the estimate can learn. */
 async function completeTask(taskId) {
   const t = app.S.tasks[taskId];
   if (!t) return;
@@ -298,6 +330,8 @@ async function completeTask(taskId) {
   toast(doneLine(app.S.tasks?.[taskId]?.title), undoTo(snap));
 }
 
+/** Takes an assignment off the plan. One the student added is deleted; one
+    from Canvas is hidden, so the next sync does not bring it back. Undoable. */
 async function dismissTask(taskId) {
   const t = app.S.tasks[taskId];
   if (!t) return;
@@ -307,6 +341,9 @@ async function dismissTask(taskId) {
   toast(t.source === 'manual' ? 'Deleted' : 'Taken off your plan', undoTo(snap));
 }
 
+/** Changes how long an assignment should take, or hands that back to
+    Cadence's estimate. One the student added can have its title and due date
+    changed here too. */
 async function editTask(taskId) {
   const t = app.S.tasks[taskId];
   if (!t) return;
@@ -329,6 +366,8 @@ async function editTask(taskId) {
   toast('Updated. Your plan moved with it.');
 }
 
+/** Adds a busy stretch to day `k` (a dentist visit, a game), which the plan
+    then works around. */
 async function blockTime(k) {
   const res = await sheet(`
     <h2>Add to your calendar</h2><p class="lead">${esc(longDay(k))}</p>
@@ -343,6 +382,8 @@ async function blockTime(k) {
   toast('Added. Your plan moved around it.');
 }
 
+/** Adds an assignment from one typed sentence ("Spanish quiz Thursday, 30
+    min"), then says under the box when its first block is planned. */
 async function quickAdd(form, text) {
   if (!text) return;
   const p = parseAssignmentText(text, { courses: app.courses });

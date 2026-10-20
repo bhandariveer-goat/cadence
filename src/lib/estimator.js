@@ -86,6 +86,7 @@ function sizeSignals(text) {
   return out;
 }
 
+/** The key a learned speed is filed under: a course and a kind of work ("any" for every course). */
 export function biasKey(courseId, category) {
   return `${courseId || 'any'}::${category}`;
 }

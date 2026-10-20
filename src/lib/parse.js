@@ -19,6 +19,7 @@ const NUMWORDS = {
   ninety: 90, hundred: 100, half: 0.5, 'a half': 0.5, an: 1, a: 1
 };
 
+// A number from digits or a word ("three", "half").
 const num = (s) => {
   if (s == null) return null;
   const t = String(s).trim().toLowerCase();

@@ -14,6 +14,7 @@ import { esc, DOW_SHORT } from '../ui.js';
 
 const HOUR_PX = 56;
 const SHORT_PX = 38;      // under this a block shows its title only
+// `v`, kept between `lo` and `hi`.
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /** Which of the four kinds a calendar item is. */
@@ -84,6 +85,9 @@ export function dueOn(k) {
     .sort((a, b) => new Date(a.due) - new Date(b.due));
 }
 
+/** The week as a grid of days and hours, for wide screens. Only the hours
+    that hold something are drawn (8am to 9pm at least), items that overlap
+    sit side by side, and a day with too many shows "+n" to open it. */
 export function weekGrid() {
   const S = app.S;
   const days = shownWeek();
@@ -141,6 +145,8 @@ export function weekGrid() {
   </div>`;
 }
 
+/** One item on the week grid, placed by its start and end (`y` turns minutes
+    into pixels) and its lane among overlapping items. */
 function block(it, y) {
   const top = y(it.from);
   const height = Math.max(20, y(it.to) - top - 2);

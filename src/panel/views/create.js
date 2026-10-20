@@ -8,6 +8,9 @@ import { parseAssignmentText } from '../../lib/parse.js';
 import { estimate, CATEGORIES } from '../../lib/estimator.js';
 import { svg, I, esc, sheet, toast, greeting, toLocalInput } from '../ui.js';
 
+/** The teacher's Create screen: say or type an assignment and Cadence drafts
+    it for Canvas. Shows the draft form once there is one, with the teacher's
+    own courses first (any course where they are a teacher or TA). */
 export function viewCreate() {
   const S = app.S;
   const draft = S.draft || null;
@@ -62,6 +65,9 @@ export function viewCreate() {
 
 let recog = null;
 
+/** Starts dictation with the browser's speech recognition, or stops it if it
+    is running. Words appear as they are heard; when listening ends, whatever
+    was said is turned into a draft. */
 function toggleMic() {
   const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Rec) return toast("Voice isn't available in this browser. Type it instead.");
@@ -88,6 +94,7 @@ function toggleMic() {
   if (st) st.textContent = "Listening… tap again when you're done";
 }
 
+/** Puts the microphone button back to its resting state. */
 function stopMic() {
   recog = null;
   document.getElementById('mic')?.classList.remove('rec');
@@ -95,6 +102,9 @@ function stopMic() {
   if (st) st.textContent = 'Tap to start talking';
 }
 
+/** Turns what the teacher said into a draft assignment. The offline parser
+    always runs first, so there is a draft even without a key; the model's
+    reading, when there is one, fills in what it found on top. */
 async function parseDraft(text) {
   text = String(text || '').trim();
   if (!text) return toast('Say or type the assignment first');
@@ -113,6 +123,8 @@ async function parseDraft(text) {
   await persist((st) => { st.draft = draft; st.draftTranscript = text; }, { recalc: false });
 }
 
+/** Creates the drafted assignment in Canvas, published or not as the teacher
+    chose, after checking it has a title and a course. */
 async function saveDraft(form, fd) {
   // Creating an assignment needs the Canvas session, which only exists when
   // Cadence is opened from a Canvas page. The button stays clickable and says so.

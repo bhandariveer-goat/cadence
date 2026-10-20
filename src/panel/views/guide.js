@@ -12,6 +12,7 @@ const MAT_ICON = { file: I.file, page: I.page, video: I.video, link: I.link, dis
 const MAT_WORD = { file: 'File', page: 'Page', video: 'Video', link: 'Website', discussion: 'Discussion', quiz: 'Quiz', assignment: 'Assignment', textbook: 'Textbook' };
 const loading = new Set();
 
+// The student's Canvas address, for turning a material's relative link into a full one.
 const origin = () => app.S.settings.canvasHost || app.ctx.origin || '';
 
 /** The offline guide, rewritten by Claude when a key is set. */
@@ -58,6 +59,10 @@ export function stepSchedule(t) {
   return { guide: g, steps, sessions, upcoming: sessions.filter((s) => !s.done) };
 }
 
+/** Fetches what a guide needs for one assignment, at most once per six hours:
+    its instructions, rubric and materials from Canvas (or sample ones in the
+    demo), then, if a model is available and has not done it yet, the
+    rewritten guide. Any failure leaves the offline guide on screen. */
 export async function ensureGuide(id) {
   const t = app.S.tasks[id];
   if (!t || loading.has(id)) return;
@@ -95,6 +100,9 @@ export async function ensureGuide(id) {
   }
 }
 
+/** The guide for one assignment: what it asks, what to hand in, the steps
+    with the blocks planned for each, the materials to look over, the rubric
+    and the instructions in full. */
 export function viewGuide() {
   const t = app.S.tasks[app.guideId];
   if (!t) return `<button class="back" data-act="back">${svg(I.left, 16)} Back</button><div class="card soft">That assignment is gone.</div>`;
@@ -165,6 +173,9 @@ export function viewGuide() {
   </div>`;
 }
 
+/** Opens one of an assignment's materials in a new tab. A textbook, or a
+    material with no link, gets a toast saying where to find it instead, and
+    only http and https links are ever opened. */
 function openMaterial(taskId, mid) {
   const t = app.S.tasks[taskId];
   if (!t) return;
@@ -177,6 +188,7 @@ function openMaterial(taskId, mid) {
   if (/^https?:/i.test(url)) window.open(url, '_blank', 'noopener');
 }
 
+// Buttons on the guide, by data-act.
 export const actions = {
   'push-item-toggle': async (el) => {
     const { persist, pushGoogleBlocks } = await import('../core.js');

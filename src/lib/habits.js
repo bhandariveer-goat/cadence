@@ -40,6 +40,8 @@ export const TIME_WINDOWS = {
 /** Common App activities section limits. */
 export const COMMON_APP = { maxActivities: 10, position: 50, organization: 100, description: 150 };
 
+/** A complete activity from whatever fields are given, filling in the rest
+    (a kind, its colour and name, a flexible weekly target). */
 export function newCommitment(f = {}) {
   const kind = KINDS[f.kind] ? f.kind : 'custom';
   return {
@@ -65,8 +67,12 @@ export function newCommitment(f = {}) {
   };
 }
 
+// "HH:MM" to minutes after midnight.
 const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
 
+// Whether an activity happens at set times, how many times a week it aims
+// for (its days, if fixed), and how long each time lasts (at least 15
+// minutes for a fixed one, 10 for a flexible one).
 export const isFixed = (c) => c.schedule?.mode === 'fixed';
 export const targetSessions = (c) => (isFixed(c) ? (c.schedule.days || []).length : Math.max(1, c.target?.sessions || 1));
 export const sessionMinutes = (c) => (isFixed(c) ? Math.max(15, toMin(c.schedule.end) - toMin(c.schedule.start)) : Math.max(10, c.target?.minutes || 30));
@@ -77,6 +83,8 @@ export function weekStart(date = new Date()) {
   return addDays(d, -((d.getDay() + 6) % 7));
 }
 
+/** How an activity is doing in the week that holds `date`: check-ins done
+    against the target, minutes, how many are left, and whether it is met. */
 export function weekProgress(c, checkins, date = new Date()) {
   const start = dateKey(weekStart(date)), end = dateKey(addDays(weekStart(date), 7));
   const mine = checkins.filter((k) => k.commitmentId === c.id && k.date >= start && k.date < end);
@@ -148,6 +156,8 @@ export function noteActiveDays(state, now = new Date()) {
   return kept;
 }
 
+/** Days in a row the student showed up (a check-in or a finished block),
+    counting today if it already counts, with frozen days keeping it alive. */
 export function showUpStreak(state, now = new Date()) {
   const active = activeDates(state);
   const frozen = new Set(state.streak?.frozenDays || []);
@@ -195,6 +205,7 @@ export function settleStreak(state, now = new Date()) {
 
 // --------------------------------------------------------------- planning
 
+/** Picks `n` of `days`, spread out evenly rather than bunched at the start. */
 function spread(days, n) {
   if (n <= 0) return [];
   if (n >= days.length) return days;
@@ -266,8 +277,10 @@ export function pendingCheckins(state, now = new Date()) {
 
 // ------------------------------------------------------------ the record
 
+// A number to one decimal place.
 const round1 = (n) => Math.round(n * 10) / 10;
 
+/** `s` cut to `max` characters at a word, with an ellipsis. */
 function truncate(s, max) {
   if (s.length <= max) return s;
   return `${s.slice(0, max - 1).replace(/[\s,;:.]+\S*$/, '')}…`;

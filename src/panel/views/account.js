@@ -32,6 +32,10 @@ export const STYLES = {
   deep: { label: 'Deep focus', sub: '75 minutes on, 15 off', max: 75, brk: 15 }
 };
 
+/** The Account screen: the account and how it is saved, school hours, sleep,
+    how long blocks run, calendars, the assistant, what Cadence knows,
+    appearance, the tour, the data download, and signing out or deleting. A
+    teacher sees the parts that apply to them. */
 export function viewAccount() {
   const S = app.S;
   const a = S.account || {};
@@ -121,12 +125,14 @@ const THEMES = {
   system: { label: 'Match this device', sub: 'Follows the light or dark setting of your computer or phone' }
 };
 
+/** What the appearance row says: light, dark, or following the device (and which it is now). */
 function themeLine() {
   const T = window.CadenceTheme;
   const pref = T.preference();
   return pref === 'system' ? `Matching this device, which is ${T.current()} right now` : THEMES[pref].label;
 }
 
+/** Picks light, dark or following the device. Kept in this browser only. */
 async function themeSheet() {
   const T = window.CadenceTheme;
   if (!T) return;
@@ -143,8 +149,10 @@ async function themeSheet() {
   render();
 }
 
+// "15:30" as "3:30pm", and "16:00" as "4pm".
 const clockOf = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); const ap = h >= 12 ? 'pm' : 'am'; const hr = h % 12 || 12; return m ? `${hr}:${String(m).padStart(2, '0')}${ap}` : `${hr}${ap}`; };
 
+/** What the account row says: the demo, the email and when it was last saved, or this browser only. */
 function accountLine(S) {
   const a = S.account || {};
   if (DEMO) return 'Demo account with sample data';
@@ -152,6 +160,7 @@ function accountLine(S) {
   return 'This browser only';
 }
 
+/** What the assistant row says: the student's own key, included with an account, or the offline reader. */
 function assistantLine(S) {
   if (aiAvailable(S.settings)) return 'Using your own Anthropic key';
   if (S.account?.mode === 'cloud') return 'Included with your account';
@@ -163,6 +172,7 @@ function adaptedBlock(S) {
   return S.settings.styleChosen ? null : planPrefs(S)?.blockMin || null;
 }
 
+/** What the memory row says: how many things the student told Cadence and how many patterns it noticed. */
 function memorySummary(S) {
   const notes = memoryOf(S).notes.length;
   const noticed = insights(S).filter((i) => i.active).length;
@@ -184,6 +194,7 @@ function calendarsSummary() {
 
 // ------------------------------------------------------------ day shape
 
+/** Sets the school days and hours, which the plan keeps clear. */
 async function schoolSheet() {
   const sc = app.S.school;
   const res = await sheet(`
@@ -201,6 +212,7 @@ async function schoolSheet() {
   toast('Updated. Your plan moved with it.');
 }
 
+/** Sets roughly when the student gets up and goes to bed. */
 async function sleepSheet() {
   const sl = app.S.sleep;
   const res = await sheet(`
@@ -214,6 +226,8 @@ async function sleepSheet() {
   toast('Updated. Your plan moved with it.');
 }
 
+/** Picks how long a block runs before a break. Picking one replaces the
+    length Cadence had noticed and was planning with. */
 async function styleSheet() {
   const learned = adaptedBlock(app.S);
   const current = learned ? null : Object.entries(STYLES).find(([, v]) => v.max === app.S.settings.sessionMaxMin)?.[0] || null;
@@ -247,6 +261,9 @@ function importSummary(S) {
   return 'Canvas export, or a one-off .ics';
 }
 
+/** Imports a calendar file (.ics). A Canvas export becomes assignments; any
+    other calendar becomes busy time, skipping events already imported. The
+    same sheet removes everything that came from files. */
 async function icsSheet() {
   const count = (app.S.busy || []).filter((b) => b.source === 'ics').length;
   const canvasCount = (app.S.sources?.canvasFeed?.fromFile && app.S.sources.canvasFeed.assignments?.length) || 0;
@@ -303,6 +320,8 @@ async function icsSheet() {
   toast(`${events.length} events imported`);
 }
 
+/** Sets the student's own Anthropic key, kept on this device only, and
+    whether to use it. */
 async function aiSheet() {
   const s = app.S.settings;
   const res = await sheet(`
@@ -324,6 +343,10 @@ async function aiSheet() {
 
 // ----------------------------------------------------------------- leaving
 
+/** Signs out after saying what that means: with an account, the plan stays
+    saved and this browser forgets it (and the chats, which are only here);
+    without one, signing out erases everything. If the latest changes have not
+    reached the account, it asks once more before they are lost. */
 async function signOutFlow() {
   const cloud = app.S.account?.mode === 'cloud';
   const res = await sheet(`<h2>${cloud ? `Sign out of ${esc(app.S.account.email || 'your account')}?` : 'Sign out and erase this plan?'}</h2>
@@ -349,6 +372,9 @@ async function signOutFlow() {
   toast('Signed out');
 }
 
+/** Deletes the account, or this browser's plan if there is no account, after
+    naming exactly what goes. The account is deleted on the server first, and
+    nothing is wiped here unless that worked. */
 async function deleteFlow() {
   const cloud = app.S.account?.mode === 'cloud';
   // Named, with what goes and that it is final. The way out has focus when
@@ -388,6 +414,7 @@ function exportData() {
   toast('Your data is downloading');
 }
 
+/** Opens the sign-in screen to attach an email to the plan that is here. */
 function addEmail() {
   // Keep the plan on this device and attach it to an email account. The
   // account that is here stays signed in until the new sign-in succeeds, so
@@ -396,6 +423,7 @@ function addEmail() {
   render();
 }
 
+// Buttons on the Account screen and its sheets, by data-act.
 export const actions = {
   'open-account': () => { if (app.view !== 'account') push('account'); },
   'school-sheet': () => schoolSheet(),

@@ -28,6 +28,7 @@ ICONS = ['icons/icon16.png', 'icons/icon32.png', 'icons/icon48.png', 'icons/icon
 SKIP = {'.DS_Store'}
 
 
+# What goes in the package: the manifest, the icons, and everything under src/.
 def files():
     out = [ROOT / 'manifest.json'] + [ROOT / p for p in ICONS]
     for p in sorted((ROOT / 'src').rglob('*')):
@@ -36,6 +37,9 @@ def files():
     return out
 
 
+# What would make a broken package: files the manifest names that are not in
+# it, and a src/config.js with no site address or a test Supabase server.
+# Returns those problems and the manifest.
 def problems(paths):
     found = []
     have = {p.resolve() for p in paths}
@@ -67,6 +71,7 @@ def problems(paths):
     return found, manifest
 
 
+# Builds dist/cadence-extension-<version>.zip, or lists what is missing.
 def main():
     paths = files()
     found, manifest = problems(paths)

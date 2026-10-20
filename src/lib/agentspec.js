@@ -65,6 +65,8 @@ How you answer
 - Be warm and direct. One sentence of encouragement is fine; no lectures. If they are tired, make the plan fit rather than telling them to push through.
 - You only help with their schoolwork, activities and schedule. If asked for something else, say so in one sentence.`;
 
+// Builders for tool schemas: a described string, an optional field, and a
+// strict tool whose required list is every field not marked optional.
 const str = (description) => ({ type: 'string', description });
 // A field the model may leave out. Optional fields are simply not listed in
 // "required". They used to be written as "this type or null", but strict tools

@@ -33,11 +33,15 @@ const CODE = /^\d{6,10}$/;
 const returnAddress = () => (/^https?:$/.test(location.protocol) ? pageUrl('app')
   : CONFIG.site?.domain ? `https://${CONFIG.site.domain}/app` : '');
 
+/** Where sign-in is up to (start, code, name, conflict) and what was typed, kept until it is done. */
 function draft() {
   app.signin ||= {};
   return Object.assign(app.signin, { step: app.signin.step || 'start' });
 }
 
+/** The sign-in screen, at whatever step it is on: choosing between two plans
+    after a conflict, entering an email (or going on without one), the code
+    from the email, and a name for a new account. */
 export function viewSignIn() {
   const d = draft();
   const cloud = cloudConfigured();
@@ -156,6 +160,7 @@ export function viewSignIn() {
   </div>`;
 }
 
+// Shows `message` next to the field it is about (`errorFor`) and stops the busy state.
 const fail = (message, errorFor) => { Object.assign(draft(), { error: message, errorFor, busy: false }); render(); };
 
 // Agreeing to the terms, and saying you are 13 or older, before an account is
@@ -163,7 +168,9 @@ const fail = (message, errorFor) => { Object.assign(draft(), { error: message, e
 // is kept in this browser until the account exists (an email sign-in link can
 // open in another tab), then saved with the plan (core.js consentStamp).
 const CONSENT_SLOT = 'cadence.consented-at';
+// Only asked until it has been agreed to once.
 const needsConsent = () => !app.S.profile?.consentedAt;
+// The age and terms checkbox, with its error under it when it was missed.
 const consentBox = () => (needsConsent() ? `
   <label class="toggle consent mb3"><input type="checkbox" id="consent" ${draft().consented ? 'checked' : ''}><i></i>
     <span>I am 13 or older and agree to the <a href="${esc(pageUrl('terms.html'))}" target="_blank" rel="noopener">Terms</a> and the <a href="${esc(pageUrl('privacy.html'))}" target="_blank" rel="noopener">Privacy Policy</a>

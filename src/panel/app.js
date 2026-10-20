@@ -83,6 +83,9 @@ let rendering = false, again = false;
 // The tab last drawn, so the homepage's frame can show a change of tab (autoplay.js).
 let shownTab = null;
 
+/** Draws the whole app from app.S: the header, the tabs and the current
+    screen, or the sign-in or onboarding screen when one of those comes first.
+    A render asked for while one is running is done straight after it. */
 function renderApp() {
   if (!app.S) return;
   if (rendering) { again = true; return; }
@@ -157,6 +160,7 @@ function renderApp() {
   }
 }
 
+/** The streak in the header: days in a row of showing up, lit once today counts. */
 function renderStreak(hide) {
   const chip = $('#streak');
   const s = hide ? null : showUpStreak(app.S);
@@ -183,6 +187,7 @@ function renderTheme() {
   btn.setAttribute('aria-label', label);
 }
 
+/** The account button in the header, with the student's initials. */
 function renderAccount(hide) {
   const btn = $('#btn-account');
   btn.hidden = hide;
@@ -206,6 +211,7 @@ function renderSide() {
 }
 
 let tick = null;
+/** Counts down the running block once a second, on the clock in the now card. */
 function restartTimer() {
   clearInterval(tick);
   const cur = runningSession();
@@ -259,12 +265,15 @@ document.addEventListener('input', (ev) => {
 // pointed at for). The browser's own bubbles are turned off (novalidate is
 // set as forms appear) so errors have one voice, in one place.
 const fieldMessage = (el) => (el.validity.valid ? '' : (el.dataset.error || (el.validity.valueMissing ? 'Fill this in to go on.' : 'Check this and try again.')));
+/** Takes away a field's error message, once the field is fine again. */
 function clearFieldError(el) {
   if (el.getAttribute('aria-invalid') !== 'true') return;
   el.removeAttribute('aria-invalid');
   el.removeAttribute('aria-describedby');
   el.parentElement?.querySelector('.field-error')?.remove();
 }
+/** Shows the message for a field that is not filled in right, under it and
+    linked to it for screen readers. Returns whether there was one. */
 function showFieldError(el) {
   clearFieldError(el);
   const msg = fieldMessage(el);
@@ -279,6 +288,7 @@ function showFieldError(el) {
   el.insertAdjacentElement('afterend', p);
   return true;
 }
+// The fields whose errors are shown: real form fields the browser checks.
 const checked = (el) => el.matches?.('input, select, textarea') && el.willValidate && !!el.closest('form');
 // Leaving a field by pressing a button: the check waits until the press is
 // over. A message appearing under the field moves everything below it, and a

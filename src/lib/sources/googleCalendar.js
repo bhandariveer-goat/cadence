@@ -22,12 +22,16 @@ export const SCOPES = {
 /** Cadence tags everything it creates, so resync only ever touches its own events. */
 export const CADENCE_TAG = { key: 'cadenceBlock', value: 'v1' };
 
+// Signing in to Google needs the Chrome extension's identity API.
 export const available = () => typeof chrome !== 'undefined' && !!chrome.identity?.launchWebAuthFlow;
 
+// Where Google sends the student back after signing in. This exact address
+// has to be listed on the OAuth client in Google Cloud.
 export const redirectUri = () => (typeof chrome !== 'undefined' && chrome.identity?.getRedirectURL
   ? chrome.identity.getRedirectURL('google')
   : `${location.origin}/oauth.html`);
 
+/** Reads the token (or the error) Google puts after the # in the return address. */
 function parseFragment(url) {
   const frag = String(url || '').split('#')[1] || '';
   const p = new URLSearchParams(frag);
@@ -82,6 +86,8 @@ export async function freshToken(cfg, { save = () => {}, scopes } = {}) {
   }
 }
 
+/** A Google Calendar API call, with plain errors for an expired session
+    (401), a refused scope (403) and anything else. */
 async function api(path, token, { method = 'GET', body, query } = {}) {
   const url = new URL(`${API}${path}`);
   for (const [k, v] of Object.entries(query || {})) if (v != null) url.searchParams.set(k, v);
@@ -99,11 +105,14 @@ async function api(path, token, { method = 'GET', body, query } = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+/** The email a token belongs to and the scopes it was granted. */
 export async function whoAmI(token) {
   const info = await fetch(`${TOKENINFO}?access_token=${encodeURIComponent(token)}`).then((r) => r.json()).catch(() => ({}));
   return { email: info.email || '', scopes: (info.scope || '').split(' ').filter(Boolean) };
 }
 
+/** The student's calendars, with which one is their main calendar, which are
+    shown in Google, and which they can add events to. */
 export async function listCalendars(token) {
   const data = await api('/users/me/calendarList', token, { query: { maxResults: 50, minAccessRole: 'reader' } });
   return (data.items || []).map((c) => ({
@@ -122,6 +131,8 @@ function isBusy(ev) {
   return true;
 }
 
+/** A Google event as a Cadence calendar item: when, what, which calendar,
+    whether Cadence made it (its tag), and whether it counts as busy. */
 function normalize(ev, calendar) {
   const allDay = !!ev.start?.date;
   const start = allDay ? new Date(`${ev.start.date}T00:00:00`) : new Date(ev.start.dateTime);
@@ -185,14 +196,18 @@ export async function insertBlock(token, calendarId, block) {
   return api(`/calendars/${encodeURIComponent(calendarId)}/events`, token, { method: 'POST', body: toGoogleEvent(block) });
 }
 
+/** Moves or renames one of Cadence's events. */
 export async function updateBlock(token, calendarId, googleId, block) {
   return api(`/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(googleId)}`, token, { method: 'PATCH', body: toGoogleEvent(block) });
 }
 
+/** Deletes one of Cadence's events. */
 export async function deleteBlock(token, calendarId, googleId) {
   return api(`/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(googleId)}`, token, { method: 'DELETE' });
 }
 
+/** A planned block as a Google event, tagged in its private properties as
+    Cadence's, so later syncs find and change only Cadence's own events. */
 export function toGoogleEvent(block) {
   return {
     summary: block.title,
@@ -235,6 +250,7 @@ export async function listOwnBlocks(token, calendarId, { daysAhead = 21, daysBac
   return out;
 }
 
+// Two times within a minute of each other count as the same.
 const sameTime = (a, b) => Math.abs(+new Date(a) - +new Date(b)) < 60000;
 
 /**

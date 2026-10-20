@@ -8,6 +8,9 @@ export const MARK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none"
 // The modifier key as this machine writes it.
 export const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl+';
 
+/** Lays down the parts of the app that are always there: the skip link, the
+    demo bar, the header and its buttons, the tabs, the page column, the side
+    pane, the assistant, the sheet dialog and the toast. */
 export function mountShell(root = document.getElementById('root')) {
   root.innerHTML = `
   <a class="skip" href="#view">Skip to the page</a>

@@ -21,6 +21,7 @@
 //                    project, its anon key). SUPABASE_ANON_KEY is read too.
 
 const LABEL = /^[a-z0-9_-]{0,40}$/;
+// An empty reply with just a status.
 const done = (status) => new Response(null, { status, headers: { 'cache-control': 'no-store' } });
 
 export default async (req) => {

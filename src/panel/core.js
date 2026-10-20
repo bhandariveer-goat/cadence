@@ -54,11 +54,15 @@ export const app = {
 export const signedIn = () => DEMO || (app.S?.account?.mode && app.S.account.mode !== 'none');
 
 let renderFn = () => {};
+// app.js hands over its draw function here, so views can redraw without
+// importing app.js (which would import them back).
 export const setRender = (fn) => { renderFn = fn; };
+// Redraws the app from app.S and app's screen state.
 export const render = () => renderFn();
 
 // ------------------------------------------------------------ navigation
 
+/** Switches to a tab, forgetting any screens opened on top of the last one. */
 export function go(view) {
   app.stack = [];
   app.view = view;
@@ -66,6 +70,8 @@ export function go(view) {
   render();
 }
 
+/** Opens a screen on top of the current one (`data` is merged into app, for
+    example which club to show); back() returns to where it was opened from. */
 export function push(view, data = {}) {
   app.stack.push({ view: app.view });
   Object.assign(app, data);
@@ -74,6 +80,7 @@ export function push(view, data = {}) {
   render();
 }
 
+/** Goes back to the screen this one was opened from, or Today. */
 export function back() {
   const prev = app.stack.pop();
   app.view = prev?.view || 'today';
@@ -84,6 +91,7 @@ export function back() {
 /** Which tab lights up — sub-screens belong to the tab they were opened from. */
 export const activeTab = () => (app.stack.length ? app.stack[0].view : app.view);
 
+// A new screen starts at its top.
 const scrollTop = () => { const v = document.getElementById('view'); if (v) v.scrollTop = 0; };
 
 // ---------------------------------------------------------------- bridge
@@ -101,6 +109,10 @@ window.addEventListener('message', (ev) => {
   if (m.type === 'cadence:shown') app.ctx = m.context || app.ctx;
 });
 
+/** Asks the Canvas page that hosts Cadence (content.js) to do something only
+    it can, like a Canvas API call with the student's session, and waits for
+    the answer. After `timeout` milliseconds it answers itself with a failure,
+    so a page that went away does not leave Cadence waiting forever. */
 function ask(type, extra = {}, timeout = 15000) {
   return new Promise((resolve) => {
     const id = uid('req');
@@ -126,6 +138,8 @@ canvas.setTransport((req) => ask('cadence:canvas', { req }));
 const INVITE_SLOT = 'cadence.pending-invite';
 const INVITE_CODE = /^[A-Z0-9][A-Z0-9-]{3,31}$/;
 
+/** Keeps an invite code from the address (?join= for a club, ?partner= for a
+    partner) until the student is signed in and can be asked to accept it. */
 function captureInvite() {
   if (DEMO || !STANDALONE) return;           // the demo never takes or offers a real invite
   const join = params.get('join'), partner = params.get('partner');
@@ -160,6 +174,11 @@ export function inviteLink(kind, code) {
   return url.href;
 }
 
+/** Starts the app: reads a sign-in link from the address, loads the saved
+    plan (and the sample week in the demo), asks the Canvas page for its
+    address and course when inside it, connects to the account, starts
+    watching for changes, then
+    brings the plan, the account and the calendars up to date. */
 export async function boot() {
   captureInvite();
   // Someone opening a sign-in link arrives with the session in the address.
@@ -458,6 +477,7 @@ let lastLook = 0;
 
 /** Bring this device and the account into step, whichever way that goes. */
 export const syncDown = () => queue(() => settle());
+// Save to the account now, in turn with any sync already running.
 const pushNow = (opts = {}) => queue(() => settle({ ...opts, saving: true }));
 
 let pushTimer = null;
@@ -492,6 +512,12 @@ async function save({ force = false, expect = null } = {}) {
   return true;
 }
 
+/** Brings this device and the account into step. If the account is where
+    this device last saw it, local changes are saved. If it moved on and this
+    device has no unsaved changes, the account's plan is taken. If both
+    changed, nothing is overwritten: the student is asked which plan to keep.
+    It looks again (up to three times) if someone saved in between. `force`
+    saves this device's plan over the account's. */
 async function settle({ force = false, saving = false } = {}) {
   if (DEMO || !app.cloud?.signedIn || (planConflict() && !force)) return false;
   lastLook = Date.now();
@@ -529,6 +555,8 @@ async function settle({ force = false, saving = false } = {}) {
   }
 }
 
+/** Marks the plan as changed in two places and shows the screen that asks
+    which to keep. */
 async function askWhich() {
   app.S = await update((st) => { st.cloud.conflict = 'diverged'; return st; });
   app.stack = [];
@@ -547,6 +575,8 @@ async function askWhich() {
  * nothing but be counted; see supabase/schema.sql).
  */
 let anonymousTokens = null;
+/** A token for Cadence's own server functions: the account's when signed in
+    with email, otherwise an anonymous one for this browser. */
 export function siteToken() {
   if (app.cloud?.signedIn) return app.cloud.token();
   anonymousTokens ||= anonymousToken({ url: CONFIG.supabaseUrl, key: CONFIG.supabaseKey });
@@ -581,6 +611,9 @@ function watchSources() {
   }, 60000);
 }
 
+/** Keeps the account current while the page is open: saves at once when the
+    tab is hidden (in case it is closed), and looks for changes from other
+    devices when it comes back (no more than once every 15 seconds). */
 function watchAccount() {
   const look = () => {
     if (document.visibilityState !== 'visible' || !app.cloud?.signedIn || planConflict()) return;
@@ -593,6 +626,7 @@ function watchAccount() {
   setInterval(look, 60000);
 }
 
+/** Inside Canvas, offers the name Canvas knows to the sign-in screen, so the student does not have to type it. */
 async function offerCanvasName() {
   try {
     const me = await canvas.whoAmI();
@@ -601,6 +635,7 @@ async function offerCanvasName() {
   } catch { /* the sign-in screen just asks for a name */ }
 }
 
+/** Inside Canvas, uses the name Canvas knows for the greeting. */
 async function fetchName() {
   try {
     const me = await canvas.whoAmI();
@@ -609,6 +644,7 @@ async function fetchName() {
   } catch { /* the greeting stays generic */ }
 }
 
+// Canvas is read again on open if the last sync was more than 20 minutes ago.
 const shouldAutoSync = () => !app.S.lastSync || Date.now() - +new Date(app.S.lastSync) > 20 * MIN;
 
 /**
@@ -629,6 +665,8 @@ export async function persist(mutator, { recalc = true, edit = true } = {}) {
 /** The Undo for a change that is taken back by restoring the plan from just before it. */
 export const undoTo = (snapshot) => ({ label: 'Undo', run: () => restore(snapshot), untilEdited: true });
 
+/** Puts a whole earlier plan back (what Undo does after a bigger change),
+    keeping the current sync details so the account is not confused. */
 export async function restore(snapshot) {
   document.dispatchEvent(new Event('cadence:edited'));
   app.S = await saveState({ ...snapshot, cloud: app.S.cloud, editedAt: new Date().toISOString() });
@@ -637,6 +675,7 @@ export async function restore(snapshot) {
   pushSoon();
 }
 
+/** Inside Canvas, tells the page how many blocks are left today, for the badge on Cadence's button. */
 function updateBadge() {
   if (!insideCanvas) return;
   const k = dateKey(new Date());
@@ -646,7 +685,11 @@ function updateBadge() {
 
 // ----------------------------------------------------------- computation
 
+// Everything the plan has to work around: busy blocks, school hours, timed
+// calendar events and activities at set times.
 export const allBusy = (st = app.S) => busyFromState(st);
+// Whether an assignment still needs time planned: open, not hidden, not too
+// old, and due on a date (or added by the student, or picked to do first).
 export const plannable = (t, st = app.S) => taskPlannable(t, st);
 
 /** Estimates, ranking and the plan — homework, commitments and every calendar. */
@@ -654,6 +697,7 @@ export function recompute(st = app.S) {
   return recomputeState(st);
 }
 
+/** Every assignment with its priority, most urgent first, then soonest due. */
 export function rankedTasks() {
   const byId = Object.fromEntries((app.S.ranked || []).map((r) => [r.id, r.priority]));
   return Object.values(app.S.tasks)
@@ -662,17 +706,23 @@ export function rankedTasks() {
       || ((a.due ? +new Date(a.due) : Infinity) - (b.due ? +new Date(b.due) : Infinity)));
 }
 
+// A planned block by id, in the given state.
 export const findSession = (st, id) => (st.plan?.sessions || []).find((s) => s.id === id);
+// An activity by id.
 export const commitmentById = (id) => (app.S.commitments || []).find((c) => c.id === id) || null;
+// Whole minutes since a moment, never negative.
 export const minutesSince = (iso) => Math.max(0, Math.round((Date.now() - +new Date(iso)) / MIN));
 
+/** The blocks planned on day `k` (YYYY-MM-DD), earliest first. */
 export function sessionsOn(k) {
   return (app.S.plan?.sessions || []).filter((s) => dateKey(new Date(s.start)) === k)
     .sort((a, b) => new Date(a.start) - new Date(b.start));
 }
 
+// The block whose timer is running, if any.
 export const runningSession = () => (app.S.plan?.sessions || []).find((s) => s.startedAt && !s.done) || null;
 
+/** The block to show as "now": the one running, else today's next one that has not ended. */
 export function currentSession() {
   const running = runningSession();
   if (running) return running;
@@ -680,6 +730,7 @@ export function currentSession() {
   return sessionsOn(dateKey(new Date())).find((s) => !s.done && +new Date(s.end) > now) || null;
 }
 
+/** The first block planned after today, offered as a head start. */
 export function nextFutureSession() {
   const today = dateKey(new Date());
   return (app.S.plan?.sessions || []).find((s) => !s.done && dateKey(new Date(s.start)) > today) || null;
@@ -754,6 +805,7 @@ export async function checkIn(commitmentId, { minutes, feel = 'good', note = '',
   return { checkin, before, after, ringClosed: !before.met && after.met, streak: showUpStreak(app.S), settle };
 }
 
+/** Removes a check-in, and reopens the planned block it had closed. */
 export async function undoCheckin(id) {
   await persist((st) => {
     const k = st.checkins.find((x) => x.id === id);
@@ -762,6 +814,8 @@ export async function undoCheckin(id) {
   });
 }
 
+/** Loads partners, clubs and nudges, and the feed of shared check-ins, once
+    per page unless `force`. */
 export async function loadCrew({ force = false } = {}) {
   const c = app.crew;
   if (!app.sync?.available || c.loading || (c.loaded && !force)) return;
@@ -784,6 +838,10 @@ export async function loadCrew({ force = false } = {}) {
 
 // ------------------------------------------------------------------ canvas
 
+/** Reads the student's courses and assignments from Canvas (inside Canvas
+    only), adds new ones and updates changed ones. A changed description
+    means the guide is fetched again. Unless `quiet`, the toast says how many
+    came in. */
 export async function syncCanvas({ quiet = false } = {}) {
   if (app.syncing || !insideCanvas) return;
   const { toast } = await import('./ui.js');
@@ -824,6 +882,8 @@ export async function syncCanvas({ quiet = false } = {}) {
   }
 }
 
+/** With the student's own key, asks the model for better estimates of
+    assignments that have instructions and no estimate of their own yet. */
 export async function refineWithAI() {
   if (!ai.aiAvailable(app.S.settings)) return;
   const targets = Object.values(app.S.tasks).filter((t) => plannable(t) && !t.userEstimateMin && !t.aiEstimatedAt && t.description);
@@ -840,6 +900,7 @@ export async function refineWithAI() {
   } catch { /* heuristics already cover it */ }
 }
 
+/** What the estimator learned about this student's speed, as a short note for the model. */
 export function learnedNotes() {
   return Object.entries(app.S.model?.biases || {})
     .filter(([k, v]) => v.n >= 2 && k.startsWith('any::'))
@@ -926,6 +987,7 @@ export async function pushGoogleBlocks({ quiet = false } = {}) {
   }
 }
 
+// True when automatic sync is on and the sources are due to be checked again.
 export const sourcesStale = () => {
   const { enabled, everyMinutes, lastRun } = app.S.autoSync || {};
   if (!enabled) return false;

@@ -32,6 +32,8 @@
   btn.addEventListener('click', () => togglePanel());
   document.documentElement.appendChild(btn);
 
+  /** Opens or closes the Cadence panel on the Canvas page (building it the
+      first time), and tells it what page it is on when it opens. */
   function togglePanel(force) {
     open = force ?? !open;
     if (open && !host) mountPanel();
@@ -40,6 +42,8 @@
     if (open && frame) frame.contentWindow?.postMessage({ type: 'cadence:shown', context: pageContext() }, '*');
   }
 
+  /** Adds the panel to the page: Cadence's own page in a frame, which may use
+      the microphone and write to the clipboard, and nothing more. */
   function mountPanel() {
     host = document.createElement('div');
     host.id = 'cadence-host';
@@ -69,6 +73,7 @@
     };
   }
 
+  /** Canvas's CSRF token from its cookie, which Canvas wants on any request that changes something. */
   function csrfToken() {
     const m = document.cookie.match(/(?:^|;\s*)_csrf_token=([^;]+)/);
     return m ? decodeURIComponent(m[1]) : null;
@@ -79,6 +84,9 @@
   // this same site) and creating an assignment. Nothing else is sent.
   const METHODS = new Set(['GET', 'POST']);
 
+  /** Makes a Canvas API call for the panel, as the signed-in student. Only GET
+      and POST, only to /api/v1/ on this same Canvas site; anything else is
+      refused before it is sent. */
   async function canvasFetch({ path, method = 'GET', body } = {}) {
     let target;
     try { target = new URL(String(path || ''), location.origin); } catch { throw new Error('Not a Canvas API address'); }

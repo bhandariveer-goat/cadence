@@ -14,6 +14,11 @@ import { atRisk } from '../../lib/scheduler.js';
 import { composeGuide } from './guide.js';
 import { stepsForSession, describeSteps } from '../../lib/guide.js';
 
+/** The Today tab, top to bottom: the date, a greeting and a one-line summary;
+    a nudge from a partner; a suggested next step; the block happening now or
+    next (or a resting card); an activity waiting for its check-in; the rings;
+    today's timeline; and, when work would not fit or days are running long, a
+    card saying so. With nothing planned at all, it shows how to start. */
 export function viewToday() {
   const S = app.S;
   const hasAnything = (S.commitments || []).some((c) => !c.archived) || Object.values(S.tasks).some((t) => plannable(t));
@@ -51,6 +56,9 @@ export function viewToday() {
   `;
 }
 
+/** The line under the greeting: how many blocks today and about how long,
+    when the day starts if Cadence moved it to fit how this student works,
+    and the streak to keep. */
 function summaryLine() {
   const S = app.S;
   const k = dateKey(new Date());
@@ -91,6 +99,8 @@ function nextStepCard() {
   return '';
 }
 
+// A suggested next step with its button and a "later" button that hides it
+// (data-key says which step, so it stays hidden).
 const stepCard = (key, title, sub, label, act, later) => `<div class="card">
   <div class="card-title">${title}</div>
   <div class="card-sub">${sub}</div>
@@ -98,6 +108,7 @@ const stepCard = (key, title, sub, label, act, later) => `<div class="card">
     <button class="btn ghost small" data-act="prompt-dismiss" data-key="${key}">${later}</button></div>
 </div>`;
 
+/** A nudge from a partner or club, until it is marked as read. */
 function nudgeBanner(n) {
   return `<div class="nudge-banner">
     ${avatar(n.from, 40)}
@@ -107,6 +118,7 @@ function nudgeBanner(n) {
   </div>`;
 }
 
+/** An activity whose time has passed today, asking for its check-in. */
 function pendingCard(c) {
   return `<div class="card k-activity" style="--c:${activityColor(c)}">
     <div class="row">
@@ -121,6 +133,9 @@ function pendingCard(c) {
   </div>`;
 }
 
+/** The block happening now, or next: what it is, which part of the work to
+    focus on and up to two materials for it, a countdown while the timer runs,
+    and its buttons (start, mark done, stop, move it later, open the guide). */
 function nowCard(s) {
   const running = !!s.startedAt && !s.done;
   const c = s.commitmentId ? commitmentById(s.commitmentId) : null;
@@ -164,6 +179,8 @@ function nowCard(s) {
   </div>`;
 }
 
+/** Shown when nothing is due right now: done for today, or nothing waiting,
+    with the next block offered as a head start if there is one. */
 function restCard() {
   const nxt = nextFutureSession();
   const S = app.S;
@@ -239,6 +256,8 @@ function reviewCard() {
   </button>`;
 }
 
+/** The two latest check-ins from the student's crew, on a phone, where the
+    Crew tab is a tap away rather than on screen beside Today. */
 function crewPeek() {
   if (!app.sync?.available) return '';
   if (!app.crew.loaded) { loadCrew(); return ''; }
@@ -250,6 +269,7 @@ function crewPeek() {
   </div>`;
 }
 
+/** A shorter version of a crew check-in, for Today. */
 function feedCardCompact(f) {
   const mine = f.kudos.includes('me');
   return `<div class="feed-card k-activity">
@@ -262,6 +282,9 @@ function feedCardCompact(f) {
   </div>`;
 }
 
+/** Today with nothing planned yet: a note while Canvas is first read, or the
+    quickest ways to a real plan (the Canvas feed link, or telling Cadence in
+    plain words). */
 function emptyToday() {
   // The first read of Canvas takes a few seconds. Saying so beats an empty week.
   if (insideCanvas && app.syncing) {

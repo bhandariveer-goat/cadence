@@ -8,6 +8,7 @@ export const esc = escapeHtml;
 /** Layout tiers: phone/extension panel < 768 <= desktop < 1180 <= wide (side pane). */
 export const isDesktop = () => matchMedia('(min-width: 768px)').matches;
 export const isWide = () => matchMedia('(min-width: 1180px)').matches;
+// The first element matching `sel`.
 export const $ = (sel, root = document) => root.querySelector(sel);
 
 // ------------------------------------------------------------------ icons
@@ -319,6 +320,7 @@ export const DOW_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday',
 export const DOW_TWO = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 export const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
+// The times a time picker offers: every quarter hour from 5am, and 11:59pm.
 export const TIMES = (() => {
   const out = [];
   for (let h = 5; h < 24; h++) for (const m of [0, 15, 30, 45]) out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
@@ -326,21 +328,31 @@ export const TIMES = (() => {
   return out;
 })();
 
+// "HH:MM" to minutes after midnight, and back again.
 export const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
 export const fromMin = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+// A time `mins` later (or earlier), kept inside the same day.
 export const shift = (hhmm, mins) => fromMin(clamp(toMin(hhmm) + mins, 0, 23 * 60 + 59));
+// "HH:MM" the way the app shows a time.
 export const clock = (hhmm) => fmtTime(atTime(new Date(), hhmm));
+// "1 assignment", "3 assignments" (`many` for words that do not just add s).
 export const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+// Seconds as a countdown, "24:05".
 export const mmss = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+// ["a", "b", "c"] as "a, b and c".
 export const listJoin = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
 
+/** "15:30" as "3:30pm". */
 export function short(hhmm) {
   return fmtClock(hhmm);
 }
+/** Two times as "3:45pm to 5:30pm". */
 export function range(a, b) {
   return `${fmtClock(a)} to ${fmtClock(b)}`;
 }
 
+/** Days of the week (0 is Sunday) as words: "Weekdays", "Weekends", "Every
+    day", or "Mon, Wed and Fri", in week order starting Monday. */
 export function daysLabel(days = []) {
   const set = [...new Set(days)].sort((a, b) => WEEK_ORDER.indexOf(a) - WEEK_ORDER.indexOf(b));
   const key = set.join(',');
@@ -351,12 +363,14 @@ export function daysLabel(days = []) {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] || 'Any day');
 }
 
+/** A time picker with `value` chosen, adding it to the list if it is not on a quarter hour. */
 export function timeSelect(name, value, extra = '') {
   const opts = TIMES.includes(value) ? TIMES : [...TIMES, value].sort();
   return `<select name="${name}" ${extra}>${opts.map((t) =>
     `<option value="${t}" ${t === value ? 'selected' : ''}>${clock(t)}</option>`).join('')}</select>`;
 }
 
+/** "Good afternoon, Sam" by the time of day ("Up late" before 5am), with the first name only. */
 export function greeting(name) {
   const h = new Date().getHours();
   const part = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
@@ -364,6 +378,8 @@ export function greeting(name) {
   return first ? `${part}, ${esc(first)}` : part;
 }
 
+/** When something is due, said the way a person would: "Due today 11:59pm",
+    "Due tomorrow", "Due Friday", or "Was due yesterday" once it has passed. */
 export function dueLabel(due) {
   if (!due) return 'No due date';
   const d = new Date(due);
@@ -375,6 +391,7 @@ export function dueLabel(due) {
   return `Due ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
 }
 
+/** Day `k` in full: "Today, October 19", or "Wednesday, October 21". */
 export function longDay(k) {
   const d = new Date(`${k}T12:00:00`);
   const rel = fmtDay(d);
@@ -382,6 +399,7 @@ export function longDay(k) {
   return ['Today', 'Tomorrow'].includes(rel) ? `${rel}, ${date}` : d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
+/** How long ago, briefly: "just now", "5m ago", "3h ago", "yesterday", then the day. */
 export function ago(iso) {
   const m = Math.round((Date.now() - +new Date(iso)) / MIN);
   if (m < 1) return 'just now';
@@ -391,10 +409,12 @@ export function ago(iso) {
   return fmtDay(iso);
 }
 
+/** Whole days from today to a YYYY-MM-DD date (0 today, negative once passed). */
 export function daysUntil(dateStr) {
   return Math.round((+new Date(`${dateStr}T12:00:00`) - +startOfDay(new Date())) / DAY);
 }
 
+/** A moment as a date-and-time field wants it, in local time. */
 export function toLocalInput(iso) {
   if (!iso) return '';
   const d = new Date(iso);

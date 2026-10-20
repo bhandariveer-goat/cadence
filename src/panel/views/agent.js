@@ -31,6 +31,8 @@ import { loadChats, saveChats, newChatId, titleFor, MAX_CHATS } from '../../lib/
 import { offlineOutline, assignmentPayload, requestOutline } from '../../lib/outline.js';
 import { composeGuide } from './guide.js';
 
+/** The assistant's state for this page, set up the first time it is needed,
+    with the chat that was open last time opened again. */
 export function ensureAgent() {
   if (!app.agent) {
     // The chat that was open last time is open again; the rest are in the list.
@@ -108,10 +110,14 @@ function siteEndpoint() {
 }
 
 let anonymousTokens = null;
+// The token for a student without an email account, made once per page and
+// shared by every message.
 const anonymous = () => (anonymousTokens ||= anonymousToken({ url: CONFIG.supabaseUrl, key: CONFIG.supabaseKey }));
 
 // ------------------------------------------------------------------ view
 
+/** The assistant panel: its header (chats, new chat, close), the
+    conversation or the list of chats, and the box to type or speak in. */
 export function agentPanel() {
   const a = ensureAgent();
   const mic = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -169,6 +175,9 @@ function outlineCard(o) {
   </div>`;
 }
 
+/** One message in the conversation. The assistant's own say what it changed
+    on the plan, with Undo, and the newest one shows its suggested replies;
+    an outline mode message has its own frame. */
 function bubble(m, i) {
   if (m.role === 'you') return `<div class="ag-msg you"><div class="ag-bubble">${esc(m.text)}</div></div>`;
   const last = i === ensureAgent().thread.length - 1;
@@ -200,6 +209,11 @@ function bubble(m, i) {
 
 // --------------------------------------------------------------- sending
 
+/** Sends what the student wrote. "/secret" opens outline mode. Otherwise the
+    model answers when one can be reached; if it cannot (a spent limit, a slow
+    answer, no network), the sentence is read on the device instead and the
+    reply says why. Any change to the plan is applied and kept for Undo, and
+    the chat is saved. */
 async function send(text) {
   const a = ensureAgent();
   const clean = String(text || '').trim();
@@ -349,6 +363,7 @@ export function render() {
   a.focusNext = false;
 }
 
+/** Grows the message box with what is typed, up to 140 pixels tall. */
 function autosize(box) {
   box.style.height = 'auto';
   box.style.height = `${Math.min(140, box.scrollHeight)}px`;
@@ -357,6 +372,8 @@ function autosize(box) {
 // ----------------------------------------------------------------- voice
 
 let recog = null;
+/** Starts dictation into the message box, or stops it. What was said is
+    added after anything already typed. */
 function toggleMic() {
   const a = ensureAgent();
   const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;

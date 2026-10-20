@@ -10,6 +10,10 @@ import { ART } from './parts.js';
 
 const FEEL_WORD = { great: 'Felt great', good: '', tough: 'Tough one' };
 
+/** The Crew tab: partners with their week's ring, clubs and classes, and
+    the feed of shared check-ins. Without an account it explains what Crew is
+    instead; while the crew loads it shows placeholders. A teacher sees the
+    same tab as "Clubs & classes". */
 export function viewCrew() {
   const teacher = app.S.settings.role === 'teacher';
   if (!app.sync?.available) return connectCrew(teacher);
@@ -51,6 +55,7 @@ export function viewCrew() {
     </div>`}`;
 }
 
+/** What Crew offers, shown before there is an account to share through. */
 function connectCrew(teacher) {
   return `<div class="empty">
     <h2>${teacher ? 'Run clubs and classes' : 'Check in with a friend or your club'}</h2>
@@ -70,6 +75,8 @@ function connectCrew(teacher) {
   </div>`;
 }
 
+/** A partner: their avatar inside this week's ring (or on its own when the
+    server sends no progress for them), first name and streak. */
 function personTile(p) {
   return `<button class="person" data-act="open-person" data-id="${p.id}">
     ${p.weekPct == null ? avatar(p, 56) : ring({ pct: p.weekPct, size: 56, stroke: 4, inner: avatar(p, 44), label: `${p.name}: ${Math.round(p.weekPct * 100)}% this week` })}
@@ -78,6 +85,8 @@ function personTile(p) {
   </button>`;
 }
 
+/** A club or class on the Crew tab: its goal, how often, the countdown to its
+    big day, how many members, and the team's ring for the week. */
 function clubCard(c) {
   const days = c.commitment?.event?.date ? daysUntil(c.commitment.event.date) : null;
   return `<button class="card tap row k-event" data-act="open-club" data-id="${c.id}">
@@ -91,6 +100,8 @@ function clubCard(c) {
   </button>`;
 }
 
+/** One shared check-in in the feed: who, when, what and for how long, their
+    note and how it went, with the kudos button. */
 export function feedCard(f) {
   const mine = f.kudos.includes('me');
   const others = f.kudos.filter((k) => k !== 'me').length;
@@ -114,6 +125,9 @@ export function feedCard(f) {
 
 // ------------------------------------------------------------------- club
 
+/** One club or class: the team's week, each member's progress (with nudges
+    for those behind, for the leader), its updates, and the code to join.
+    Loads the club the first time it is opened. */
 export function viewClub() {
   const id = app.clubId;
   const cached = app.clubDetail?.[id];
@@ -177,6 +191,7 @@ export function viewClub() {
     <button class="btn ghost danger block mt4" data-act="club-leave">Leave ${c.kind === 'class' ? 'class' : 'club'}</button>`;
 }
 
+/** Fetches one club's details, going back to Crew if that fails. */
 async function loadClub(id) {
   try {
     const detail = await app.sync.club(id);
@@ -190,6 +205,8 @@ async function loadClub(id) {
 
 // ---------------------------------------------------------------- actions
 
+/** Gives or takes back kudos on a check-in. The screen changes at once and is
+    put right from the server if saving fails. */
 async function kudos(el) {
   const item = app.crew.feed.find((f) => f.id === el.dataset.id);
   if (!item) return;
@@ -201,6 +218,8 @@ async function kudos(el) {
   try { await app.sync.kudos(item.id); } catch (e) { toast(e.message); loadCrew({ force: true }); }
 }
 
+/** A partner's sheet: what they share and when they last checked in, a choice
+    of nudges to send, and the way to end the partnership. */
 async function openPerson(id) {
   const p = app.crew.partners.find((x) => x.id === id);
   if (!p) return;
@@ -218,6 +237,7 @@ async function openPerson(id) {
   catch (e) { toast(e.message); }
 }
 
+/** Ends a partnership after asking. Either of them can start a new one later. */
 async function endPartnership(p) {
   const first = p.name.split(' ')[0];
   const ok = await sheet(`<h2>End partnership with ${esc(first)}?</h2>
@@ -228,6 +248,9 @@ async function endPartnership(p) {
   catch (e) { toast(e.message); }
 }
 
+/** Leaves the open club or class after saying what happens: a member just
+    leaves; a leader's class is deleted, and a leader's club passes to the
+    member who joined first (or is deleted if they were the only one). */
 async function leaveClub() {
   const club = app.clubDetail?.[app.clubId];
   if (!club) return;
@@ -248,6 +271,8 @@ async function leaveClub() {
   } catch (e) { toast(e.message); }
 }
 
+/** The leader removes a member from the club. They could join again with the
+    same code, which the sheet says, so a new code can be made as well. */
 async function removeMember(el) {
   const club = app.clubDetail?.[app.clubId];
   if (!club) return;
@@ -264,6 +289,8 @@ async function removeMember(el) {
   } catch (e) { toast(e.message); }
 }
 
+/** Makes a new join code for the club. The old one stops working; members
+    already in stay in. */
 async function rotateCode() {
   const club = app.clubDetail?.[app.clubId];
   if (!club) return;
@@ -279,6 +306,8 @@ async function rotateCode() {
   } catch (e) { toast(e.message); }
 }
 
+/** The partner sheet: make an invite (a link where the site has an address,
+    otherwise a code) or type a friend's code to accept theirs. */
 async function invitePartner() {
   // The invite is made only when the student asks for one, so opening this
   // sheet to type a friend's code does not use up an invite.
@@ -393,6 +422,7 @@ export async function offerPendingInvite() {
   } finally { app.inviteBusy = false; }
 }
 
+/** Joins a club or class by its code, then opens it. */
 async function joinClub() {
   const res = await sheet(`<h2>Join a club or class</h2><p class="lead">Your leader or teacher has the code.</p>
     <label class="field"><span>Code</span><input type="text" class="code-input" name="code" placeholder="ROBOT-K7Q2XM" autocomplete="off" spellcheck="false"></label>
@@ -406,6 +436,8 @@ async function joinClub() {
   } catch (e) { toast(e.message); }
 }
 
+/** Starts a club (or, for a teacher, a class) with one weekly goal everyone
+    works toward, and optionally a big day to count down to. */
 async function createClub() {
   const teacher = app.S.settings.role === 'teacher';
   const res = await sheet(`
@@ -445,6 +477,7 @@ async function createClub() {
   } catch (e) { toast(e.message); }
 }
 
+/** The leader posts an update that everyone in the club sees. */
 async function postUpdate() {
   const res = await sheet(`<h2>Post an update</h2><p class="lead">Everyone in the club sees it. Specific praise works best.</p>
     <textarea name="text" placeholder="Big build night Wednesday: the intake arm works. Two sessions this week, everyone." maxlength="280"></textarea>

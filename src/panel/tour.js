@@ -62,6 +62,7 @@ export function maybeStartTour() {
 
 // ------------------------------------------------------------ the stops
 
+// The control that stop `i` points at.
 const targetOf = (i) => document.querySelector(STEPS[i].sel);
 
 /** Can the student see this control right now? */
@@ -87,10 +88,14 @@ function nextShown(from, dir) {
   return -1;
 }
 
+// The stops whose controls are on screen right now (the count says "2 of 5" from these).
 const shownSteps = () => STEPS.map((_, i) => i).filter((i) => visible(targetOf(i)));
 
 // ------------------------------------------------------------ open and close
 
+/** Starts the tour at stop `i`: adds the card and the halo, puts the rest of
+    the page out of reach, and listens for keys, scrolling, resizing and
+    changes to the page so the halo stays on its control. */
 function open(i) {
   const root = document.createElement('div');
   root.className = 'tour is-plain';
@@ -153,6 +158,7 @@ function finish() {
   if (app.S && app.S.tourSeen !== true) persist((st) => { st.tourSeen = true; }, { recalc: false, edit: false }).catch(() => {});
 }
 
+/** Takes the tour off the page and undoes everything open() did, giving focus back to where it was. */
 function close() {
   const t = tour;
   tour = null;
@@ -178,12 +184,14 @@ function lockPage() {
 
 // ------------------------------------------------------------ moving between stops
 
+/** Moves to the next stop on screen (`dir` 1) or the one before (-1); past the last stop the tour ends. */
 function step(dir) {
   const j = nextShown(tour.i, dir);
   if (j >= 0) { tour.i = j; place(); }
   else if (dir > 0) finish();
 }
 
+/** Places the card again on the next frame, at most once per frame. */
 function schedule() {
   if (!tour || tour.raf) return;
   tour.raf = requestAnimationFrame(() => {
@@ -254,12 +262,14 @@ function paint() {
   if (focused?.hidden) next.focus({ preventScroll: true });
 }
 
+/** Sets text only when it changes, so the live region does not repeat itself. */
 function setText(node, value) {
   if (node.textContent !== value) node.textContent = value;
 }
 
 // ------------------------------------------------------------ input
 
+/** The card's buttons: Skip, Back and Next (Done on the last stop). */
 function onClick(e) {
   const b = e.target.closest('[data-tour]');
   if (!b) return;
@@ -295,11 +305,13 @@ function trap(e) {
   else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
 }
 
+/** Keeps focus in the card while the tour is open (unless another dialog opened over it). */
 function onFocus(e) {
   if (!tour || tour.root.contains(e.target) || e.target.closest?.('dialog[open]')) return;
   tour.next.focus({ preventScroll: true });
 }
 
+/** The page changed under the tour: keep it out of reach and place the card again. */
 function onMutate(records) {
   if (!tour || records.every((r) => tour.root.contains(r.target))) return;
   lockPage();

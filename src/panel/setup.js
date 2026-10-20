@@ -61,8 +61,12 @@ const ROWS = [
 let ui = null;          // { step, open, busy, errors, values, from } while the dialog is up
 let closedThisSession = false;
 
+// A source's saved settings, or an empty object before it was ever set up.
 const cfgOf = (id) => app.S.sources?.[id] || {};
+// Connected means a working link. Inside Canvas, Canvas itself counts as
+// connected, since assignments come straight from the page.
 const connected = (id) => (id === 'canvasFeed' && insideCanvas) || (!!cfgOf(id).enabled && !!cfgOf(id).url && !cfgOf(id).error);
+// Whether the student has connected at least one link of their own.
 const anyConnected = () => ROWS.some((r) => connected(r.id) && !(r.id === 'canvasFeed' && insideCanvas));
 
 /** Is it time to show the dialog by itself? Only for a new student, once. */
@@ -88,6 +92,7 @@ export function open({ from = 'calendars', focus = null } = {}) {
   first?.focus();
 }
 
+/** Adds the setup dialog to the page once, with its handlers. */
 function mount() {
   let dlg = document.getElementById('setup');
   if (dlg) return dlg;
@@ -109,6 +114,8 @@ function mount() {
 
 // ---------------------------------------------------------------- drawing
 
+/** Redraws the dialog for the step it is on, putting focus back on the
+    control that had it, so typing and tabbing are not interrupted. */
 function paint() {
   const dlg = document.getElementById('setup');
   if (!dlg || !ui) return;
@@ -117,11 +124,14 @@ function paint() {
   if (had) document.getElementById(had)?.focus();
 }
 
+// The two steps across the top, with the current one marked.
 const steps = () => `<ol class="su-steps" aria-label="Setup steps">
   <li class="${ui.step > 1 ? 'done' : ''}" ${ui.step === 1 ? 'aria-current="step"' : ''}><b>${ui.step > 1 ? svg(I.check, 12) : '1'}</b>Connect calendars</li>
   <li ${ui.step === 2 ? 'aria-current="step"' : ''}><b>2</b>Check what came in</li>
 </ol>`;
 
+/** Step one: a row per calendar to connect, the offer of the Chrome
+    extension, and the buttons to skip or go on. */
 function stepOne() {
   const pending = !!ui.open && !!(ui.values[ui.open] || '').trim() && !connected(ui.open);
   const ready = anyConnected();
@@ -140,6 +150,8 @@ function stepOne() {
   </div>`;
 }
 
+/** One calendar's row: its name and status, and when opened, how to find the
+    link, a box to paste it into, and any error. */
 function row(r) {
   const cfg = cfgOf(r.id);
   const on = connected(r.id);
@@ -185,6 +197,8 @@ function count(id) {
   return n ? `${plural(n, 'event')} in the next two weeks` : 'no events in the next two weeks';
 }
 
+/** Step two: what came in from each connected calendar, and the button to
+    carry on (Continue during onboarding, Done otherwise). */
 function stepTwo() {
   const done = ROWS.filter((r) => connected(r.id));
   const last = ui.from === 'onboarding' ? 'Continue' : 'Done';
@@ -221,6 +235,10 @@ function extensionOffer() {
 
 // ---------------------------------------------------------------- doing
 
+/** Connects a calendar from a pasted link: checks that it looks right, saves
+    it, and syncs it once. A link that does not work is not left switched on:
+    the source goes back to how it was, and the row says what went wrong.
+    Returns whether it worked. */
 async function connect(id, raw) {
   const r = ROWS.find((x) => x.id === id);
   if (!r || ui.busy) return false;
@@ -264,6 +282,7 @@ async function connect(id, raw) {
   return good;
 }
 
+/** Disconnects a calendar from the dialog, with Undo. */
 async function remove(id) {
   const prev = structuredClone(cfgOf(id));
   const name = ROWS.find((r) => r.id === id)?.name || 'calendar';
@@ -275,6 +294,7 @@ async function remove(id) {
   toast(`Removed ${name}`, { label: 'Undo', run: () => persist((st) => { st.sources[id] = prev; }).then(() => paint()) });
 }
 
+// Puts the cursor in a row's link box, after an error, so the link can be fixed.
 const focusInput = (id) => document.getElementById(`su-input-${id}`)?.focus();
 
 /** A link typed into the open row but not connected yet is connected now rather than lost. */
@@ -285,6 +305,7 @@ async function connectPending() {
   return connect(id, typed);
 }
 
+/** Closes setup for good: it is not shown by itself again (state.calendarSetupSeen). */
 async function finish() {
   closedThisSession = true;
   const dlg = document.getElementById('setup');
@@ -295,6 +316,10 @@ async function finish() {
   render();
 }
 
+/** Clicks inside the dialog, by data-su: open or close a row, remove a
+    calendar, go on (connecting a link left typed in first; with nothing
+    connected, that ends setup), go back, skip or finish. Connecting itself
+    is the form's submit (onSubmit). */
 async function onClick(ev) {
   const dlg = ev.currentTarget;
   if (ev.target === dlg) return;          // a click on the backdrop does nothing: setup is ended with a button
@@ -329,6 +354,7 @@ async function onClick(ev) {
   }
 }
 
+/** Enter in a link box connects that calendar instead of submitting the page. */
 function onSubmit(ev) {
   ev.preventDefault();
   ev.stopPropagation();

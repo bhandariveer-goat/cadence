@@ -9,6 +9,9 @@
 import { classify } from './estimator.js';
 
 const WORDNUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+// Small text helpers: a number from digits or a word, a capital first letter,
+// "a" or "an" before a number ("an 8", "an 11"), and a short stable id made
+// from a string (for materials).
 const toNum = (s) => (s == null ? null : /^\d+$/.test(s) ? Number(s) : WORDNUM[String(s).toLowerCase()] ?? null);
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const aOr = (n) => (/^(8|11|18|8\d)$/.test(String(n)) ? 'an' : 'a');
@@ -31,6 +34,7 @@ export function plainText(html = '') {
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/[ \t]+/g, ' ').trim();
 }
 
+/** The first sentence of `text`, cut at a word if it runs past `max` characters. */
 function firstSentences(text, max = 190) {
   const clean = text.replace(/\s+/g, ' ').trim();
   if (!clean) return '';
@@ -91,6 +95,8 @@ export function textbookRefs(text = '') {
   return out;
 }
 
+/** How an assignment is handed in, in plain words, from Canvas's submission
+    types (and the file types it accepts). */
 export function submissionLabel(types = [], exts = []) {
   if (!types?.length) return null;
   const ext = exts?.length ? ` (${exts.map((e) => `.${e}`).join(', ')})` : '';
@@ -109,6 +115,9 @@ export function submissionLabel(types = [], exts = []) {
 
 // ----------------------------------------------------------------- signals
 
+/** What the instructions say about size and shape: word counts, pages,
+    chapters to read, problems, sources, slides, and whether to annotate or
+    post a response. */
 function signals(text) {
   const n = (re) => { const m = text.match(re); return m ? toNum(m[1]) : null; };
   const ch = text.match(/\bch(?:apters?|s?\.)\s*(\d{1,2})(?:\s*(?:-|–|to|through)\s*(\d{1,2}))?/i);
@@ -136,6 +145,8 @@ function signals(text) {
   };
 }
 
+/** The things the instructions say to include ("must include a title,
+    a hypothesis and a graph"), up to eight. */
 function includeItems(text) {
   const m = text.match(/\b(?:include|including|must have|should have|be sure to (?:include|add)|make sure (?:to include|you include))\b:?\s*([^.\n]{6,320})/i);
   if (!m) return [];
@@ -147,6 +158,8 @@ function includeItems(text) {
     .map(cap);
 }
 
+/** What an assignment is about, from its title, with words like "lab
+    report", unit numbers and scope ("chapters 4 to 6") taken out. */
 function topicOf(task) {
   const title = task.title || '';
   const parts = title.split(/\s+[—–-]\s+|:\s+/);
@@ -164,6 +177,7 @@ function topicOf(task) {
 
 // ----------------------------------------------------------------- summary
 
+/** The guide's first line: what the assignment asks, in one sentence, by the kind of work it is. */
 function headlineFor(task, sig, data) {
   const topic = topicOf(task);
   const on = topic ? ` on ${topic}` : '';
@@ -194,6 +208,9 @@ function headlineFor(task, sig, data) {
   }
 }
 
+/** What to hand in: what the instructions say to include, what else they
+    point to (a works cited page, showing work, replies to classmates), and
+    how to submit it. */
 function deliverablesFor(task, sig, text, data) {
   const items = [];
   const add = (t, kind = 'req') => {
@@ -230,6 +247,8 @@ function deliverablesFor(task, sig, text, data) {
 
 // ------------------------------------------------------------------- steps
 
+/** The steps to finish an assignment, each with a weight for how much of the
+    time it takes, by the kind of work (reading, essay, lab, problem set...). */
 function stepsFor(task, sig, hasRubric) {
   const S = [];
   const p = (title, weight, detail = '') => S.push({ title, weight, detail });
@@ -358,6 +377,7 @@ export function stepsForSession(steps, sessions, session) {
   return best ? [best] : [steps.at(-1)];
 }
 
+/** The steps a block covers, in one line: "Read chapter 4, then annotate". */
 export function describeSteps(covered) {
   if (!covered.length) return '';
   const lower = (t) => t.charAt(0).toLowerCase() + t.slice(1);

@@ -37,6 +37,7 @@ function windowLeft(win, at) {
 
 const LONG_BREAK = 30;   // minutes off after two blocks of the same thing
 
+// A new id for each planned block, unique within this page.
 const uidCounter = (() => { let i = 0; return () => `s${Date.now().toString(36)}${(i++).toString(36)}`; })();
 
 /**
@@ -432,6 +433,7 @@ function numberParts(sessions) {
   });
 }
 
+/** The plan by day from `from` to `to`: each day's blocks and total minutes. */
 export function summarizeDays(sessions, from, to) {
   const byDay = new Map();
   for (let d = startOfDay(from); d <= to; d = addDays(d, 1)) byDay.set(dateKey(d), { date: dateKey(d), minutes: 0, sessions: [] });

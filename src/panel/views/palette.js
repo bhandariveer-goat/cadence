@@ -22,6 +22,10 @@ const NAV = [
   { id: 'account', label: 'Account and settings', hint: 'School hours, sleep, calendars, sign out', icon: I.you, run: () => { go('today'); push('account'); } }
 ];
 
+/** Everything the palette can offer for `query`: actions first (start the
+    next block, ask, add, refresh from Canvas, theme, shortcuts), then places
+    to go, activities to check in on and up to 40 open assignments. A row
+    matches if its label or hint contains the query; an empty query lists all. */
 function build(query) {
   const q = query.trim().toLowerCase();
   const out = [];
@@ -54,6 +58,8 @@ function build(query) {
   return out.slice(0, 40);
 }
 
+/** Redraws the results list for `query`, keeping the highlighted row in range
+    and in view. */
 function render(query) {
   items = build(query);
   cursor = Math.min(cursor, Math.max(0, items.length - 1));
@@ -67,6 +73,8 @@ function render(query) {
   list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
 
+/** Runs the `i`th result. The dialog closes first, and the action waits a
+    moment so a sheet it opens is not closed along with the palette. */
 function choose(i) {
   const it = items[i];
   if (!it) return;
@@ -74,6 +82,8 @@ function choose(i) {
   setTimeout(() => it.run(), 30);
 }
 
+/** Opens the search and command palette (Cmd or Ctrl K, or /). The dialog is
+    built once and kept; arrow keys move, Enter opens, Esc closes. */
 export function openPalette() {
   if (!dlg) {
     dlg = document.createElement('dialog');
@@ -105,6 +115,7 @@ export function openPalette() {
   input.focus();
 }
 
+/** The keyboard shortcuts sheet, opened with ?. */
 export function shortcutsSheet() {
   const keys = [
     [`${MOD}K`, 'Search and commands'],

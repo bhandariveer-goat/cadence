@@ -18,9 +18,11 @@ export const MAX_CHATS = 30;
 const MAX_BYTES = 300000;
 const TITLE_CHARS = 60;
 
+// The browser storage key for a bucket of chats: the real app's and the demo's are kept apart.
 const keyFor = (bucket) => `cadence.chats.${bucket}.v1`;
 export const CHAT_KEYS = [keyFor('real'), keyFor('demo')];
 
+// A new chat's id, unique enough for one browser.
 export const newChatId = () => `chat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
 /** A chat's name: the first thing the student said in it. */

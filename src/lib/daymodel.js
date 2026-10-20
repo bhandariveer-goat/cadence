@@ -17,6 +17,8 @@
 
 import { atTime, addDays, startOfDay, dateKey } from './util.js';
 
+// "HH:MM" to minutes after midnight and back (wrapping round midnight), and
+// whether a value is a time at all.
 const toMin = (hhmm) => { const [h, m] = String(hhmm).split(':').map(Number); return h * 60 + (m || 0); };
 const fromMin = (t) => { const m = ((Math.round(t) % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 const valid = (hhmm) => /^\d{1,2}:\d{2}$/.test(String(hhmm || ''));
@@ -36,6 +38,7 @@ export const DAY = {
   freeDayFactor: 1.5       // a day with no school can carry this much more
 };
 
+// A one-day change the student asked for ("I can stay up till 12 tonight"), if there is one.
 export const overrideFor = (st, day) => st.dayOverrides?.[dateKey(day)] || null;
 
 /** Is there school on this date? Weekday rule, minus the days marked off. */
