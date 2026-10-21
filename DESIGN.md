@@ -92,7 +92,7 @@ before weight. Times and counts use tabular figures so columns of them line up.
 - A short form is a sheet: beside the page on a wide screen, rising from the bottom on a narrow one.
 - A question with no fields is a small dialog in the middle. If it destroys something it names the thing, says what goes, and opens with focus on the way out.
 - Anything that can be put back is not asked about; it is done and offers Undo.
-- The first thing a new student sees after signing in is "Connect your calendars" (`src/panel/setup.js`): one dialog, two steps (connect each source by its link; then what came in for the next two weeks). Rows inside one frame, one orange button per step, step marks are small squares. In the middle on a wide screen, the whole screen on a phone and in the extension. It replaces asking for the Canvas link during setup, and the same dialog opens from Calendars.
+- "Connect your calendars" (`src/panel/setup.js`) is offered at the bottom of the first onboarding screen, under the activities, rather than opened by itself at sign-up: one dialog, two steps (connect each source by its link; then what came in for the next two weeks). Rows inside one frame, one orange button per step, step marks are small squares. In the middle on a wide screen, the whole screen on a phone and in the extension. It replaces asking for the Canvas link during setup, and the same dialog opens from Calendars.
 
 ## The assistant
 

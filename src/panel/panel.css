@@ -799,8 +799,20 @@ dialog.sheet.confirm .grab { display: none; }
 .ob .art { margin: var(--s2) 0 var(--s4); }
 .ob h1 { font-size: var(--t-h1); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
 .ob .lead { margin: var(--s2) 0 var(--s6); color: var(--text-2); font-size: var(--t-body); max-width: 60ch; }
-.ob .foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: var(--s2); margin-top: auto; padding: var(--s4) 0; background: var(--bg); }
+/* A sticky bar stops at its page's bottom padding, which left a strip under
+   it where the page showed through. Onboarding's page has none: the bar is
+   its bottom edge. */
+main:has(> .ob) { padding-bottom: 0; }
+.ob .foot { position: sticky; bottom: 0; display: flex; align-items: center; gap: var(--s2); margin-top: auto; padding: var(--s4) 0 max(var(--s4), env(safe-area-inset-bottom)); background: var(--bg); }
 .ob .foot .btn.primary { flex: 1; }
+/* The calendars offer under the activities: a quiet row after a hairline,
+   so it reads as the other way in, not as the next step. */
+.ob-alt { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--line); }
+.ob-alt p { flex: 1; margin: 0; color: var(--text-2); font-size: var(--t-sm); }
+.ob-alt .btn { flex: none; }
+@media (max-width: 479.98px) {
+  .ob-alt { flex-direction: column; align-items: stretch; }
+}
 .ob-how { margin: var(--s2) 0; padding-left: var(--s6); }
 .ob-how li + li { margin-top: var(--s1); }
 .progress { display: flex; gap: var(--s1); }
@@ -1073,7 +1085,8 @@ dialog.palette[open] { animation: pop-in var(--m2) var(--ease-out); }
 }
 
 /* ------------------------------------------------- calendar setup (setup.js)
-   The first thing a new student sees: one dialog, two steps. Rows inside one
+   Offered at the bottom of the first onboarding screen and opened from
+   Calendars: one dialog, two steps. Rows inside one
    frame with hairlines, one orange button per step, the step marks are small
    squares (nothing here is round). A dialog in the middle on a wide screen;
    on a phone and in the extension's panel it fills the screen. */

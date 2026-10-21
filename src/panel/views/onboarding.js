@@ -1,9 +1,10 @@
 // First run, after signing in: what you do outside class, and when is school.
 //
-// Before these two screens comes the "Connect your calendars" dialog
-// (src/panel/setup.js): Canvas for what is due, and Google, Outlook or iCloud
-// for when you are busy. It comes first because a plan with nobody's homework
-// in it is a plan nobody comes back to.
+// The first screen also offers the "Connect your calendars" dialog
+// (src/panel/setup.js), at the bottom: Canvas for what is due, and Google,
+// Outlook or iCloud for when you are busy. It is offered rather than put first:
+// asking for every calendar the moment someone signs up is a lot to ask, and
+// after picking their activities they have already seen what Cadence is for.
 //
 // It used to be five, and two of them asked when you like to work and how much
 // a night. Nobody knows the answer to either, and the answers made every
@@ -11,7 +12,8 @@
 // from the calendar now (lib/daymodel.js), so the questions are gone.
 
 import { app, persist, render, insideCanvas, syncCanvas, loadCrew } from '../core.js';
-import { svg, I, esc, KIND_ICON, daysLabel, range, activityColor } from '../ui.js';
+import { svg, I, esc, KIND_ICON, daysLabel, range, activityColor, listJoin } from '../ui.js';
+import { open as openSetup } from '../setup.js';
 import { scheduleLabel } from './parts.js';
 import { presetCommitment } from './commitments.js';
 import { interpret, applyOps } from '../../lib/agent.js';
@@ -33,7 +35,7 @@ function draft() {
   return app.ob;
 }
 
-/** The screens, in order (calendars are connected before these, in setup.js). */
+/** The screens, in order. */
 const steps = () => ['activities', 'school'];
 // The screen being shown.
 const stepName = () => steps()[Math.min(draft().step, steps().length - 1)];
@@ -62,6 +64,7 @@ export function viewOnboarding() {
         <span class="kind-ic">${svg(KIND_ICON[t.kind])}</span><div><b>${t.label}</b><small>${t.sub}</small></div></button>`).join('')}</div>
       <label class="field mt4"><span>Or say it in your own words</span>
         <textarea data-ob-said rows="2" placeholder="Robotics Monday and Wednesday 3:45 to 5:30">${esc(o.said)}</textarea></label>
+      ${calendarsRow()}
       ${foot(o.picks.length || o.said.trim() ? 'Add these to my week' : 'Skip for now', o.step > 0)}
     </div>`;
   }
@@ -90,6 +93,21 @@ export function viewOnboarding() {
         ? 'Your Canvas assignments are in, and new ones arrive on their own.'
         : 'You can connect Canvas any time from Calendars in your account, or add assignments yourself.'}</p>
     ${foot('Show me my week', true)}
+  </div>`;
+}
+
+// The calendars the setup dialog connects, by the names a student knows them by.
+const LINKS = { canvasFeed: 'Canvas', googleFeed: 'Google Calendar', outlookFeed: 'Outlook', icloudFeed: 'iCloud' };
+
+/** The offer under the activities: connect calendars now, if the student
+    would like to. Once one is connected it says which, and opens the same
+    dialog to change them. */
+function calendarsRow() {
+  const on = Object.keys(LINKS).filter((id) => app.S.sources?.[id]?.enabled).map((id) => LINKS[id]);
+  return `<div class="ob-alt">
+    <p>${on.length ? `Connected: ${esc(listJoin(on))}.`
+      : 'Or connect your calendars: Canvas for what is due, and Google, Outlook or iCloud for when you are busy.'}</p>
+    <button class="btn soft" data-act="ob-calendars">${on.length ? 'Change calendars' : 'Connect calendars'}</button>
   </div>`;
 }
 
@@ -139,6 +157,7 @@ export const actions = {
     if (btn) btn.textContent = o.picks.length || o.said.trim() ? 'Add these to my week' : 'Skip for now';
   },
   'ob-next': () => next(),
+  'ob-calendars': () => openSetup({ from: 'onboarding' }),
   'ob-back': () => { const o = draft(); o.step = Math.max(0, o.step - 1); render(); }
 };
 

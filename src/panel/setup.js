@@ -1,5 +1,5 @@
-// "Connect your calendars": the first thing a new student sees after signing
-// in, and the same dialog later from Calendars.
+// "Connect your calendars": opened from the bottom of the first onboarding
+// screen (views/onboarding.js), and from Calendars any time after.
 //
 // Step one connects each source with its own link: Canvas (every due date),
 // Google Calendar, Outlook and iCloud (busy time). Step two shows what came in
@@ -7,11 +7,12 @@
 // through Cadence's server and kept on this device, never in the account (see
 // lib/sources/sources.js and netlify/functions/canvas-feed.mjs).
 //
-// It is shown once, before the rest of setup, and not again once it has been
-// finished or skipped (state.calendarSetupSeen, which cloud adopt() keeps).
-// Not for teachers, and not in the demo.
+// It used to open by itself the moment a new student signed in. That was a
+// lot to ask of someone Cadence had only just met, so now it waits to be asked
+// for: the first screen is what they do outside class, with this one offered
+// underneath.
 
-import { app, persist, render, refreshSources, insideCanvas, keepStorage, DEMO, EMBEDDED } from './core.js';
+import { app, persist, render, refreshSources, insideCanvas, keepStorage } from './core.js';
 import { svg, I, esc, plural, toast } from './ui.js';
 import { looksLikeFeedUrl } from '../lib/sources/canvasFeed.js';
 import { looksLikeGoogleIcs, looksLikeOutlookIcs, looksLikeIcloudIcs } from '../lib/sources/sources.js';
@@ -59,7 +60,6 @@ const ROWS = [
 ];
 
 let ui = null;          // { step, open, busy, errors, values, from } while the dialog is up
-let closedThisSession = false;
 
 // A source's saved settings, or an empty object before it was ever set up.
 const cfgOf = (id) => app.S.sources?.[id] || {};
@@ -68,19 +68,6 @@ const cfgOf = (id) => app.S.sources?.[id] || {};
 const connected = (id) => (id === 'canvasFeed' && insideCanvas) || (!!cfgOf(id).enabled && !!cfgOf(id).url && !cfgOf(id).error);
 // Whether the student has connected at least one link of their own.
 const anyConnected = () => ROWS.some((r) => connected(r.id) && !(r.id === 'canvasFeed' && insideCanvas));
-
-/** Is it time to show the dialog by itself? Only for a new student, once. */
-function due() {
-  const S = app.S;
-  return !!S && !DEMO && !EMBEDDED && !closedThisSession && !ui
-    && S.settings?.role !== 'teacher' && !S.profile?.onboarded && S.calendarSetupSeen !== true
-    && !document.querySelector('dialog[open]');
-}
-
-/** Called after each render while setup is showing. */
-export function maybeStartSetup() {
-  if (due()) open({ from: 'onboarding' });
-}
 
 /** Open it, from first run or from Calendars. `focus` opens one row straight away. */
 export function open({ from = 'calendars', focus = null } = {}) {
@@ -305,14 +292,12 @@ async function connectPending() {
   return connect(id, typed);
 }
 
-/** Closes setup for good: it is not shown by itself again (state.calendarSetupSeen). */
+/** Closes the dialog and redraws what was under it. */
 async function finish() {
-  closedThisSession = true;
   const dlg = document.getElementById('setup');
   ui = null;
   if (dlg?.open) dlg.close();
   dlg?.remove();
-  if (app.S && app.S.calendarSetupSeen !== true) await persist((st) => { st.calendarSetupSeen = true; }, { recalc: false, edit: false });
   render();
 }
 
