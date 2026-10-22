@@ -1,9 +1,13 @@
 // Accounts and sync.
 //
-// Signing in is an email and the code Supabase sends to it (a one-time
-// passcode), so there is no password to forget or leak. Where a project's
-// email carries a link instead of a code, opening the link signs in too (see
-// sessionFromLink). Once signed in, the plan is kept
+// An account is made with an email and the code Supabase sends to it (a
+// one-time passcode), which proves the address is the person's, and then a
+// password is set on it. After that, signing in is the email and that
+// password. The emailed code still works as a way in, for a forgotten
+// password or an account made before passwords. Passwords go only to
+// Supabase, which keeps them hashed; nothing here stores one. Where a
+// project's email carries a link instead of a code, opening the link signs in
+// too (see sessionFromLink). Once signed in, the plan is kept
 // in one row that only its owner can read (see supabase/schema.sql), which is
 // what lets the Chrome extension and the website show the same week: the
 // extension can read Canvas, the website can't, and the row is how what one
@@ -27,7 +31,13 @@ const AUTH_ERRORS = {
   otp_expired: 'That code is wrong or has run out. Check it, or send a new one.',
   otp_disabled: 'Email sign-in is switched off for this copy of Cadence.',
   signup_disabled: 'New accounts are switched off for this copy of Cadence.',
-  email_provider_disabled: 'Email sign-in is switched off for this copy of Cadence.'
+  email_provider_disabled: 'Email sign-in is switched off for this copy of Cadence.',
+  invalid_credentials: 'That email and password do not match. If you have not set a password yet, or forgot it, use "Email me a code" instead.',
+  email_not_confirmed: 'This email has not been checked yet. Use "Email me a code" to finish signing in.',
+  weak_password: 'That password is too easy to guess. Make it longer, or mix in numbers and symbols.',
+  same_password: 'That is already your password. Choose a different one.',
+  reauthentication_not_valid: 'That code is wrong or has run out. Check it, or send a new one.',
+  reauthentication_needed: 'To change your password, Cadence has to email you a code first.'
 };
 // A sign-in error in plain words: ours for the codes we know, else what the server said.
 const authMessage = (data, status) => AUTH_ERRORS[data.error_code]
@@ -56,9 +66,9 @@ export class PlanChanged extends Error {
   constructor() { super('Your plan was changed somewhere else.'); this.changed = true; }
 }
 
-/** The connection to the account (Supabase): signing in with an emailed code,
-    keeping the session fresh, and reading and writing the saved plan.
-    `onSession` is told whenever the session changes, so it can be kept. */
+/** The connection to the account (Supabase): signing in with a password or an
+    emailed code, setting the password, keeping the session fresh, and reading
+    and writing the saved plan. `onSession` is told whenever the session changes, so it can be kept. */
 export function createCloud({ url, anonKey, session = null, onSession = () => {} }) {
   const base = String(url || '').replace(/\/+$/, '');
   let current = session;
@@ -70,9 +80,9 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
   });
 
   /** A call to the sign-in service, with errors in plain words and a clear one when offline. */
-  async function authCall(path, body) {
+  async function authCall(path, body, { method = 'POST', auth = false } = {}) {
     let res;
-    try { res = await fetch(`${base}/auth/v1/${path}`, { method: 'POST', headers: headers(false), body: JSON.stringify(body) }); }
+    try { res = await fetch(`${base}/auth/v1/${path}`, { method, headers: headers(auth), body: body == null ? undefined : JSON.stringify(body) }); }
     catch { throw Object.assign(new Error(OFFLINE), { offline: true }); }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(authMessage(data, res.status)), { status: res.status, code: data.error_code || '' });
@@ -162,6 +172,29 @@ export function createCloud({ url, anonKey, session = null, onSession = () => {}
         try { await rest('profiles', { method: 'POST', body: { id: current.user.id, name }, prefer: 'resolution=merge-duplicates' }); } catch { /* retried on next save */ }
       }
       return current;
+    },
+
+    /** Sign in with the email and the password set on the account. */
+    async signInWithPassword(email, password) {
+      keep(await authCall('token?grant_type=password', { email, password }));
+      return current;
+    },
+
+    /**
+     * Set or change the signed-in account's password. Straight after signing
+     * in this just works. Later on, a project can ask for proof first: the
+     * error then has code 'reauthentication_needed', and the change goes
+     * through with `nonce`, the code sendPasswordCode() emails.
+     */
+    async setPassword(password, nonce = '') {
+      await fresh();
+      await authCall('user', nonce ? { password, nonce: String(nonce).trim() } : { password }, { method: 'PUT', auth: true });
+    },
+
+    /** Email the signed-in person a code for changing their password. */
+    async sendPasswordCode() {
+      await fresh();
+      await authCall('reauthenticate', null, { method: 'GET', auth: true });
     },
 
     /**

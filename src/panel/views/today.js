@@ -94,7 +94,7 @@ function nextStepCard() {
   const age = Date.now() - +new Date(S.account?.createdAt || Date.now());
   const worth = S.sources?.canvasFeed?.enabled || tasks.filter((t) => plannable(t)).length >= 3 || age > 86400000;
   if (S.account?.mode === 'local' && cloudConfigured() && worth && !(p.email && Date.now() - p.email < 7 * 86400000)) {
-    return stepCard('email', 'Keep your week safe', 'Right now your plan lives only in this browser, which can clear it. Add an email and it is saved to an account, and it is on your phone and other computers too. No password.', 'Add an email', 'account-add-email', 'Not now');
+    return stepCard('email', 'Keep your week safe', 'Right now your plan lives only in this browser, which can clear it. Add an email and it is saved to an account, and it is on your phone and other computers too.', 'Add an email', 'account-add-email', 'Not now');
   }
   return '';
 }

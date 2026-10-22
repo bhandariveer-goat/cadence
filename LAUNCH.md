@@ -114,9 +114,17 @@ is far more than sign-ins need: a person gets an email only when they sign
 in on a new device or after signing out.
 
 Authentication → Sign In / Providers → Email must be enabled (it is by
-default). Cadence has no passwords: it asks Supabase to email the person, and
-the email holds a six-digit code, a link, or both. A code or link works once
-and for an hour, and a person can ask for a new email once a minute.
+default). A new account is made with a code Supabase emails to the person,
+then a password they choose; after that they sign in with the email and the
+password, or ask for a code if they forgot it. A code works once and for an
+hour, and a person can ask for a new email once a minute.
+
+In the same Email settings, set **Minimum password length** to 8 (Cadence asks
+for at least 8, and Supabase's default is 6), and leave **Confirm email** as
+it is: the code already proves the address. **Secure password change** can be
+on or off; with it on, changing a password later asks for an emailed code,
+which Cadence handles. The **Reauthentication** email template should show
+the code with `{{ .Token }}` (its default does).
 
 **Out of the box, only you can sign in.** Supabase's built-in email is for
 testing. It delivers only to the email addresses of people in your Supabase

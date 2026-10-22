@@ -6,7 +6,7 @@
 // due (lib/daymodel.js). What is here is only what Cadence cannot know without
 // being told: when school runs and roughly when you sleep.
 
-import { app, persist, push, back, render, insideCanvas, DEMO, signOut, syncDown, STANDALONE, undoTo } from '../core.js';
+import { app, persist, push, back, render, insideCanvas, DEMO, signOut, syncDown, STANDALONE, undoTo, forgetHadAccount } from '../core.js';
 import { parseICS } from '../../lib/calendar.js';
 import { parseCanvasFeed, looksLikeCanvasIcs } from '../../lib/sources/canvasFeed.js';
 import { exportChats } from '../../lib/chats.js';
@@ -103,6 +103,7 @@ export function viewAccount() {
 
     ${DEMO ? '' : `<div class="section-head"><h2>Account</h2></div>
     <div class="card flush">
+      ${a.mode === 'cloud' && app.cloud?.signedIn ? row('account-password', I.lock, 'Password', 'Set or change the password you sign in with') : ''}
       ${row('account-export', I.file, 'Download my data', 'Your plan and your chats with the assistant, as a file you can keep or read')}
       ${row('account-signout', I.left, 'Sign out', a.mode === 'cloud' ? 'Your plan stays saved to your account; chats here are deleted' : 'Removes your plan and chats from this browser')}
     </div>
@@ -372,6 +373,49 @@ async function signOutFlow() {
   toast('Signed out');
 }
 
+// Passwords are at least this long, as on the sign-in screen.
+const MIN_PASSWORD = 8;
+
+/** Sets or changes the password the account signs in with. If the project
+    asks for proof first, Cadence emails a code and the change goes through
+    with it. The password goes only to the account service, and an emailed
+    code still signs in if it is ever forgotten. */
+async function passwordSheet() {
+  if (!app.cloud?.signedIn) return toast('Sign in again first. Cadence has to reach your account to change the password.');
+  const email = app.S.account?.email || app.cloud.user()?.email || '';
+  const field = (id, name, label) => `<div class="field"><label for="${id}">${label}</label>
+    <div class="with-btn"><input type="password" id="${id}" name="${name}" autocomplete="new-password" spellcheck="false" required data-error="${name === 'password' ? 'Choose a password.' : 'Type the password again.'}">
+      <button type="button" class="btn soft" data-reveal="${id}" data-what="the password" aria-label="Show the password">Show</button></div></div>`;
+  const res = await sheet(`
+    <h2>Password</h2>
+    <p class="lead">Sign in with ${esc(email || 'your email')} and this password. If you ever forget it, an emailed code still gets you in.</p>
+    <input type="email" name="email" value="${esc(email)}" autocomplete="username" hidden>
+    ${field('pw-new', 'password', `New password <small>(at least ${MIN_PASSWORD} characters)</small>`)}
+    ${field('pw-again', 'password2', 'Type it again')}
+    <div class="actions"><button class="btn ghost" value="cancel">Cancel</button><button class="btn primary" name="op" value="save">Save password</button></div>`);
+  if (res?.get('op') !== 'save') return;
+  const password = String(res.get('password') || '');
+  if (password.length < MIN_PASSWORD) return toast(`Nothing was changed. Use at least ${MIN_PASSWORD} characters for the password.`);
+  if (password !== String(res.get('password2') || '')) return toast('Nothing was changed. The two passwords were not the same.');
+  try { await app.cloud.setPassword(password); return toast('Password saved'); }
+  catch (e) { if (e.code !== 'reauthentication_needed') return toast(`Nothing was changed. ${e.message}`); }
+
+  // The project wants proof it is really them: a code to their email.
+  try { await app.cloud.sendPasswordCode(); } catch (e) { return toast(`Nothing was changed. ${e.message}`); }
+  for (let tries = 0; tries < 3; tries++) {
+    const r = await sheet(`<h2>Check your email</h2>
+      <p class="lead">To change your password, type the code we just sent to ${esc(email || 'your email')}. It can take a minute to arrive.</p>
+      ${tries ? '<p class="form-error" role="alert">That code is wrong or has run out. Check it and try again.</p>' : ''}
+      <label class="field"><span>Code</span>
+        <input type="text" class="code-input" name="code" inputmode="numeric" maxlength="10" autocomplete="one-time-code" spellcheck="false" placeholder="123456" required data-error="Enter the code from the email."></label>
+      <div class="actions"><button class="btn ghost" value="cancel">Cancel</button><button class="btn primary" name="op" value="save">Save password</button></div>`);
+    if (r?.get('op') !== 'save') return toast('Nothing was changed');
+    try { await app.cloud.setPassword(password, String(r.get('code') || '').replace(/\D/g, '')); return toast('Password saved'); }
+    catch (e) { if (!['reauthentication_not_valid', 'otp_expired'].includes(e.code)) return toast(`Nothing was changed. ${e.message}`); }
+  }
+  toast('Nothing was changed. Open Password again to get a new code.');
+}
+
 /** Deletes the account, or this browser's plan if there is no account, after
     naming exactly what goes. The account is deleted on the server first, and
     nothing is wiped here unless that worked. */
@@ -393,6 +437,7 @@ async function deleteFlow() {
     catch (e) { return toast(`Nothing was deleted. ${e.message} Try again in a moment.`); }
   }
   await signOut({ wipe: true, force: true });
+  if (cloud) forgetHadAccount();
   toast('Deleted');
 }
 
@@ -435,6 +480,7 @@ export const actions = {
   'theme-sheet': () => themeSheet(),
   'account-export': () => exportData(),
   'account-signout': () => signOutFlow(),
+  'account-password': () => passwordSheet(),
   'account-delete': () => deleteFlow(),
   'account-add-email': () => addEmail(),
   'account-sync': () => syncDown().then(() => toast(app.S.cloud?.error ? 'Still not reaching your account. Check your connection and try again.' : 'Saved to your account')),

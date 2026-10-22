@@ -2,12 +2,14 @@
 // it: nothing is shown, and no sample data is loaded, until Cadence knows whose
 // week this is.
 //
-// Two kinds of account. With an email, a code from that email signs you in
-// and the plan is kept in your account, so it follows you between the
-// extension and the website. Without one, the account is a name kept in this
-// browser; it is honest about that limit and can be upgraded to an email later.
+// Two kinds of account. With an email, the plan is kept in your account, so it
+// follows you between the extension and the website: you make the account
+// with your email, a code sent to it, and a password, and after that sign in
+// with the email and password (or a code, if the password is forgotten).
+// Without one, the account is a name kept in this browser; it is honest about
+// that limit and can be upgraded to an email later.
 
-import { app, render, signInLocal, signInCloud, nameAccount, resolvePlanConflict, planConflict, insideCanvas, STANDALONE, pendingInvite, params } from '../core.js';
+import { app, render, signInLocal, signInCloud, signInPassword, hadAccount, nameAccount, resolvePlanConflict, planConflict, insideCanvas, STANDALONE, pendingInvite, params } from '../core.js';
 import { CONFIG, cloudConfigured } from '../../config.js';
 import { svg, I, esc, toast, flash } from '../ui.js';
 import { ART } from './parts.js';
@@ -33,18 +35,96 @@ const CODE = /^\d{6,10}$/;
 const returnAddress = () => (/^https?:$/.test(location.protocol) ? pageUrl('app')
   : CONFIG.site?.domain ? `https://${CONFIG.site.domain}/app` : '');
 
-/** Where sign-in is up to (start, code, name, conflict) and what was typed, kept until it is done. */
+// Passwords are at least this long. The project's own rule can ask for more,
+// and the server then says what is missing.
+const MIN_PASSWORD = 8;
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// A new account's password, kept here between sending the code and checking
+// it, so it can be set the moment the email is proven. Nowhere else: not in
+// the plan, not in browser storage, and gone once it is used or abandoned.
+let pendingPassword = '';
+
+/** Where sign-in is up to (start, code, password, name, conflict), which way
+    in (sign in or create an account) and what was typed, kept until it is done. */
 function draft() {
   app.signin ||= {};
   return Object.assign(app.signin, { step: app.signin.step || 'start' });
 }
 
-/** The sign-in screen, at whatever step it is on: choosing between two plans
-    after a conflict, entering an email (or going on without one), the code
-    from the email, and a name for a new account. */
+/** Sign in, or create an account: what the form shows unless the person has
+    picked. Someone who has used an email account in this browser before is
+    most likely coming back; anyone else is most likely new. */
+function modeOf(d, { again = false } = {}) {
+  if (d.mode) return d.mode;
+  if (d.upgrading) return again ? 'signin' : 'create';
+  return hadAccount() ? 'signin' : 'create';
+}
+
+// The fields both ways in use. A password field has Show beside it, and its
+// value is never written back into the page: after an error it is typed again.
+const emailField = (d) => `<label class="field"><span>School or personal email</span>
+  <input type="email" id="signin-email" name="email" value="${esc(d.email || '')}" autocomplete="email" spellcheck="false" placeholder="you@school.org" required data-error="Enter an email like you@school.org."></label>`;
+const passwordField = (id, name, label, autocomplete, error) => `<div class="field"><label for="${id}">${label}</label>
+  <div class="with-btn"><input type="password" id="${id}" name="${name}" autocomplete="${autocomplete}" spellcheck="false" required data-error="${esc(error)}">
+    <button type="button" class="btn soft" data-reveal="${id}" data-what="the password" aria-label="Show the password">Show</button></div></div>`;
+const formError = (d, ...fields) => (d.error && fields.includes(d.errorFor) ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : '');
+
+/** The email form, one of two ways: signing in with a password (and a way to
+    have a code emailed instead), or making an account (email, password twice). */
+function accountForm(d, mode) {
+  if (mode === 'signin') {
+    return `
+      <form class="signin-form" data-form="signin-password" autocomplete="on">
+        ${emailField(d)}
+        ${passwordField('signin-pw', 'password', 'Password', 'current-password', 'Enter your password.')}
+        ${formError(d, 'email', 'password')}
+        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Signing in…' : 'Sign in'}</button>
+      </form>
+      <p class="signin-more">
+        <button class="link" data-act="signin-code-instead" ${d.sending ? 'aria-busy="true"' : ''}>${d.sending ? 'Sending a code…' : 'Forgot your password, or never set one? Email me a code'}</button>
+      </p>
+      <p class="hint">New to Cadence? <button class="link" data-act="signin-mode" data-mode="create">Create an account</button></p>`;
+  }
+  return `
+    <form class="signin-form" data-form="signin-create" autocomplete="on">
+      ${emailField(d)}
+      ${passwordField('signin-pw', 'password', `Password <small>(at least ${MIN_PASSWORD} characters)</small>`, 'new-password', 'Choose a password.')}
+      ${passwordField('signin-pw2', 'password2', 'Type the password again', 'new-password', 'Type the password again.')}
+      ${formError(d, 'email', 'password')}
+      <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Sending a code…' : 'Create account'}</button>
+    </form>
+    <p class="hint">Cadence emails you a code to check the address is yours. After that, you sign in with your email and this password, in the Chrome extension and on the website.</p>
+    <p class="hint">Already have an account? <button class="link" data-act="signin-mode" data-mode="signin">Sign in</button></p>`;
+}
+
+/** The sign-in screen, at whatever step it is on: setting a password, choosing
+    between two plans after a conflict, a name for a new account, the code from
+    the email, or the start (sign in, create an account, or go on without one). */
 export function viewSignIn() {
   const d = draft();
   const cloud = cloudConfigured();
+
+  // Just signed in: a password for next time. Asked before the "which plan?"
+  // question, which follows it.
+  if (d.step === 'password') {
+    const retry = d.purpose === 'create';
+    return `<div class="signin">
+      <h1>${retry ? 'Set your password' : 'Set a password'}</h1>
+      <p class="lead">${retry
+        ? 'Your account is made and you are signed in, but the password was not saved. Try it again here.'
+        : 'Next time, sign in with your email and this password instead of waiting for a code.'}</p>
+      <form class="signin-form" data-form="signin-setpass" autocomplete="on">
+        <input type="email" name="email" value="${esc(d.email || '')}" autocomplete="username" hidden>
+        ${passwordField('signin-pw', 'password', `New password <small>(at least ${MIN_PASSWORD} characters)</small>`, 'new-password', 'Choose a password.')}
+        ${passwordField('signin-pw2', 'password2', 'Type it again', 'new-password', 'Type the password again.')}
+        ${formError(d, 'password')}
+        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Saving…' : 'Save password'}</button>
+      </form>
+      <button class="link mt4" data-act="signin-skip-password">Skip for now</button>
+      <p class="hint">You can set or change it any time in Account.</p>
+    </div>`;
+  }
 
   if (d.step === 'conflict' || planConflict()) {
     // Two ways to get here: signing in to an account that already has a plan
@@ -82,20 +162,19 @@ export function viewSignIn() {
   }
 
   if (d.step === 'code') {
+    const making = d.purpose === 'create';
     return `<div class="signin">
       <h1>Check your email</h1>
-      <p class="lead">We sent a sign-in email to <b>${esc(d.email)}</b>. It can take a minute to arrive. If it has a code, type it here. ${STANDALONE
-        ? 'If it has a button instead, press it.'
-        : 'If it only has a button, pressing it signs you in on the website, not here: signing in here needs the code.'}</p>
+      <p class="lead">We sent a code to <b>${esc(d.email)}</b>. Type it here to ${making ? 'finish making your account' : 'sign in'}. It can take a minute to arrive.</p>
       <form class="signin-form" data-form="signin-code" autocomplete="off">
         <label class="field"><span>Code</span>
           <input type="text" class="code-input" name="code" value="${esc(d.code || '')}" inputmode="numeric" maxlength="10" autocomplete="one-time-code" spellcheck="false" placeholder="123456" required data-error="Enter the code from the email."></label>
         ${d.error ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
-        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Signing in…' : 'Sign in'}</button>
+        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Checking…' : making ? 'Create account' : 'Sign in'}</button>
       </form>
       <p class="form-success" id="signin-status" role="status"></p>
       <p class="signin-more">
-        <button class="link" data-act="signin-resend" ${d.resending ? 'aria-busy="true"' : ''}>${d.resending ? 'Sending a new email…' : 'Send a new email'}</button>
+        <button class="link" data-act="signin-resend" ${d.resending ? 'aria-busy="true"' : ''}>${d.resending ? 'Sending a new code…' : 'Send a new code'}</button>
         <button class="link" data-act="signin-back">Use a different email</button>
       </p>
     </div>`;
@@ -105,40 +184,29 @@ export function viewSignIn() {
   // signing back in after a session ended). Their plan is not going anywhere.
   if (d.upgrading && cloud) {
     const again = app.S.account?.mode === 'cloud';
+    if (again && !d.email) d.email = app.S.account.email || '';
     return `<div class="signin">
       <h1>${again ? 'Sign in again' : 'Add an email'}</h1>
       <p class="lead">${again
         ? 'Your plan is still on this device. Sign in to start saving it to your account again.'
         : 'Your plan stays as it is. With an email it is also saved to your account, so the Chrome extension and the website show the same week.'}</p>
       ${consentBox()}
-      <form class="signin-form" data-form="signin-email" autocomplete="on">
-        <label class="field"><span>School or personal email</span>
-          <input type="email" name="email" value="${esc(d.email || '')}" autocomplete="email" spellcheck="false" placeholder="you@school.org" required data-error="Enter an email like you@school.org."></label>
-        ${d.error && d.errorFor !== 'consent' ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
-        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Sending…' : 'Send me a sign-in email'}</button>
-      </form>
-      <p class="hint">No password. We email that address a code or a link.</p>
-      <button class="link mt4" data-act="signin-cancel">Go back without adding one</button>
+      ${accountForm(d, modeOf(d, { again }))}
+      <button class="link mt4" data-act="signin-cancel">Go back without ${again ? 'signing in' : 'adding one'}</button>
     </div>`;
   }
 
   const invite = cloud ? pendingInvite() : null;
+  const mode = modeOf(d);
   return `<div class="signin">
     <div class="art">${ART}</div>
-    <h1>${insideCanvas ? 'Set up Cadence' : cloud ? 'Sign in to Cadence' : 'Start using Cadence'}</h1>
+    <h1>${insideCanvas ? 'Set up Cadence' : !cloud ? 'Start using Cadence' : mode === 'signin' ? 'Sign in to Cadence' : 'Create your Cadence account'}</h1>
     <p class="lead">Your classes, activities and assignments on one calendar, with the time to do them already planned.</p>
     ${params.get('welcome') === '1' && typeof chrome !== 'undefined' && chrome.runtime?.id ? `<div class="card soft small mb4" role="status"><b>Cadence is installed.</b> Open Canvas in this browser (refresh it if it was already open) and press the Cadence button at the bottom right. Your assignments come in from there. You can also sign in here first.</div>` : ''}
     ${invite ? `<div class="card soft small mb4" role="status"><b>You have an invite</b> to ${invite.kind === 'club' ? 'join a club' : 'be accountability partners'}. Sign in with your email to accept it: partners and clubs need an email account.</div>` : ''}
 
     ${consentBox()}
-    ${cloud ? `
-      <form class="signin-form" data-form="signin-email" autocomplete="on">
-        <label class="field"><span>School or personal email</span>
-          <input type="email" name="email" value="${esc(d.email || '')}" autocomplete="email" spellcheck="false" placeholder="you@school.org" required data-error="Enter an email like you@school.org."></label>
-        ${d.error && d.errorFor === 'email' ? `<p class="form-error" role="alert">${esc(d.error)}</p>` : ''}
-        <button class="btn primary block" type="submit" ${d.busy ? 'aria-busy="true"' : ''}>${d.busy ? 'Sending…' : 'Send me a sign-in email'}</button>
-      </form>
-      <p class="hint">No password. The same account works in the Chrome extension and on the website, so they show the same week.</p>
+    ${cloud ? `${accountForm(d, mode)}
       <div class="signin-or"><span>or</span></div>` : ''}
 
     <form class="signin-form" data-form="signin-local" autocomplete="on">
@@ -190,6 +258,38 @@ function consented() {
   return false;
 }
 
+/** The name a sign-in carries with it: one this device already knows, if any. */
+const knownName = (d) => String(app.S.account?.name || app.S.profile?.name || d.canvasName || '').trim();
+
+/**
+ * Where a successful sign-in goes next: the "which plan?" question if this
+ * device and the account both have one, a name if the account has none, or
+ * straight into the app.
+ */
+function signedInNext(d, { conflict = false, remote = null } = {}, said = 'Signed in') {
+  if (conflict) { Object.assign(d, { step: 'conflict', remote, busy: false, error: null, after: null }); return render(); }
+  if (!app.S.account?.name) { app.signin = { step: 'name', name: '' }; return render(); }
+  app.signin = null;
+  render();
+  toast(said);
+}
+
+/** A new password, checked here before it goes anywhere: long enough, and typed the same twice. */
+function newPassword(data) {
+  const password = String(data.get('password') || '');
+  if (password.length < MIN_PASSWORD) { fail(`Use at least ${MIN_PASSWORD} characters for the password.`, 'password'); return null; }
+  if (password !== String(data.get('password2') || '')) { fail('The two passwords are not the same. Type them again.', 'password'); return null; }
+  return password;
+}
+
+/** Emails a code to `email` and shows the box to type it in. `purpose` is
+    'create' (finishing a new account) or 'code' (signing in without the password). */
+async function sendCodeTo(d, email, purpose) {
+  await app.cloud.sendCode(email, returnAddress());
+  Object.assign(d, { step: 'code', purpose, email, code: '', busy: false, sending: false, error: null });
+  render();
+}
+
 export const submitActions = {
   'signin-local': async (form, data) => {
     if (!consented()) return;
@@ -197,19 +297,38 @@ export const submitActions = {
     catch (e) { fail(e.message, 'local'); }
   },
 
-  'signin-email': async (form, data) => {
+  // Email and password.
+  'signin-password': async (form, data) => {
     const d = draft();
     if (d.busy) return;
     const email = String(data.get('email') || '').trim().toLowerCase();
+    const password = String(data.get('password') || '');
+    d.email = email;                      // kept through a mistake: only the password is typed again
     if (!consented()) return;
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail('Enter an email like you@school.org.', 'email');
-    Object.assign(d, { email, busy: true, error: null, code: '' });
+    if (!EMAIL.test(email)) return fail('Enter an email like you@school.org.', 'email');
+    if (!password) return fail('Enter your password.', 'password');
+    Object.assign(d, { email, busy: true, error: null });
+    render();
+    try { signedInNext(d, await signInPassword(email, password, knownName(d))); }
+    catch (e) { fail(e.message, 'password'); }
+  },
+
+  // A new account: the email is proven with a code first, then the password is set.
+  'signin-create': async (form, data) => {
+    const d = draft();
+    if (d.busy) return;
+    const email = String(data.get('email') || '').trim().toLowerCase();
+    d.email = email;                      // kept through a mistake: only the passwords are typed again
+    if (!consented()) return;
+    if (!EMAIL.test(email)) return fail('Enter an email like you@school.org.', 'email');
+    const password = newPassword(data);
+    if (!password) return;
+    Object.assign(d, { email, busy: true, error: null });
     render();
     try {
-      await app.cloud.sendCode(email, returnAddress());
-      Object.assign(d, { step: 'code', busy: false });
-      render();
-    } catch (e) { fail(e.message, 'email'); }
+      pendingPassword = password;
+      await sendCodeTo(d, email, 'create');
+    } catch (e) { pendingPassword = ''; fail(e.message, 'email'); }
   },
 
   'signin-name': async (form, data) => {
@@ -222,25 +341,68 @@ export const submitActions = {
     if (d.busy) return;
     const code = String(data.get('code') || '').replace(/\D/g, '');
     if (!CODE.test(code)) return fail('Enter the code from the email. It is six digits, sometimes more.', 'code');
-    // Only the code is asked for. A name this device already knows goes with
-    // it; someone signing in on a new phone keeps the name their account has;
-    // only an account with no name at all is asked for one, afterwards.
-    const known = String(app.S.account?.name || app.S.profile?.name || d.canvasName || '').trim();
     Object.assign(d, { code, busy: true, error: null });
     render();
+    let result;
+    try { result = await signInCloud(d.email, code, knownName(d)); }
+    catch (e) { return fail(e.message, 'code'); }
+    // A new account gets the password it was made with, now that the email is proven.
+    if (d.purpose === 'create' && pendingPassword) {
+      const password = pendingPassword;
+      pendingPassword = '';
+      try {
+        await app.cloud.setPassword(password);
+        return signedInNext(d, result, 'Your account is ready');
+      } catch (e) {
+        Object.assign(d, { step: 'password', after: result, busy: false, error: e.message, errorFor: 'password' });
+        return render();
+      }
+    }
+    // Signed in with a code instead of a password (forgotten, never set, or a
+    // page reloaded mid-way): offer to set one for next time.
+    Object.assign(d, { step: 'password', purpose: d.purpose === 'create' ? 'set' : d.purpose, after: result, busy: false, error: null });
+    render();
+  },
+
+  // A password set just after signing in, for next time.
+  'signin-setpass': async (form, data) => {
+    const d = draft();
+    if (d.busy) return;
+    const password = newPassword(data);
+    if (!password) return;
+    Object.assign(d, { busy: true, error: null });
+    render();
     try {
-      const { conflict, remote } = await signInCloud(d.email, code, known);
-      if (conflict) { Object.assign(d, { step: 'conflict', remote, busy: false }); return render(); }
-      if (!app.S.account?.name) { app.signin = { step: 'name', name: '' }; return render(); }
-      app.signin = null;
-      render();
-      toast('Signed in');
-    } catch (e) { fail(e.message, 'code'); }
+      await app.cloud.setPassword(password);
+      signedInNext(d, d.after || {}, 'Password saved');
+    } catch (e) { fail(e.message, 'password'); }
   }
 };
 
 export const actions = {
-  'signin-back': () => { Object.assign(draft(), { step: 'start', error: null, busy: false, code: '' }); render(); },
+  'signin-back': () => { pendingPassword = ''; Object.assign(draft(), { step: 'start', error: null, busy: false, code: '' }); render(); },
+  // Sign in, or create an account. What is typed in the email box is kept.
+  'signin-mode': (el) => {
+    const d = draft();
+    const typed = document.getElementById('signin-email')?.value;
+    Object.assign(d, { mode: el.dataset.mode === 'signin' ? 'signin' : 'create', error: null, email: typed ?? d.email });
+    render();
+    document.getElementById('signin-email')?.focus();
+  },
+  // A forgotten password, or an account made before passwords: a code by email instead.
+  'signin-code-instead': async () => {
+    const d = draft();
+    if (d.busy || d.sending) return;
+    const email = String(document.getElementById('signin-email')?.value || '').trim().toLowerCase();
+    d.email = email;
+    if (!consented()) return;
+    if (!EMAIL.test(email)) return fail('Type your email above first, then ask for a code.', 'email');
+    Object.assign(d, { email, sending: true, error: null });
+    render();
+    try { await sendCodeTo(d, email, 'code'); }
+    catch (e) { d.sending = false; fail(e.message, 'email'); }
+  },
+  'signin-skip-password': () => { const d = draft(); signedInNext(d, d.after || {}); },
   // A code that never arrived, or ran out. What is already typed is kept, and
   // the result is said next to the form: sent, or why not.
   'signin-resend': async () => {
@@ -253,13 +415,13 @@ export const actions = {
       await app.cloud.sendCode(d.email, returnAddress());
       d.resending = false;
       render();
-      flash('signin-status', `A new email is on its way to ${d.email}. Use the newest one.`, 20000);
+      flash('signin-status', `A new code is on its way to ${d.email}. Use the newest one.`, 20000);
     } catch (e) {
       d.resending = false;
       fail(e.message, 'code');
     }
   },
-  'signin-cancel': () => { app.signin = null; render(); },
+  'signin-cancel': () => { pendingPassword = ''; app.signin = null; render(); },
   'signin-keep': async (el) => {
     const d = draft();
     try {

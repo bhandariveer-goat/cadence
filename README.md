@@ -170,9 +170,12 @@ Crew are stored there, so the extension and the website show the same plan.
    design. The secret key and the `service_role` key must never be anywhere
    in this repository; `cloudConfigured()` refuses one, and so does the
    pre-launch check.
-3. Sign-in has no password. Supabase emails a code, a link, or both, and
-   Cadence accepts either: a code is typed in, a link returns to `/app` with
-   the session in the address, which is read and removed before anything else
+3. An account is made with an emailed code (which proves the address) and a
+   password the person chooses; after that they sign in with email and
+   password (`signInWithPassword` and `setPassword` in `lib/cloud.js`). The
+   code still works as a way in for a forgotten password. Should a project's
+   email carry a link instead of a code, the link returns to `/app` with the
+   session in the address, which is read and removed before anything else
    runs (`sessionFromLink` in `lib/cloud.js`). Supabase's built-in email only
    reaches the project's own team and is limited to two an hour, so signing
    in anyone else needs a custom SMTP service, and so does editing the

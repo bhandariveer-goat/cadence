@@ -47,6 +47,8 @@ PORT = next((int(a) for a in sys.argv[1:] if a.isdigit()), 8123)
 
 USERS = {}      # email -> user id
 TOKENS = {}     # access token -> {id, email}
+PASSWORDS = {}  # email -> the test password set on that mock account
+PROVED = set()  # mock accounts that have typed the code for a password change
 ROWS = {}       # user id -> {data, updated_at}
 PROFILES = {}   # user id -> row
 USAGE = {}      # user id -> count
@@ -250,6 +252,7 @@ class Handler(SimpleHTTPRequestHandler):
         self._json(404, {'message': 'not found'})
 
     do_PATCH = do_POST
+    do_PUT = do_POST
 
     # The stand-ins for Supabase (sign-in with a code, the saved plan, Crew) and
     # Cadence's server functions, kept in memory for as long as the server runs.
@@ -277,6 +280,34 @@ class Handler(SimpleHTTPRequestHandler):
         if path == '/auth/v1/signup' and not body.get('email'):
             # A hidden anonymous account, as a name-only student gets.
             return self._json(200, self._session(f'anon-{uuid.uuid4().hex[:8]}@mock'))
+        if path == '/auth/v1/token' and 'grant_type=password' in query:
+            email = str(body.get('email', '')).lower()
+            if PASSWORDS.get(email) is None or PASSWORDS[email] != body.get('password'):
+                return self._json(400, {'code': 400, 'error_code': 'invalid_credentials', 'msg': 'Invalid login credentials'})
+            return self._json(200, self._session(email))
+        if path == '/auth/v1/reauthenticate':
+            who = self._user()
+            if not who:
+                return self._json(401, {'msg': 'invalid JWT'})
+            return self._json(200, {})
+        if path == '/auth/v1/user' and self.command == 'PUT':
+            # A password set or changed. Mock accounts whose email starts with
+            # "secure@" stand in for a project that wants a code first: the
+            # change needs nonce 123456, as one sent by /reauthenticate.
+            who = self._user()
+            if not who:
+                return self._json(401, {'msg': 'invalid JWT'})
+            password = str(body.get('password', ''))
+            if len(password) < 8:
+                return self._json(422, {'code': 422, 'error_code': 'weak_password', 'msg': 'Password should be at least 8 characters.', 'weak_password': {'reasons': ['length']}})
+            if who['email'].startswith('secure@') and body.get('nonce') != '123456':
+                if body.get('nonce'):
+                    return self._json(400, {'code': 400, 'error_code': 'reauthentication_not_valid', 'msg': 'Verification code is not valid'})
+                return self._json(400, {'code': 400, 'error_code': 'reauthentication_needed', 'msg': 'Password update requires reauthentication'})
+            if PASSWORDS.get(who['email']) == password:
+                return self._json(422, {'code': 422, 'error_code': 'same_password', 'msg': 'New password should be different from the old password.'})
+            PASSWORDS[who['email']] = password
+            return self._json(200, {'id': who['id'], 'email': who['email']})
         if path == '/auth/v1/token':
             old = str(body.get('refresh_token', '')).replace('ref_', '', 1)
             who = TOKENS.get(old)

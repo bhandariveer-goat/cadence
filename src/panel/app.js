@@ -95,8 +95,9 @@ function renderApp() {
     const teacher = S.settings.role === 'teacher';
     // Signed out, or signed in with an unanswered "which plan?": both are the sign-in screen.
     // Adding an email to an account that already exists on this device shows
-    // the same screen, without signing that account out first.
-    const gate = !signedIn() || planConflict() || app.signin?.upgrading || app.signin?.step === 'name' ? 'signin' : (!S.profile.onboarded && !teacher) ? 'onboarding' : null;
+    // the same screen, without signing that account out first. So do the two
+    // questions asked just after signing in: a password, and a name.
+    const gate = !signedIn() || planConflict() || app.signin?.upgrading || ['name', 'password'].includes(app.signin?.step) ? 'signin' : (!S.profile.onboarded && !teacher) ? 'onboarding' : null;
 
     $('#demo-bar').hidden = !DEMO || EMBEDDED;
     if (DEMO) $('#demo-exit').href = signin.pageUrl('app.html');
@@ -266,9 +267,10 @@ const fieldMessage = (el) => (el.validity.valid ? '' : (el.dataset.error || (el.
 /** Takes away a field's error message, once the field is fine again. */
 function clearFieldError(el) {
   if (el.getAttribute('aria-invalid') !== 'true') return;
+  const said = el.getAttribute('aria-describedby');
   el.removeAttribute('aria-invalid');
   el.removeAttribute('aria-describedby');
-  el.parentElement?.querySelector('.field-error')?.remove();
+  (said && document.getElementById(said))?.remove();
 }
 /** Shows the message for a field that is not filled in right, under it and
     linked to it for screen readers. Returns whether there was one. */
@@ -283,7 +285,8 @@ function showFieldError(el) {
   p.textContent = msg;
   el.setAttribute('aria-invalid', 'true');
   el.setAttribute('aria-describedby', p.id);
-  el.insertAdjacentElement('afterend', p);
+  // Under the field's row, not inside it, when a button sits beside the field (Show).
+  (el.closest('.with-btn') || el).insertAdjacentElement('afterend', p);
   return true;
 }
 // The fields whose errors are shown: real form fields the browser checks.

@@ -322,6 +322,24 @@ export async function signInCloud(email, code, name) {
   return finishCloudSignIn(name);
 }
 
+/** Sign in with an email and the password set on the account. */
+export async function signInPassword(email, password, name) {
+  if (!app.cloud) throw new Error('Email sign-in is not set up for this copy of Cadence');
+  await app.cloud.signInWithPassword(email, password);
+  // As with a code (cloud.verify): the name partners and clubs see goes up
+  // with the sign-in, and failing to write it does not undo the sign-in.
+  if (name) { try { await app.cloud.setName(name); } catch { /* written again the next time the name is saved */ } }
+  return finishCloudSignIn(name);
+}
+
+// Whether an email account has been used in this browser before, so the
+// sign-in screen opens on "Sign in" rather than "Create an account". Only a
+// yes or no: no email or anything else about the account is kept for this.
+const HAD_ACCOUNT = 'cadence.had-account';
+export const hadAccount = () => { try { return localStorage.getItem(HAD_ACCOUNT) === '1'; } catch { return false; } };
+// Forgotten when the account is deleted, so the screen offers to make one again.
+export const forgetHadAccount = () => { try { localStorage.removeItem(HAD_ACCOUNT); } catch { /* nothing stored */ } };
+
 /**
  * Step two the other way: the email had a link in it and this is where it
  * led. The session is already made; what is left is the same as with a code,
@@ -354,6 +372,7 @@ export async function nameAccount(name) {
 /** Decides what happens to a plan already on this device, once the account is known. */
 async function finishCloudSignIn(name) {
   const user = app.cloud.user();
+  try { localStorage.setItem(HAD_ACCOUNT, '1'); } catch { /* the screen just opens on "Create an account" */ }
 
   // "Could not load your plan" is not "you have no plan". Treating it as one
   // would save this device's (possibly empty) plan over the account's, so if
