@@ -28,7 +28,7 @@ export const LEGEND = [
   ['school', 'School'],
   ['event', 'Events'],
   ['activity', 'Activities'],
-  ['work', 'Planned work']
+  ['work', 'Planned work, which moves when your day changes']
 ];
 
 /**

@@ -101,6 +101,19 @@ for page in PAGES:
     check(f'{page} exists', bool(html))
     check(f'{page} links a favicon', 'rel="icon"' in html, 'no <link rel="icon">')
 
+# The two typefaces are this site's own files (DESIGN.md, Type): every
+# @font-face points at a file that is here, and nothing loads a font from
+# elsewhere, which the security policy (font-src 'self') would block anyway.
+faces = [(sheet, url) for sheet in ('site.css', 'src/panel/panel.css')
+         for url in re.findall(r'@font-face\s*\{[^}]*?url\("([^"]+)"', read(sheet), re.S)]
+def face_file(sheet, url):
+    return ROOT / url.lstrip('/') if url.startswith('/') else (ROOT / sheet).parent / url
+missing = [url for sheet, url in faces if not face_file(sheet, url).resolve().is_file()]
+outside = [name for name in PAGES + ['site.css', 'src/panel/panel.css'] if re.search(r'fonts\.googleapis|fonts\.gstatic|use\.typekit|fonts\.bunny', read(name))]
+check('Fonts are served from this site', bool(faces) and not missing and not outside,
+      f'missing: {missing}' if missing else f'loaded from elsewhere: {outside}' if outside else 'no @font-face found')
+check('The font licences ship with the fonts', all((ROOT / 'src/fonts' / f).is_file() for f in ('inter-LICENSE.txt', 'source-serif-4-LICENSE.txt')))
+
 for needle in ('privacy.html', 'terms.html'):
     check(f'Homepage links {needle}', needle in read('index.html'))
     check(f'Sign-in screen links {needle}', needle in read('src/panel/views/signin.js'))

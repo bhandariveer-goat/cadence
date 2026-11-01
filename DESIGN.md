@@ -57,15 +57,40 @@ dark page never flashes white.
 
 ## Type
 
-System fonts, so nothing is fetched from a third party and the extension
-works offline. Three sizes for text: 12px for meta (timestamps, helper text,
-keys), 14px for the interface, 16px for anything read as a sentence and for
-every field. Above that the app steps by 1.125 and the public pages by 1.2.
+Two typefaces, each with one job, both served from this site (`src/fonts`,
+variable `.woff2` files under the SIL Open Font License, licences beside
+them). Nothing is fetched from a third party, the security policy allows
+fonts from this site only, and the extension carries Inter (the only face
+the app uses), so it works offline. The serif stays on the website.
 
-Three weights for text: 400, 500, 600. Display type (the greeting, page
-titles, the title of the next thing to do) is 700 with tight tracking
-(`--display-weight`, `--display-track`). Hierarchy comes from size and colour
-before weight. Times and counts use tabular figures so columns of them line up.
+- **Source Serif 4** sets the few headlines that speak for Cadence: the
+  homepage's first line, its section titles, the closing call and a
+  document's title (`h1`, `h2` on the public pages, `--serif`). It is the
+  editorial voice, so it is used sparingly: never in the app, and never on a
+  button, a label, a field, a time or a list of data. Its optical sizes are in
+  the file, so large lines get the display cut by themselves.
+- **Inter** sets everything else: body text, navigation, buttons, fields,
+  the planner, the calendar, every time and number (`--font`). Headings
+  inside a section (`h3`) are Inter 600, so the serif stays rare.
+
+Each falls back to the nearest face already on the device (Charter or
+Georgia; the system sans-serif), with `font-display: swap`, so text is never
+invisible while a font loads. The homepage preloads the serif because its
+first line is the largest thing on the first screen.
+
+Three sizes for text: 12px for meta (timestamps, helper text, keys), 14px for
+the interface, 16px for anything read as a sentence and for every field; the
+public pages add 18px for a lead. Above that the app steps by 1.125. On the
+public pages a sub-heading is Inter 600 at 18px, a section title is the
+serif at 30 to 40px and the homepage's first line 40 to 56px, both growing
+with the window between a phone and a laptop.
+
+Three weights for text: 400, 500, 600. In the app, display type (the
+greeting, page titles, the title of the next thing to do) is Inter at 650
+with tight tracking (`--display-weight`, `--display-track`). The serif
+headlines are 600 for the first line and 500 for section titles. Hierarchy
+comes from size and colour before weight. Times and counts use tabular
+figures so columns of them line up.
 
 ## Space, corners, depth
 
@@ -143,11 +168,12 @@ None of the three is an animation: each is either there or not.
 
 ## Words on the public pages
 
-- Everything a page says is in its HTML. A script may add a control; it may not add a sentence. Values that come from `src/config.js` are written in by `scripts/stamp_pages.py`. A sentence a script decides when to show (the storage notice, the contact form's "that did not send") is written in the page and hidden, and the script only reveals it.
+- Everything a page says is in its HTML. A script may add a control; it may not add a sentence. Values that come from `src/config.js` are written in by `scripts/stamp_pages.py`. A sentence a script decides when to show (the storage notice, the contact form's "didn't send") is written in the page and hidden, and the script only reveals it.
 - A page does not say two things. Where the wording depends on the set-up, both versions are in the file marked `data-needs`, and the stamp script comments out the one that is not true.
 - A list of links to go to (on the 404 page, the thank-you page, "Before you write") uses `class="ways"`, which makes each link a full 44px tall.
 - Something the owner has not decided yet is shown as a highlighted "to be added before launch", never left blank and never invented.
-- An example is labelled as one. The sample week on the homepage says the student is made up and that the numbers are the planner's own output. There are no testimonials, counts of users or ratings, because there is nothing true to put in them yet.
+- An example is labelled as one. There are no testimonials, counts of users or ratings, because there is nothing true to put in them yet.
+- The homepage's example ("Watch it plan Sam's Monday", `src/site/evening.js`) is one made-up student's week, worked out by the real planner in the visitor's browser with the clock set to that Monday at 3:15pm, then put back. Its two changes are made the way the app's own buttons make them (an hour added as busy; an assignment added with its time), and everything it says (the free hours, why each block is where it is, what moved) is read off the planner's result. The page holds the starting week already, copied from this same code, so it reads the same without scripts; if the planner changes, recopy it (the copy sits between `evening:week` and `evening:why` markers). A change marks what moved in words ("Moved", "New") and nothing slides. The longer worked week (Fiona) sits behind "See a busier week planned out" under the rules.
 - A promise (a reply time, deleting a message on request) is only on the page if the person who runs the site has made it.
 
 ## Print

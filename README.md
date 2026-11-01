@@ -304,7 +304,7 @@ The things a site is expected to have, and where each one lives.
 | Storage notice | One sentence the first time, with a link to the privacy page | The sign-in screen says where the plan is kept |
 | Back to top | A button that appears after a screen and a half | Pressing the tab you are on |
 | Reading progress | A 2px line under the header | Not used: an app page is not read top to bottom |
-| Questions | Eight, on the homepage, each opening in place | |
+| Questions | Ten, on the homepage, each opening in place | |
 | Contact | The contact page: a form, a promise of when to expect a reply (`site.replyWithin`), and a thank-you page after sending. A Contact button in the corner leads to it | A Contact link under Account and on the sign-in screen |
 | A page that is not there | `404.html`, with links back and the site search | Unknown screens fall back to Today |
 | Last updated | In the footer (`SITE_UPDATED` in `site.js`), and at the top of the privacy and terms pages | "Synced" and "saved" times next to what they describe |
@@ -380,10 +380,19 @@ with a slash on the end (`/privacy/`), and the 404 page works at any depth.
 The canonical address of each page is the clean one (`/privacy`), which
 Netlify serves from the same file.
 
-### The worked example on the homepage
+### The worked examples on the homepage
 
-"A sample week, worked through" is copied from the demo with the clock held
-at a Sunday at 6:00pm: the assignments and activities are the sample data in
+"Watch it plan Sam's Monday" (`src/site/evening.js`) is worked out live: the real
+planner runs in the visitor's browser on one made-up student's week, with the
+clock set to a Monday at 3:15pm for the length of each call and put back
+straight after. The two changes a visitor can make go through the planner the
+same way. The page also holds the starting week as plain HTML, copied from
+this code, so it reads the same without scripts; if the planner's rules
+change, copy it again (between the `evening:week` and `evening:why`
+markers in `index.html`).
+
+"See a busier week planned out", behind its heading under the rules, is
+copied from the demo with the clock held at a Sunday at 6:00pm: the assignments and activities are the sample data in
 `src/panel/mock.js`, and every number in it (the total per day, when each
 thing is finished, what did not fit) is what the planner produced. The
 student is made up and the page says so. If the planner's rules change, the
@@ -515,6 +524,8 @@ only the owner can create:
 
 ```
 index.html, site.css, site.js            homepage, and what all the public pages share
+src/site/evening.js                      the homepage's worked example, run on the real planner
+src/fonts                                Source Serif 4 and Inter (SIL Open Font License), served from this site
 contact.html, thanks.html, 404.html      the contact form, where it lands, and the page for a wrong address
 robots.txt, sitemap.xml                  written by scripts/stamp_pages.py; do not edit by hand
 icons/social.png                         the picture a shared link shows

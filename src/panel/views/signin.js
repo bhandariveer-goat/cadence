@@ -220,7 +220,7 @@ export function viewSignIn() {
       : 'Your plan is kept in this browser.'}</p>
 
     <p class="signin-foot">
-      ${STANDALONE ? `<a href="${esc(pageUrl('demo.html'))}">Try the demo</a>` : ''}
+      ${STANDALONE ? `<a href="${esc(pageUrl('demo.html'))}">Try a sample week</a>` : ''}
       <a href="${esc(pageUrl('privacy.html'))}" target="_blank" rel="noopener">Privacy</a>
       <a href="${esc(pageUrl('terms.html'))}" target="_blank" rel="noopener">Terms</a>
       <a href="${esc(pageUrl('contact.html'))}" target="_blank" rel="noopener">Contact</a>

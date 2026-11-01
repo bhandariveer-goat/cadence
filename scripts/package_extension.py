@@ -26,12 +26,19 @@ ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / 'dist'
 ICONS = ['icons/icon16.png', 'icons/icon32.png', 'icons/icon48.png', 'icons/icon128.png']
 SKIP = {'.DS_Store'}
+# Parts of src/ that belong to the website alone: the homepage's worked example
+# and the serif its headlines use. The extension shows neither (its type is
+# Inter, which it carries), so they stay out of the package.
+WEBSITE_ONLY = {'src/site', 'src/fonts/source-serif-4-latin-opsz-normal.woff2', 'src/fonts/source-serif-4-LICENSE.txt'}
 
 
 # What goes in the package: the manifest, the icons, and everything under src/.
 def files():
     out = [ROOT / 'manifest.json'] + [ROOT / p for p in ICONS]
     for p in sorted((ROOT / 'src').rglob('*')):
+        rel = p.relative_to(ROOT).as_posix()
+        if any(rel == w or rel.startswith(w + '/') for w in WEBSITE_ONLY):
+            continue
         if p.is_file() and p.name not in SKIP and '__pycache__' not in p.parts:
             out.append(p)
     return out
