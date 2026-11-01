@@ -304,8 +304,11 @@ export function clauses(text) {
 // Thursday" is one list. Split only where both sides carry their own when,
 // and never where the right side is continuing a list of days.
 const WHEN_RE = /\b(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?|midnight|noon|today|tonight|tomorrow|weekdays?|weekends?|every day|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i;
-const CONTINUES = /^(?:sun|mon|tue|wed|thu|fri|sat|\d|then\b|the\b|a\b|an\b)/i;
+const CONTINUES = /^(?:sun|mon|tue|wed|thu|fri|sat|\d|then\b|the\b|a\b|an\b|(?:un)?til+\b)/i;
 const SEP = /,\s*(?:and\s+)?|\s+and\s+/gi;
+// A length of time and nothing else ("about 90 minutes", "an hour and a
+// half"): how long the thing before it lasts, not a plan of its own.
+const LENGTH_ONLY = /^(?:(?:about|around|roughly|approximately|approx|maybe|probably|like|~|it'?s|it'?ll take|takes?|should take|will take)\s*)*(?:half\s+an?\s+hour|(?:\d+(?:\.\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m)|(?:an?|one|two|three|four|five|six|ten|fifteen|twenty|thirty|forty(?:[- ]five)?|sixty|ninety|a couple(?: of)?|a few)\s+(?:hours?|hrs?|minutes?|mins?))(?:\s+and\s+a\s+half)?)(?:\s+or so)?$/i;
 
 /** Splits one clause at "and" or a comma where both sides have their own
     when ("dinner at 6, practice Tue 4-6"), but not inside a list of days. */
@@ -316,7 +319,7 @@ function splitCompound(piece) {
     const left = piece.slice(0, m.index).trim();
     const right = piece.slice(m.index + m[0].length).trim();
     if (!left || !right) continue;
-    if (!WHEN_RE.test(hideSat(left)) || !WHEN_RE.test(hideSat(right)) || CONTINUES.test(right)) continue;
+    if (!WHEN_RE.test(hideSat(left)) || !WHEN_RE.test(hideSat(right)) || CONTINUES.test(right) || LENGTH_ONLY.test(right)) continue;
     return [left, ...splitCompound(right)];
   }
   return [piece];
@@ -334,6 +337,8 @@ const STRIP = [
 function readTitle(clause, { matchedDay = '' } = {}) {
   let s = ' ' + hideSat(clause) + ' ';
   s = s.replace(/\b(from|at|on|starting|start|between)?\s*\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|—|to|until|til|till)\s*\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?/gi, ' ');
+  // A length said on its own ("lab report, about 90 minutes") is not part of the name.
+  s = s.replace(/,?\s*(?:(?:about|around|roughly|approximately|maybe|probably|like|it'?s|it'?ll take|takes?|should take|will take)\s+)*\b(?:half\s+an?\s+hour|(?:\d+(?:\.\d+)?\s*(?:hours?|hrs?|h|minutes?|mins?|m)|(?:an?|one|two|three|four|five|six|ten|fifteen|twenty|thirty|forty(?:[- ]five)?|sixty|ninety|a couple(?: of)?|a few)\s+(?:hours?|hrs?|minutes?|mins?))\b(?:\s+and\s+a\s+half)?)(?:\s+or so)?/gi, ' ');
   s = s.replace(/\b(?:at|by|around|about|from|after|before|until|til|till)\s+\d{1,2}(?::\d{2})?\s*(a\.?m\.?|p\.?m\.?)?/gi, ' ');
   s = s.replace(/\bfor\s+(?:about\s+)?[\w\s]{1,12}?(hours?|hrs?|minutes?|mins?)\b/gi, ' ');
   s = s.replace(/,?\s*(?:it|that|this)?\s*(?:should|will|might|takes?|'ll)\s+take[\w\s]{0,20}?(hours?|hrs?|minutes?|mins?)\b/gi, ' ');
@@ -541,6 +546,15 @@ function readClause(clause, state, now) {
     const time = parseTime(after[1], hint, nowMin);
     if (time) return { op: { kind: 'day', dates, startAt: time } };
   }
+  // ---- running late: "practice goes until 6:30", "I'm busy until 7". The
+  // time is when it ends, never when something starts. "4 until 6" is a range,
+  // read further down.
+  const till = !asks && !/\bdue\b/.test(t) && !readRange(clause, hint, nowMin) && t.match(new RegExp(`^(.*?)\\b(?:un)?til+\\s+${TIME}`));
+  if (till) {
+    const late = runsLate(till[1], till[2], state, now, dates[0]);
+    if (late) return { op: late };
+    if (late === false) return null;
+  }
 
   const span = readSpan(clause);
   const budgetish = span && (
@@ -563,7 +577,9 @@ function readClause(clause, state, now) {
   }
   if ((budgetish || amountForDay) && !ACTIVITY_WORD.test(t.replace(/\bwork\b/g, ''))) {
     if (nightly || (when.repeats && when.days.length >= 5)) return { op: { kind: 'limit', minutes: span } };
-    return { op: { kind: 'day', dates, budgetMin: span }, signal: sleepAfter ? 'sleep-after' : undefined };
+    // "2 hours tonight, until 9": the time is when the work stops.
+    const stop = till && WORK_WORD.test(till[1]) ? parseTime(till[2], 'cutoff', dates[0] === today ? nowMin : null) : null;
+    return { op: { kind: 'day', dates, budgetMin: span, ...(stop ? { until: stop } : {}) }, signal: sleepAfter ? 'sleep-after' : undefined };
   }
 
   // ---- looking after yourself first: "I want to eat", "gonna shower"
@@ -631,7 +647,8 @@ function readClause(clause, state, now) {
       const time = readTime(clause.replace(/\b(?:take|takes|for)\s+[\w\s.]+?(?:hours?|minutes?|mins?|hrs?)\b/gi, ' '), 'day');
       const due = atTime(day, time || '23:59');
       const title = readTitle(clause.replace(/\bdue\b/gi, ' '), {});
-      return { op: { kind: 'task', title, due: due.toISOString(), minutes: readDuration(clause) || (/\btakes?\b/.test(t) ? span : null) } };
+      // Any length in the same clause is how long the assignment takes.
+      return { op: { kind: 'task', title, due: due.toISOString(), minutes: readDuration(clause) || span || null } };
     }
   }
 
@@ -646,6 +663,41 @@ function readClause(clause, state, now) {
   const ev = eventFrom(clause, t, when, now, { hint });
   if (ev) return { op: ev };
   return null;
+}
+
+// The words around "practice runs late" or "I'm busy" that are not its name.
+const LATE_WORDS = /\b(?:i|i'?m|im|we|we're|have|has|had|got|gotta|is|are|was|were|will|be|being|gonna|going|goes|go|went|run|runs|running|ran|late|later|over|long|longer|lasts?|lasted|keeps?|kept|still|busy|tied up|stuck|out|away|a|an|it|it'?s|its|at)\b/gi;
+const BUSY = /\b(busy|tied up|stuck|out|away|occupied|not (?:free|home|around))\b/;
+
+/**
+ * "Practice runs late, until 6:30" or "I'm busy until 7": busy time on day
+ * `key`, ending at `at`. It starts when that activity (or event) usually ends
+ * that day; otherwise, today only, it starts now. `lead` is what comes before
+ * "until". Null when it names something else, so the clause is read as usual;
+ * false when it is understood but adds nothing ("practice until 5" when
+ * practice ends at 5:30).
+ */
+function runsLate(lead, at, state, now, key) {
+  const today = key === dateKey(now);
+  const name = nameIn(lead, [LATE_WORDS]).replace(/[^\w' ]/g, ' ').trim();
+  const hit = name ? findItems(state, name, { types: ['activity', 'event'], now })[0] : null;
+  if (name && !hit && !BUSY.test(lead)) return null;
+  let from = null;
+  if (hit?.type === 'activity') {
+    const s = (state.commitments || []).find((c) => c.id === hit.id)?.schedule;
+    if (s?.mode === 'fixed' && s.days?.includes(new Date(`${key}T12:00:00`).getDay()) && s.end) from = s.end;
+  } else if (hit?.type === 'event') {
+    const b = (state.busy || []).find((x) => x.id === hit.id);
+    if (b && dateKey(new Date(b.end)) === key) from = hhmm(new Date(b.end));
+  }
+  const stretched = !!from;
+  if (!from && today) from = hhmm(roundUp5(now));
+  if (!from) return null;
+  const end = parseTime(at, 'cutoff', toMin(from));
+  // Ending before it would have anyway is not running late. Past midnight is.
+  if (!end || (toMin(end) <= toMin(from) && toMin(end) >= 4 * 60)) return false;
+  const title = hit ? (stretched ? `${hit.title} runs late` : hit.title) : 'Busy';
+  return { kind: 'event', title, start: from, end, days: [], dates: [key] };
 }
 
 /** A calendar event out of a clause, or null when there is no time in it. */
