@@ -6,7 +6,9 @@
 // lib/agentops.js. It calls tools; this file runs each one against a working
 // copy of the plan and hands back what actually changed, so what the model says
 // is grounded in the real result. Nothing is saved until the turn ends, and
-// then it is saved once, which keeps undo a single step.
+// then it is saved once, which keeps undo a single step. A change asked for as
+// a preview is worked out the same way and reported, but not kept, so the
+// model can see what would move before it decides.
 //
 // Two ways to reach the model, same code after that:
 //   direct  the student's own Anthropic key, sent from this browser
@@ -338,40 +340,30 @@ export async function converse({ text, state, messages, send, now = new Date() }
         if (r.error) { results.push({ type: 'tool_result', tool_use_id: call.id, content: r.error, is_error: true }); continue; }
         if (r.chips) chips = r.chips;
         if (r.reply) { results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify(r.reply) }); continue; }
-        const { next, applied: did, diff } = simulate(working, r.ops, now);
-        if (!did.length) { results.push({ type: 'tool_result', tool_use_id: call.id, content: 'Nothing changed: that could not be applied as given.', is_error: true }); continue; }
-        working = next;
-        for (const op of did) applied.push({ ...op, summary: describe(op, working, now) });
+        const run = carryOut(working, r.ops, now);
+        if (!run) { results.push({ type: 'tool_result', tool_use_id: call.id, content: 'Nothing changed: that could not be applied as given.', is_error: true }); continue; }
+        const realistic = run.moved ? null : stayUpOption(run.next, now);
+        const report = { ...outcome(run.diff, now), ...(realistic ? { if_staying_up: realistic } : {}) };
 
-        // Not a yes-man: a time to stop tonight that leaves schoolwork due
-        // tomorrow undone is moved later, unless the student insisted on it.
-        let moved = null;
-        let finalDiff = diff;
-        const tonight = dateKey(now);
-        const limitsTonight = did.some((op) => op.kind === 'day' && (op.dates || []).includes(tonight) && !op.clear && !op.kept);
-        if (limitsTonight && !overrideFor(working, now)?.kept) {
-          const opt = stayUpOption(working, now);
-          if (opt?.stay_up_until) {
-            const later = { kind: 'day', dates: [tonight], until: opt.stay_up_until, ...(opt.minutes_tonight ? { budgetMin: opt.minutes_tonight } : {}) };
-            const again = simulate(working, [later], now);
-            if (again.applied.length) {
-              working = again.next;
-              finalDiff = again.diff;
-              applied.push({ ...later, summary: describe(later, working, now) });
-              const asked = did.find((op) => op.kind === 'day')?.until || opt.limit_now;
-              const names = opt.to_finish.join(' and ');
-              moved = {
-                asked_until: asked || null, planned_until: opt.stay_up_until, because: opt.to_finish,
-                what_happened: `The student asked to stop at ${asked ? twelve(asked) : 'their usual time'}. ${names} ${opt.to_finish.length > 1 ? 'are' : 'is'} due by tomorrow and would not fit, so Cadence moved tonight's stop time to ${twelve(opt.stay_up_until)}, and the plan now fits ${opt.to_finish.length > 1 ? 'them' : 'it'}. Their limit was NOT kept. Tell them this kindly, and that they can keep ${asked ? twelve(asked) : 'their time'} instead with the button.`
-              };
-              ownChips = [`OK, until ${twelve(opt.stay_up_until)}`, 'Only do the most urgent one', asked ? `Keep my ${twelve(asked)} limit` : 'Keep my limit'];
-            }
-          }
+        // A preview is the same change, worked out the same way, then thrown
+        // away: the model sees what would happen and the plan stays as it was.
+        if (call.input?.preview === true) {
+          const { what_happened, ...would } = run.moved || {};
+          results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify({
+            preview: true, not_made: 'Nothing was changed. Call the same tool with preview false to make it.',
+            would_apply: run.did.map((op) => describe(op, run.next, now)), ...report,
+            ...(run.moved ? { would_move_later: would } : {})
+          }) });
+          continue;
         }
-        const realistic = moved ? null : stayUpOption(working, now);
+
+        working = run.next;
+        for (const op of run.did) applied.push({ ...op, summary: describe(op, run.first, now) });
+        if (run.later) applied.push({ ...run.later, summary: describe(run.later, working, now) });
+        if (run.chips) ownChips = run.chips;
         results.push({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify({
-          applied: did.map((op) => describe(op, working, now)), ...outcome(finalDiff, now),
-          ...(moved ? { moved_later: moved } : {}), ...(realistic ? { if_staying_up: realistic } : {})
+          applied: run.did.map((op) => describe(op, working, now)), ...report,
+          ...(run.moved ? { moved_later: run.moved } : {})
         }) });
       }
       messages.push({ role: 'user', content: results });
@@ -383,6 +375,45 @@ export async function converse({ text, state, messages, send, now = new Date() }
     messages.length = start;
     throw e;
   }
+}
+
+/**
+ * Make `ops` on a copy of `state`, the way a tool call makes them, including
+ * the rule below that keeps schoolwork due tomorrow from being left undone.
+ * Null when nothing could be applied. Otherwise the plan after the ops
+ * (`first`) and after any later stop time (`next`), the ops that took effect
+ * (`did`), that later stop time as an op (`later`), the diff to report, and
+ * `moved` and `chips` for telling the student about it. `state` is not changed.
+ */
+function carryOut(state, ops, now) {
+  const { next: first, applied: did, diff } = simulate(state, ops, now);
+  if (!did.length) return null;
+  let next = first, finalDiff = diff, later = null, moved = null, chips = null;
+
+  // Not a yes-man: a time to stop tonight that leaves schoolwork due
+  // tomorrow undone is moved later, unless the student insisted on it.
+  const tonight = dateKey(now);
+  const limitsTonight = did.some((op) => op.kind === 'day' && (op.dates || []).includes(tonight) && !op.clear && !op.kept);
+  if (limitsTonight && !overrideFor(first, now)?.kept) {
+    const opt = stayUpOption(first, now);
+    if (opt?.stay_up_until) {
+      const op = { kind: 'day', dates: [tonight], until: opt.stay_up_until, ...(opt.minutes_tonight ? { budgetMin: opt.minutes_tonight } : {}) };
+      const again = simulate(first, [op], now);
+      if (again.applied.length) {
+        next = again.next;
+        finalDiff = again.diff;
+        later = op;
+        const asked = did.find((o) => o.kind === 'day')?.until || opt.limit_now;
+        const names = opt.to_finish.join(' and ');
+        moved = {
+          asked_until: asked || null, planned_until: opt.stay_up_until, because: opt.to_finish,
+          what_happened: `The student asked to stop at ${asked ? twelve(asked) : 'their usual time'}. ${names} ${opt.to_finish.length > 1 ? 'are' : 'is'} due by tomorrow and would not fit, so Cadence moved tonight's stop time to ${twelve(opt.stay_up_until)}, and the plan now fits ${opt.to_finish.length > 1 ? 'them' : 'it'}. Their limit was NOT kept. Tell them this kindly, and that they can keep ${asked ? twelve(asked) : 'their time'} instead with the button.`
+        };
+        chips = [`OK, until ${twelve(opt.stay_up_until)}`, 'Only do the most urgent one', asked ? `Keep my ${twelve(asked)} limit` : 'Keep my limit'];
+      }
+    }
+  }
+  return { first, next, did, later, diff: finalDiff, moved, chips };
 }
 
 /** The model is asked for plain text; this enforces it. */

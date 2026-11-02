@@ -26,6 +26,7 @@ How you work
 - Every message from the student begins with a <plan> block: their current week as JSON (the time now, school hours, sleep, assignments, activities, calendar events, planned work blocks, and anything that does not fit). It is the truth. Prefer it over anything said earlier in the conversation.
 - Change the plan only through tools. Each tool returns what actually happened: what tonight looks like now, what moved to another day, and what no longer fits before it is due. Tell the student what the tool results say, not what you expected to happen.
 - You can call several tools in one turn. Call them together when a message contains several things.
+- Every tool that changes the plan has preview. Set it false to make the change. Set it true only when you are unsure which of two readings the student meant, or when the change could push schoolwork past its due date: look at what would move, then make the one you choose with preview false, or ask. A preview changes nothing, so never say it was done.
 
 Reading what students mean
 - A statement about one day is a change to that date only: "I'm tired", "only an hour tonight", "I can stay up till 12", "home at 7", "no school Friday", "half day tomorrow". Use set_day or set_school with that date. Never change usual school hours or usual sleep because of a one-off.
@@ -34,7 +35,8 @@ Reading what students mean
 - "Eat, then work" (or shower, nap, a break): add a short event starting now (eat 30 minutes, shower 20, nap 30, unless they give a length), then set_day with start_at at the end of it.
 - "...then go to sleep": set until to when the work would finish. That is the start time plus the minutes of work plus a 10 minute break for every 45 minutes.
 - Things they do regularly outside class (practice, rehearsal, a club, a team, lessons, a job, volunteering) are activities: add_activity. Things that happen once (dinner, an appointment, a party, a game) are events: add_event.
-- Schoolwork with a due date is an assignment: add_assignment.
+- Schoolwork with a due date is an assignment: add_assignment. A length said with it ("lab report due Wednesday, about 90 minutes") is its minutes, not a limit on tonight.
+- Something in the plan running late or going longer ("practice goes until 6:30", "the game ran late, until 9"): the time is when it now ends, never when something starts. Add an event on that date from its usual end in the plan to the new end. "I'm busy until 7" is busy from now until 7 that day.
 - "Can I...?" or "do I have time for...?" about something at a time is a question first: use what_if, tell them what would move, and call offer_choices so they can add it.
 - Use ids from the plan for anything that already exists. If two things could match and it matters, ask which one.
 - Never invent a time, date or length the student did not give, apart from the short defaults above and the times the plan or a tool result works out for you.
@@ -88,6 +90,9 @@ const tool = (name, description, properties) => ({
 
 const DATE = 'A date as YYYY-MM-DD';
 const TIME = '24 hour clock time as HH:MM';
+// On every tool that changes the plan. Required rather than optional: the
+// optional fields are near the API's limit for strict tools (see maybe above).
+const PREVIEW = { type: 'boolean', description: 'True to see what this change would do (what moves, what no longer fits) without making it. False to make it.' };
 
 export const TOOLS = [
   tool('add_event', 'Put something that happens at a set time on the calendar: dinner, an appointment, a game, a party. Use for one-off things, or for repeating things that are not an activity (family dinner every night).', {
@@ -95,7 +100,8 @@ export const TOOLS = [
     date: maybe(str(`${DATE}. Leave out when it repeats weekly.`)),
     weekdays: { type: 'array', items: { type: 'integer' }, description: 'When it repeats weekly: 0 is Sunday through 6 is Saturday. Empty for a one-off.' },
     start: str(TIME),
-    end: str(TIME)
+    end: str(TIME),
+    preview: PREVIEW
   }),
   tool('add_activity', 'Add something the student does regularly outside class and wants to keep up: a sport, an instrument, a club, a job, volunteering. Give weekdays with start and end when it meets at fixed times; give times_per_week and minutes when it is a flexible target such as "piano five times a week".', {
     title: str('Short name, for example "Robotics" or "Piano"'),
@@ -103,13 +109,15 @@ export const TOOLS = [
     start: maybe(str(`${TIME} when it meets at fixed times`)),
     end: maybe(str(`${TIME} when it meets at fixed times`)),
     times_per_week: maybe({ type: 'integer', description: 'For a flexible target' }),
-    minutes: maybe({ type: 'integer', description: 'Length of one session for a flexible target' })
+    minutes: maybe({ type: 'integer', description: 'Length of one session for a flexible target' }),
+    preview: PREVIEW
   }),
   tool('add_assignment', 'Add schoolwork with a due date that is not already in the plan.', {
     title: str('Short name'),
     course: maybe(str('Class name if they said it')),
     due: str('Local date and time as YYYY-MM-DDTHH:MM. Use 23:59 when no time was given.'),
-    minutes: maybe({ type: 'integer', description: 'How long they said it will take' })
+    minutes: maybe({ type: 'integer', description: 'How long they said it will take' }),
+    preview: PREVIEW
   }),
   tool('set_day', 'Change the shape of one date only. Use for "I am tired", "only an hour tonight", "I can stay up until midnight", "I am home at 7", "I am done for tonight". Leave out any field they did not mention.', {
     date: str(DATE),
@@ -118,7 +126,8 @@ export const TOOLS = [
     until: maybe(str(`${TIME}: when they want to be finished that day`)),
     off: { type: 'boolean', description: 'True for no work at all that day' },
     clear: { type: 'boolean', description: 'True to remove an earlier change to this date and go back to a normal day' },
-    keep_limit: maybe({ type: 'boolean', description: 'True only when the student insists on this time after hearing what it costs ("keep my 10pm limit"), or it is a rule they cannot break (a parent, a curfew, being sick). Leave it out otherwise: if schoolwork due tomorrow then does not fit, Cadence moves tonight later on its own and tells you.' })
+    keep_limit: maybe({ type: 'boolean', description: 'True only when the student insists on this time after hearing what it costs ("keep my 10pm limit"), or it is a rule they cannot break (a parent, a curfew, being sick). Leave it out otherwise: if schoolwork due tomorrow then does not fit, Cadence moves tonight later on its own and tells you.' }),
+    preview: PREVIEW
   }),
   tool('set_school', 'Days without school, early release, or a change to usual school hours.', {
     no_school_dates: { type: 'array', items: { type: 'string' }, description: `Dates (${DATE}) with no school` },
@@ -128,22 +137,26 @@ export const TOOLS = [
       description: 'Dates when school ends early, with the time it ends'
     },
     usual_start: maybe(str(`${TIME}: only when they say school usually starts at this time`)),
-    usual_end: maybe(str(`${TIME}: only when they say school usually ends at this time`))
+    usual_end: maybe(str(`${TIME}: only when they say school usually ends at this time`)),
+    preview: PREVIEW
   }),
   tool('set_sleep', 'Change when the student usually wakes or goes to bed. Only for a lasting habit; for one night use set_day.', {
     bed: maybe(str(TIME)),
-    wake: maybe(str(TIME))
+    wake: maybe(str(TIME)),
+    preview: PREVIEW
   }),
   tool('update_assignment', 'Act on an assignment already in the plan, by its id.', {
     id: str('The assignment id from the plan'),
     action: { type: 'string', enum: ['done', 'do_first', 'move_to_date', 'set_minutes', 'remove'], description: 'done: mark finished. do_first: start with this. move_to_date: do not start before the given date. set_minutes: change how long it takes. remove: take it off the plan.' },
     date: maybe(str(`${DATE} for move_to_date`)),
-    minutes: maybe({ type: 'integer', description: 'For set_minutes' })
+    minutes: maybe({ type: 'integer', description: 'For set_minutes' }),
+    preview: PREVIEW
   }),
   tool('remove_item', 'Remove a calendar event, or cancel an activity for one date (practice is cancelled today) or entirely, by its id.', {
     id: str('The event or activity id from the plan'),
     kind: { type: 'string', enum: ['event', 'activity'] },
-    date: maybe(str(`${DATE}: cancel only on this date. Leave out to remove it entirely.`))
+    date: maybe(str(`${DATE}: cancel only on this date. Leave out to remove it entirely.`)),
+    preview: PREVIEW
   }),
   tool('what_if', 'See what would happen to the plan if an event were added, without adding it. Use for "can I go to..." and "do I have time for..." questions.', {
     title: str('Short name'),
