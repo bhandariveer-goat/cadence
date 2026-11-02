@@ -48,6 +48,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.dont_write_bytecode = True      # a check should leave nothing behind in the folder that gets deployed
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import stamp_pages  # noqa: E402  (the list of pages, and what should be written into them)
+import claims_check  # noqa: E402  (each promise on the privacy page, and the code that keeps it)
 
 PAGES = [name for name, *_ in stamp_pages.PAGES]
 # The pages that are read rather than used: plain HTML, complete without a script.
@@ -588,6 +589,18 @@ check('The privacy page names both companies the assistant can send messages to'
 check('The Gemini assistant stays off until the plan is chosen and the privacy page says what that means',
       "process.env.GEMINI_TIER" in agent_fn and re.search(r"gemini \? \(tier === 'free' \|\| tier === 'paid' \? 'gemini' : null\)", agent_fn) is not None
       and 'may read it' in privacy_text)
+
+# ------------------------------------------------- what the pages promise
+# scripts/claims_check.py ties each sentence about privacy to the code that
+# makes it true. One check per claim here, so a failure names the promise.
+claim_rows, claim_failures = claims_check.run()
+for cid, cname, _says, _shows in claim_rows:
+    why = [f.split(': ', 1)[1] for f in claim_failures if f.startswith(cid + ':')]
+    check(f'The code keeps this promise: {cname}', not why, '; '.join(why))
+lock_ok, lock_detail = claims_check.lock_status()
+check('What Cadence collects matches what the privacy page was last reviewed against', lock_ok, lock_detail)
+check('CLAIMS.md (promise to code table) is up to date', read('CLAIMS.md') == claims_check.markdown(claim_rows),
+      'run: python3 scripts/claims_check.py --markdown')
 
 # ------------------------------------------------------------------ secrets
 secret = re.compile(r'sk-ant-[A-Za-z0-9_-]{8,}|(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|service_role|sb_secret_[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]*|AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{30,}|GOCSPX-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY')

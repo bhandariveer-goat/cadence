@@ -1,0 +1,56 @@
+{
+ "fingerprint": "9332e478e9f08255c301edfa17f09af582572a2c6ed69e3c66692e08dcc5581a",
+ "policy_date": "2026-11-01",
+ "surface": {
+  "added_columns": [
+   "alter table agent_usage add column if not exists steps int not null default 0;",
+   "alter table checkins add column if not exists created_at timestamptz not null default now();"
+  ],
+  "copied_to_account": "const out = structuredClone(state); delete out.cloud; delete out.plan; delete out.ranked; delete out.sync; out.sources = structuredClone(DEFAULT_STATE.sources); if (out.settings) { delete out.settings.apiKey; out.settings.useAI = false; } for (const t of Object.values(out.tasks || {})) { delete t.guideData; delete t.pushToGoogle; } for (const c of out.commitments || []) delete c.pushToGoogle; return out;",
+  "outside_hosts": [
+   "https://accounts.google.com",
+   "https://api.anthropic.com",
+   "https://bfflfqtgqdlhtvwspynv.supabase.co",
+   "https://calendar.google.com",
+   "https://generativelanguage.googleapis.com",
+   "https://oauth2.googleapis.com",
+   "https://outlook.office365.com",
+   "https://quizlet.com",
+   "https://school.instructure.com",
+   "https://www.googleapis.com",
+   "https://www.jstor.org",
+   "https://www.khanacademy.org",
+   "https://www.youtube.com",
+   "https://youtube.com"
+  ],
+  "storage_keys": [
+   "cadence.assistant-session",
+   "cadence.chats.${bucket}.v1",
+   "cadence.consented-at",
+   "cadence.demo.v1",
+   "cadence.had-account",
+   "cadence.notice",
+   "cadence.pending-invite",
+   "cadence.state.v1",
+   "cadence.theme",
+   "cadence.visit"
+  ],
+  "tables": {
+   "agent_usage": "user_id uuid not null, day date not null default current_date, count int not null default 0, primary key (user_id, day)",
+   "agent_usage_tickets": "id uuid primary key default gen_random_uuid(), user_id uuid not null, day date not null, step boolean not null, kind text not null, counted boolean not null, at timestamptz not null default now()",
+   "agent_usage_total": "day date not null, kind text not null check (kind in ('email', 'anonymous')), questions bigint not null default 0, primary key (day, kind)",
+   "checkins": "id uuid primary key default gen_random_uuid(), user_id uuid not null references profiles on delete cascade default auth.uid(), club_id uuid references clubs on delete set null, title text not null, kind text, color text, minutes int, feel text, note text, at timestamptz not null default now()",
+   "club_members": "club_id uuid not null references clubs on delete cascade, user_id uuid not null references profiles on delete cascade, role text not null default 'member' check (role in ('member', 'leader')), joined_at timestamptz not null default now(), primary key (club_id, user_id)",
+   "club_posts": "id uuid primary key default gen_random_uuid(), club_id uuid not null references clubs on delete cascade, from_user uuid not null references profiles on delete cascade default auth.uid(), text text not null, at timestamptz not null default now()",
+   "clubs": "id uuid primary key default gen_random_uuid(), name text not null, kind text not null default 'club' check (kind in ('club', 'class')), code text not null unique, leader uuid references profiles on delete set null, commitment jsonb, created_at timestamptz not null default now()",
+   "invites": "code text primary key, owner uuid not null references profiles on delete cascade default auth.uid(), used_by uuid references profiles on delete set null, created_at timestamptz not null default now()",
+   "join_attempts": "user_id uuid not null, at timestamptz not null default now()",
+   "kudos": "checkin_id uuid not null references checkins on delete cascade, from_user uuid not null references profiles on delete cascade default auth.uid(), at timestamptz not null default now(), primary key (checkin_id, from_user)",
+   "nudges": "id uuid primary key default gen_random_uuid(), from_user uuid not null references profiles on delete cascade default auth.uid(), to_user uuid not null references profiles on delete cascade, message text not null, at timestamptz not null default now(), seen boolean not null default false",
+   "partnerships": "user_a uuid not null references profiles on delete cascade, user_b uuid not null references profiles on delete cascade, created_at timestamptz not null default now(), primary key (user_a, user_b), check (user_a < user_b)",
+   "planner_state": "user_id uuid primary key references auth.users on delete cascade default auth.uid(), data jsonb not null, updated_at timestamptz not null default now()",
+   "profiles": "id uuid primary key references auth.users on delete cascade, name text not null default '', color text not null default '#f97316', created_at timestamptz not null default now()",
+   "visit_counts": "day date not null default current_date, source text not null default '', medium text not null default '', campaign text not null default '', count int not null default 0, primary key (day, source, medium, campaign)"
+  }
+ }
+}

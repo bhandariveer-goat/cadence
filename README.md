@@ -417,6 +417,27 @@ description and a canonical address of its own on every page, the sitemap and
 one page to another going somewhere that exists). `LAUNCH.md` has the steps
 only the owner can do.
 
+### Promises on the privacy page
+
+`scripts/claims_check.py` ties each promise on the privacy page (28 of them:
+your password never reaches Cadence's server, chats stay in the browser, a
+Google event Cadence did not create is never touched, deleting an account
+erases it on the server first, and so on) to the code that has to make it
+true. A promise fails the launch check if its sentence is reworded or removed,
+or if the code stops doing it. `CLAIMS.md` is the same table written out, made
+by `python3 scripts/claims_check.py --markdown`, and kept current by the check.
+
+It also watches what Cadence collects: the browser storage keys, the outside
+hosts, the database tables and the part of the plan copied to an account are
+recorded in `claims.lock.json`. Change any of them and the check fails until
+`privacy.html` and its date are updated and `python3 scripts/claims_check.py
+--accept` is run, in the same commit; `--accept` refuses if the date is
+unchanged. `python3 scripts/claims_check.py --selftest` breaks nine things on
+purpose in a copy of the site and checks each one is caught.
+
+What the script cannot check (what other companies do with data, that the live
+database matches `schema.sql`) is listed at the bottom of `CLAIMS.md`.
+
 ## What has and has not been tested
 
 Tested in a browser against the code in this repository:
@@ -555,4 +576,7 @@ scripts/devserver.py                     local server with mock backends
 scripts/stamp_pages.py                   writes config values, canonical and share tags, robots.txt and the sitemap
 scripts/make_social_image.py             draws icons/social.png (needs Pillow; only when the picture should change)
 scripts/prelaunch_check.py               launch gates, house style, and whether the site can be found and shared
+scripts/claims_check.py                  privacy promises against the code, and the data-surface lock
+CLAIMS.md                                every promise next to the code that keeps it (generated)
+claims.lock.json                         what Cadence collects, as last reviewed against privacy.html
 ```
