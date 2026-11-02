@@ -42,7 +42,7 @@ code stops doing what the sentence says.
 - That Supabase stores the password only as a hash. The script checks that Cadence never handles the password; the hashing is Supabase's, as its documentation says.
 - That Netlify checks contact messages with Akismet, and what Supabase's sign-in log records.
 - That the live Supabase project matches supabase/schema.sql. It was applied and compared by hand on the day it was last changed, and rolled-back tests were run against it; this script reads the file only.
-- That deleting an account really empties the live database. The script checks the code path and that every table cascades; a rolled-back run against the live project is the proof of the rest.
+- That deleting an account really empties the live database. The script checks the code path and that every table cascades. On 2 November 2026 a rolled-back run against the live project (two accounts, with a plan, check-ins, kudos, nudges, a partnership, an invite, and a club with a post) left none of the deleted account's rows, passed the club to the other member, and kept the other account's data. It is a one-off run, not repeated by this script.
 - That browsers and extensions behave as the page describes (for example, Chrome sending speech to Google).
 
 ## What counts as the data surface
