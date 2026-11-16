@@ -5,10 +5,17 @@
 // extension without pinning the extension id, and the same implicit flow can
 // later serve the hosted web app. Tokens are short-lived (about an hour) and
 // there is no refresh token in this flow, so renewal is a silent re-auth
-// (prompt=none) that falls back to an interactive prompt.
+// (prompt=none) that falls back to an interactive prompt only where the
+// student is there to see it (never in the background worker).
+//
+// The token is held in memory (this page's, or the background worker's) and
+// never written to storage: Google asks that OAuth tokens are not kept at rest
+// unencrypted, and an hour-long token has no reason to be kept at all.
 //
 // Nothing here writes to the user's calendar yet; write support is gated behind
 // a separate scope and an explicit opt-in.
+
+import { CONFIG } from '../../config.js';
 
 const AUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
 const API = 'https://www.googleapis.com/calendar/v3';
@@ -53,7 +60,9 @@ export async function authorize(clientId, { scopes = [SCOPES.read], interactive 
     response_type: 'token',
     redirect_uri: redirectUri(),
     scope: scopes.join(' '),
-    include_granted_scopes: 'true',
+    // Each sign-in carries only the scopes it asks for, so a Calendar token
+    // never also carries Gmail access (or the reverse) once both are granted.
+    include_granted_scopes: 'false',
     prompt: interactive ? 'consent' : 'none'
   });
   if (loginHint) params.set('login_hint', loginHint);
@@ -71,19 +80,41 @@ export async function authorize(clientId, { scopes = [SCOPES.read], interactive 
   return { accessToken, expiresAt: Date.now() + (expiresIn || 3600) * 1000 - 60000, scopes: scope ? scope.split(' ') : scopes };
 }
 
-/** A valid token, renewed silently when possible. `save` persists the new one. */
-export async function freshToken(cfg, { save = () => {}, scopes } = {}) {
-  const want = scopes || cfg.scopes || [SCOPES.read];
-  if (cfg.accessToken && Date.now() < (cfg.expiresAt || 0) && want.every((s) => (cfg.scopes || []).includes(s))) return cfg.accessToken;
-  try {
-    const t = await authorize(cfg.clientId, { scopes: want, interactive: false, loginHint: cfg.email });
-    save(t);
-    return t.accessToken;
-  } catch {
-    const t = await authorize(cfg.clientId, { scopes: want, interactive: true, loginHint: cfg.email });
-    save(t);
-    return t.accessToken;
+// The token, in memory only.
+let held = null;
+
+/** The OAuth client to sign in with: Cadence's own (src/config.js), or one the person set up on a copy without it. */
+export const clientIdFor = (cfg) => String(CONFIG.googleClientId || cfg?.clientId || '').trim();
+
+/** Keep a token Google just gave, in memory. */
+export function hold(t) {
+  held = t && t.accessToken ? { accessToken: t.accessToken, expiresAt: t.expiresAt || 0, scopes: t.scopes || [] } : null;
+}
+
+/** Forget the token (on disconnect, or when Google refuses it). Returns it while it still works. */
+export function drop() {
+  const was = held && Date.now() < held.expiresAt ? held.accessToken : null;
+  held = null;
+  return was;
+}
+
+/**
+ * A valid token: the one held while it lasts, else a silent renewal, else,
+ * when `interactive` (a student is there and asked for this), Google's
+ * sign-in window. A held token that has more scopes than asked for is reused.
+ */
+export async function freshToken(cfg, { scopes, interactive = true } = {}) {
+  const want = scopes || [SCOPES.read];
+  if (held && Date.now() < held.expiresAt && want.every((s) => held.scopes.includes(s))) return held.accessToken;
+  let t;
+  const clientId = clientIdFor(cfg);
+  try { t = await authorize(clientId, { scopes: want, interactive: false, loginHint: cfg.email }); }
+  catch (e) {
+    if (!interactive) throw e;
+    t = await authorize(clientId, { scopes: want, interactive: true, loginHint: cfg.email });
   }
+  hold(t);
+  return t.accessToken;
 }
 
 /** A Google Calendar API call, with plain errors for an expired session
@@ -96,7 +127,7 @@ async function api(path, token, { method = 'GET', body, query } = {}) {
     headers: { authorization: `Bearer ${token}`, ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined
   });
-  if (res.status === 401) { const e = new Error('Google session expired'); e.code = 401; throw e; }
+  if (res.status === 401) { held = null; const e = new Error('Google session expired'); e.code = 401; throw e; }
   if (res.status === 403) { const e = new Error('Google denied that request. Check the scopes you granted.'); e.code = 403; throw e; }
   if (!res.ok && res.status !== 204) {
     const data = await res.json().catch(() => ({}));
@@ -256,7 +287,7 @@ const sameTime = (a, b) => Math.abs(+new Date(a) - +new Date(b)) < 60000;
 /**
  * Make the calendar match `desired`: add what's missing, move what shifted,
  * remove what Cadence no longer plans. Untagged events are never read or
- * touched here — the query itself only returns Cadence's own.
+ * touched here: the query itself only returns Cadence's own.
  * @param {{key, itemId, title, start, end, description}[]} desired
  */
 export async function reconcileBlocks(token, calendarId, desired, { daysAhead = 21 } = {}) {

@@ -312,9 +312,9 @@ export function anonymousToken({ url, key, storage = globalThis.localStorage }) 
  * The part of a plan that should follow someone between devices.
  *
  * Left behind on purpose: the session itself, anything that is a credential
- * or a link that works like one (the assistant key, Google's access token, the
- * Canvas feed link), everything fetched from a connected calendar, and the
- * computed plan, which is rebuilt on load anyway. Connections to other
+ * or a link that works like one (the assistant key, Google's access tokens for
+ * Calendar and Gmail, the Canvas feed link), everything fetched from a
+ * connected calendar, and the computed plan, which is rebuilt on load anyway. Connections to other
  * services are made per device and stay on that device; the privacy policy
  * says so, and this function is what makes it true.
  */
@@ -324,6 +324,7 @@ export function portable(state) {
   delete out.plan;
   delete out.ranked;
   delete out.sync;
+  delete out.gmail;
   out.sources = structuredClone(DEFAULT_STATE.sources);
   if (out.settings) { delete out.settings.apiKey; out.settings.useAI = false; }
   for (const t of Object.values(out.tasks || {})) { delete t.guideData; delete t.pushToGoogle; }
@@ -336,6 +337,7 @@ export function adopt(local, remote) {
   const next = structuredClone(remote);
   next.cloud = local.cloud;
   next.sources = structuredClone(local.sources || DEFAULT_STATE.sources);
+  next.gmail = structuredClone(local.gmail || DEFAULT_STATE.gmail);
   next.settings = { ...remote.settings, apiKey: local.settings?.apiKey || '', useAI: !!local.settings?.useAI && !!local.settings?.apiKey };
   // A tour already seen on this device is not shown again because the account's copy was older.
   if (local.tourSeen === true) next.tourSeen = true;

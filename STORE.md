@@ -89,26 +89,54 @@ day, using the assignments in their Canvas account.
 | `storage` | Keeps the student's plan, settings and connected calendars on their device. |
 | `alarms` | Reminds the student before a planned work block, and refreshes connected calendars in the background. |
 | `notifications` | Shows those reminders. They can be turned off in Cadence. |
-| `identity` | Signs in to Google Calendar, only if the student chooses to connect it. |
+| `identity` | Signs in to Google Calendar or Gmail, only if the student chooses to connect them. |
 | Host `*.instructure.com`, `*.canvaslms.com` | Shows the Cadence button on Canvas pages and reads the student's own courses and assignments with their existing Canvas login. |
 | Host `api.anthropic.com` | Sends assistant messages to Claude, only if the student adds their own Anthropic API key. |
 | Host `www.googleapis.com`, `oauth2.googleapis.com` | Reads Google Calendar events (and, only if turned on, adds Cadence's blocks), after the student connects Google Calendar. |
+| Host `gmail.googleapis.com` | Reads up to 25 recent inbox emails, read-only, while Cadence is open, after the student connects Gmail, to find events on their computer. Nothing from the email is sent anywhere. |
 
 **Remote code:** No. All of the extension's code is in the package.
 
 **Data usage** (tick what applies; this matches `privacy.html`):
 - Personally identifiable information: the name the student gives, and their
   email address if they sign in with one.
-- Authentication information: the sign-in session for their Cadence account,
-  kept on the device.
+- Authentication information: the sign-in session for their Cadence account
+  and, if they add one, their Anthropic API key, kept on the device; Google's
+  sign-in for Calendar and Gmail, held in memory only and never stored.
 - Website content: Canvas assignments (titles, due dates, instructions, points)
   read from the student's Canvas account to make the plan.
+- User activity: anonymous usage data, only after the student has agreed to
+  the terms and seen the notice, and with a switch to turn it off in Account.
+  With a random ID (not the account): one of five counts (used Cadence on a
+  day, finished setup, has work in the plan, first check-in, connected a
+  calendar), and how the app is used: which screen is open and for how long,
+  which controls are pressed (by their name in Cadence's code), presses on
+  things that are not controls, quick repeated presses, how far setup and the
+  tour get, errors (kind and place in the code), and how long the app and its
+  own requests take. Sent to Cadence's own server; counts kept up to 400 days,
+  the rest up to 180. Clicks are recorded, so tick "User activity". Never
+  sent: what is typed, field contents, the words on a control, where on the
+  screen, mouse movement, scrolling, the plan, messages, calendar contents,
+  error messages, or anything from Gmail or email. Before sign-up, the sign-up
+  screen's daily numbers (shown, typed in, sent, got in) are counted with no ID.
 - Personal communications: messages the student types to the assistant, which
-  are sent to the AI model that answers them.
+  are sent to the AI model that answers them; and, only if the student connects
+  Gmail, the text of their recent inbox emails, read on their own computer to
+  find events. The email is not sent anywhere; the events found (title, date
+  and time, the sentence each came from, the sender, the subject) are kept on
+  the device only.
 
 Then certify all three: the data is not sold to third parties, not used or
 transferred for purposes unrelated to the single purpose, and not used to
 decide creditworthiness or for lending.
+
+Gmail and Google Calendar data also fall under Google's Limited Use rules for
+API data; `docs/GOOGLE_VERIFICATION.md` maps each rule to the code that keeps
+it. The Gmail sheet in Calendars is the prominent disclosure the Chrome Web
+Store asks for: it says what is read and where it goes before Google's consent
+screen opens.
+
+The extension also lists the Cadence website in `externally_connectable`, so the website open in the same browser can show the events found in email; no other site or extension can ask it anything.
 
 **Privacy policy URL:** `https://<site.domain>/privacy`
 

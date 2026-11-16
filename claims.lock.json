@@ -1,18 +1,20 @@
 {
- "fingerprint": "9332e478e9f08255c301edfa17f09af582572a2c6ed69e3c66692e08dcc5581a",
- "policy_date": "2026-11-01",
+ "fingerprint": "44732d3b8cb9475c10b7c16d7e38a08044a98570884d0188151248d3e66fb083",
+ "policy_date": "2026-11-12",
  "surface": {
   "added_columns": [
    "alter table agent_usage add column if not exists steps int not null default 0;",
    "alter table checkins add column if not exists created_at timestamptz not null default now();"
   ],
-  "copied_to_account": "const out = structuredClone(state); delete out.cloud; delete out.plan; delete out.ranked; delete out.sync; out.sources = structuredClone(DEFAULT_STATE.sources); if (out.settings) { delete out.settings.apiKey; out.settings.useAI = false; } for (const t of Object.values(out.tasks || {})) { delete t.guideData; delete t.pushToGoogle; } for (const c of out.commitments || []) delete c.pushToGoogle; return out;",
+  "copied_to_account": "const out = structuredClone(state); delete out.cloud; delete out.plan; delete out.ranked; delete out.sync; delete out.gmail; out.sources = structuredClone(DEFAULT_STATE.sources); if (out.settings) { delete out.settings.apiKey; out.settings.useAI = false; } for (const t of Object.values(out.tasks || {})) { delete t.guideData; delete t.pushToGoogle; } for (const c of out.commitments || []) delete c.pushToGoogle; return out;",
   "outside_hosts": [
    "https://accounts.google.com",
    "https://api.anthropic.com",
+   "https://api.groq.com",
    "https://bfflfqtgqdlhtvwspynv.supabase.co",
    "https://calendar.google.com",
    "https://generativelanguage.googleapis.com",
+   "https://gmail.googleapis.com",
    "https://oauth2.googleapis.com",
    "https://outlook.office365.com",
    "https://quizlet.com",
@@ -33,6 +35,7 @@
    "cadence.pending-invite",
    "cadence.state.v1",
    "cadence.theme",
+   "cadence.usage.v1",
    "cadence.visit"
   ],
   "tables": {
@@ -43,14 +46,22 @@
    "club_members": "club_id uuid not null references clubs on delete cascade, user_id uuid not null references profiles on delete cascade, role text not null default 'member' check (role in ('member', 'leader')), joined_at timestamptz not null default now(), primary key (club_id, user_id)",
    "club_posts": "id uuid primary key default gen_random_uuid(), club_id uuid not null references clubs on delete cascade, from_user uuid not null references profiles on delete cascade default auth.uid(), text text not null, at timestamptz not null default now()",
    "clubs": "id uuid primary key default gen_random_uuid(), name text not null, kind text not null default 'club' check (kind in ('club', 'class')), code text not null unique, leader uuid references profiles on delete set null, commitment jsonb, created_at timestamptz not null default now()",
+   "funnel_counts": "day date not null default current_date, name text not null check (name in ('signin:shown', 'signin:started', 'signin:submitted', 'signin:done')), count integer not null default 0, primary key (day, name)",
    "invites": "code text primary key, owner uuid not null references profiles on delete cascade default auth.uid(), used_by uuid references profiles on delete set null, created_at timestamptz not null default now()",
    "join_attempts": "user_id uuid not null, at timestamptz not null default now()",
    "kudos": "checkin_id uuid not null references checkins on delete cascade, from_user uuid not null references profiles on delete cascade default auth.uid(), at timestamptz not null default now(), primary key (checkin_id, from_user)",
    "nudges": "id uuid primary key default gen_random_uuid(), from_user uuid not null references profiles on delete cascade default auth.uid(), to_user uuid not null references profiles on delete cascade, message text not null, at timestamptz not null default now(), seen boolean not null default false",
+   "owners": "user_id uuid primary key references auth.users on delete cascade",
    "partnerships": "user_a uuid not null references profiles on delete cascade, user_b uuid not null references profiles on delete cascade, created_at timestamptz not null default now(), primary key (user_a, user_b), check (user_a < user_b)",
    "planner_state": "user_id uuid primary key references auth.users on delete cascade default auth.uid(), data jsonb not null, updated_at timestamptz not null default now()",
    "profiles": "id uuid primary key references auth.users on delete cascade, name text not null default '', color text not null default '#f97316', created_at timestamptz not null default now()",
+   "usage_events": "install_id uuid not null, day date not null default current_date, event text not null check (event in ('active', 'onboarded', 'has_work', 'checked_in', 'connected')), primary key (install_id, day, event)",
+   "ux_events": "install_id uuid not null, session_id uuid not null, seq integer not null check (seq between 0 and 100000), at timestamptz not null default now(), kind text not null check (kind in ('screen', 'click', 'dead_click', 'rage_click', 'step', 'error', 'timing', 'session', 'milestone')), name text not null check (name ~ '^[a-z0-9][a-z0-9_.:-]{0,79}$'), screen text check (screen is null or screen ~ '^[a-z0-9][a-z0-9_.:-]{0,79}$'), value integer check (value is null or value between 0 and 2000000000), primary key (install_id, session_id, seq)",
+   "ux_quota": "day date not null default current_date, install_id uuid not null, n integer not null default 0, primary key (day, install_id)",
    "visit_counts": "day date not null default current_date, source text not null default '', medium text not null default '', campaign text not null default '', count int not null default 0, primary key (day, source, medium, campaign)"
-  }
+  },
+  "web_pages_that_can_ask_the_extension": [
+   "https://cadenceaiplanning.netlify.app/*"
+  ]
  }
 }

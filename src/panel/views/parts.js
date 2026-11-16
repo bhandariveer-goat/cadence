@@ -58,8 +58,11 @@ export function timeline(k, { emptyText = 'Nothing planned.', byKind = false } =
   return `<div class="timeline">${items.map((it) => {
     const future = it.at > now;
     if (it.type === 'busy') {
+      // An event found in email opens to the words it came from (views/mail.js).
+      const fromEmail = it.source === 'mail' && it.id;
+      const card = `<div class="grow"><div class="t">${esc(it.title)}</div><div class="m">until ${fmtTime(it.end)}${fromEmail ? ' · From email' : ''}</div></div>`;
       return `<div class="tl-item busy k-${it.source === 'school' ? 'school' : 'event'}"><div class="tl-time">${fmtTime(it.at)}</div><div class="tl-node"><span class="node-dot"></span></div>
-        <div class="tl-card"><div class="grow"><div class="t">${esc(it.title)}</div><div class="m">until ${fmtTime(it.end)}</div></div></div></div>`;
+        ${fromEmail ? `<button class="tl-card tap" data-act="open-mail-event" data-id="${esc(it.id)}">${card}</button>` : `<div class="tl-card">${card}</div>`}</div>`;
     }
     if (it.type === 'fixed') {
       const c = it.commitment;

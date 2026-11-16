@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cadence: planner for Canvas",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Puts your Canvas assignments, classes and activities on one calendar and plans the time to do the work.",
   "permissions": [
     "storage",
@@ -14,6 +14,7 @@
     "*://*.canvaslms.com/*",
     "https://api.anthropic.com/*",
     "https://www.googleapis.com/*",
+    "https://gmail.googleapis.com/*",
     "https://oauth2.googleapis.com/*"
   ],
   "background": {
@@ -47,6 +48,11 @@
       ]
     }
   ],
+  "externally_connectable": {
+    "matches": [
+      "https://cadenceaiplanning.netlify.app/*"
+    ]
+  },
   "action": {
     "default_title": "Open Cadence",
     "default_icon": {

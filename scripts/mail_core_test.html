@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Email events: panel tests</title>
+  <style>body { font: 14px/1.5 system-ui, sans-serif; margin: 16px; background: #fff; color: #111; } pre { white-space: pre-wrap; }</style>
+</head>
+<body>
+  <h1>Email events: panel tests</h1>
+  <p>The panel's reading loop with stand-ins for Chrome's extension APIs and for Gmail. Test-only, never shipped.</p>
+  <pre id="out">Running...</pre>
+  <div id="toast" hidden></div>
+  <script src="/scripts/fake_chrome.js"></script>
+  <script type="module" src="/scripts/mail_core_test.js"></script>
+</body>
+</html>

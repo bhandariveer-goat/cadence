@@ -51,7 +51,7 @@ export const DEFAULT_STATE = {
   // { budgetMin, startAt, until, off, note }
   dayOverrides: {},
 
-  // Legacy recurring activities — migrated into fixed-schedule commitments on load.
+  // Legacy recurring activities, migrated into fixed-schedule commitments on load.
   activities: [],
 
   // The things nobody assigns: see lib/habits.js for the shape.
@@ -72,11 +72,31 @@ export const DEFAULT_STATE = {
     outlookFeed: { enabled: false, url: '', events: [], assignments: [], lastSync: null, lastTry: null, error: null },
     icloudFeed: { enabled: false, url: '', events: [], assignments: [], lastSync: null, lastTry: null, error: null },
     google: {
-      enabled: false, clientId: '', email: '', accessToken: null, expiresAt: 0, scopes: [],
+      // No token here: Google's sign-in is held in memory (googleCalendar.js).
+      enabled: false, clientId: '', email: '',
       calendars: [], selected: [], push: false, pushCalendarId: 'primary', pushed: {},
       events: [], assignments: [], lastSync: null, lastTry: null, error: null
+    },
+    // Events found in the student's email (lib/mailEvents.js), read on this
+    // computer by the Chrome extension. Kept here, under sources, because what
+    // is under sources belongs to this device and is never copied to the
+    // account (cloud.js portable()). Nothing here leaves the browser, except to
+    // the Cadence website open in this same browser (src/panel/mailbridge.js).
+    //   processed  Gmail message id -> { at, status: 'done'|'retry'|'failed', engine, tries, partial }
+    //   dismissed  event id -> { at, key }: deleted by the student, never added again
+    //   trash      event id -> { at, event }: a deletion that Undo can still take back
+    //   scanStartedAt  when a page began reading, so a second open page waits
+    mail: {
+      enabled: false, events: [], assignments: [], processed: {}, dismissed: {}, trash: {},
+      lastSync: null, lastTry: null, error: null, engine: null, partial: false,
+      scanStartedAt: null, changedAt: null
     }
   },
+  // Gmail, read only when the student asks the assistant to check or search
+  // their email (lib/sources/gmail.js). Kept apart from sources, which are
+  // calendars. Only whether it is connected and to which address: the sign-in
+  // itself is held in memory by lib/sources/gmail.js and never stored.
+  gmail: { enabled: false, email: '', error: null, lastRead: null },
   autoSync: { enabled: true, everyMinutes: 20, lastRun: null },
   dismissed: {},                  // taskId -> true when she says "not doing this"
   prompts: {},                    // suggestion cards put away: key -> when (ms)
@@ -172,6 +192,9 @@ export function scrubDemo(state) {
 
 /** Bring an older saved plan up to the current shape. */
 function migrate(state) {
+  // Google sign-ins are never kept in storage (earlier builds kept them): drop any.
+  if (state.gmail) { delete state.gmail.accessToken; delete state.gmail.expiresAt; delete state.gmail.scopes; }
+  if (state.sources?.google) { delete state.sources.google.accessToken; delete state.sources.google.expiresAt; delete state.sources.google.scopes; }
   // Practices used to be "activities"; they are commitments now.
   if (state.activities?.length && !state.commitments?.length) {
     state.commitments = state.activities.map((a) => ({

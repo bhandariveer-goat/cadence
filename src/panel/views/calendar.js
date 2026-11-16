@@ -6,7 +6,7 @@
 // The School tab is the list of what there is to do; this is when.
 
 import { app, refreshSources, dayAgenda, sessionsOn, go, render } from '../core.js';
-import { SOURCE_META } from '../../lib/sources/sources.js';
+import { SOURCE_META, isCalendar } from '../../lib/sources/sources.js';
 import { dateKey, fmtMinutes } from '../../lib/util.js';
 import { svg, I, esc, ago, longDay, DOW_SHORT, isDesktop } from '../ui.js';
 import { timeline } from './parts.js';
@@ -22,7 +22,7 @@ const monthDay = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric
 export function viewCalendar() {
   const S = app.S;
   const mode = app.calMode === 'day' || !isDesktop() ? 'day' : 'week';
-  const connected = Object.entries(S.sources || {}).filter(([, s]) => s.enabled);
+  const connected = Object.entries(S.sources || {}).filter(([id, s]) => s.enabled && isCalendar(id));
   const days = shownWeek();
   const keys = days.map(dateKey);
   const today = dateKey(new Date());
@@ -101,7 +101,9 @@ function markers(k) {
   if (!due.length && !all.length) return '';
   return `<div class="cal-markers">
     ${due.map((t) => `<button class="marker due" data-act="open-guide" data-id="${t.id}">Due: ${esc(t.title)}</button>`).join('')}
-    ${all.map((it) => `<span class="marker">${esc(it.title)}</span>`).join('')}
+    ${all.map((it) => (it.source === 'mail' && it.id
+    ? `<button class="marker" data-act="open-mail-event" data-id="${esc(it.id)}">From email: ${esc(it.title)}</button>`
+    : `<span class="marker">${esc(it.title)}</span>`)).join('')}
   </div>`;
 }
 

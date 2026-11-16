@@ -54,7 +54,9 @@
     // The assistant and teacher dictation can listen instead of making you
     // type, and the copy buttons (an invite code, the activities record) can
     // put text on the clipboard.
-    frame.setAttribute('allow', 'microphone; clipboard-write');
+    // language-model: Chrome's on-device AI, which reads email for events in
+    // the panel; a frame from another origin may use it only when allowed here.
+    frame.setAttribute('allow', 'microphone; clipboard-write; language-model');
     host.appendChild(frame);
     document.documentElement.appendChild(host);
   }

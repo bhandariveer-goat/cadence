@@ -348,6 +348,8 @@ h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.3; letter-spacing:
 .ev-item.fixed .ev-what { color: var(--text-2); }
 .ev-item.moved, .ev-item.new { background: var(--accent-soft); }
 .ev-what small { color: var(--accent-ink); font-size: var(--t-meta); font-weight: 600; }
+/* Where a fixed thing came from, said quietly: it is not a change. */
+.ev-what small.ev-from { color: var(--muted); font-weight: 500; }
 .ev-none { color: var(--muted); font-size: var(--t-sm); }
 @media (min-width: 560px) { .ev-week > li { grid-template-columns: 6.5rem minmax(0, 1fr); align-items: baseline; } }
 .ev-try { padding: var(--s4); border-top: 1px solid var(--line); }

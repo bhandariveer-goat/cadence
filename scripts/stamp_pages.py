@@ -40,7 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SOCIAL_IMAGE = '/icons/social.png'
-SOCIAL_ALT = 'Cadence: the planner that schedules your homework. A week with school, activities, events and planned work.'
+SOCIAL_ALT = 'Cadence. Homework has Canvas. Your activities have Cadence. Practice, clubs, a job and essays, planned alongside your homework, beside a week with school, events, activities and planned work.'
 
 # Every page there is. `address` is the clean one people and search engines
 # should use (netlify.toml serves each file at it). `listed` pages are the
@@ -151,6 +151,10 @@ def config():
         'reply': field('replyWithin'),
         'extension': field('extensionUrl') if re.match(r'^https://chromewebstore\.google\.com/', field('extensionUrl')) else '',
         'visits': bool(re.search(r'\bcountVisits:\s*true\b', text)),
+        'usage': bool(re.search(r'\bcountUsage:\s*true\b', text)),
+        # Which company's AI answers on the site's server: the privacy page and
+        # the homepage name it (data-needs="groq", "gemini" or "claude").
+        'assistant': field('assistant').lower(),
         # The same test as cloudConfigured() in src/config.js.
         'cloud': bool(re.match(r'(https://.+|http://localhost(:\d+)?/.+)', url)) and len(key) > 20 and not is_secret_key(key),
         'supabase_url': url,
@@ -294,7 +298,9 @@ def only_what_is_true(page_html, cfg):
     true to a browser, to a reader with scripts off and to anything that
     takes the text out of the HTML, and the other wording is still there to
     be brought back when the set-up changes."""
-    facts = {'cloud': cfg['cloud'], 'visits': cfg['visits'], 'contact': bool(cfg['contact']), 'reply': bool(cfg['reply']), 'extension': bool(cfg['extension'])}
+    # counts: any counting at all. visits-only: shared-link labels but no usage counts.
+    facts = {'cloud': cfg['cloud'], 'visits': cfg['visits'], 'usage': cfg['usage'], 'counts': cfg['visits'] or cfg['usage'], 'visits-only': cfg['visits'] and not cfg['usage'], 'contact': bool(cfg['contact']), 'reply': bool(cfg['reply']), 'extension': bool(cfg['extension']),
+             'groq': cfg['assistant'] == 'groq', 'gemini': cfg['assistant'] == 'gemini', 'claude': cfg['assistant'] == 'claude'}
     # Everything back in first, then decide again from scratch.
     page_html = re.sub(re.escape(OFF_OPEN) + r'(.*?)' + re.escape(OFF_CLOSE), r'\1', page_html, flags=re.S)
     out, at = [], 0

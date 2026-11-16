@@ -117,14 +117,14 @@ def main():
     mark(d, pad, pad, 56)
     d.text((px(pad + 56 + 16), px(pad + 28)), 'Cadence', font=font(34, 'Semibold'), fill=TEXT, anchor='lm')
 
-    headline = font(60, 'Semibold')
-    y = 216
-    for line in ('The planner that', 'schedules your', 'homework.'):
+    headline = font(56, 'Semibold')
+    y = 208
+    for line in ('Homework', 'has Canvas.', 'Your activities', 'have Cadence.'):
         d.text((px(pad), px(y)), line, font=headline, fill=TEXT, anchor='ls')
-        y += 72
+        y += 64
     sub = font(26, 'Regular')
-    d.text((px(pad), px(y - 16)), 'Reads Canvas. Plans around school,', font=sub, fill=TEXT_2, anchor='ls')
-    d.text((px(pad), px(y + 22)), 'practice and sleep.', font=sub, fill=TEXT_2, anchor='ls')
+    d.text((px(pad), px(y - 8)), 'Practice, clubs, a job and essays,', font=sub, fill=TEXT_2, anchor='ls')
+    d.text((px(pad), px(y + 30)), 'planned alongside your homework.', font=sub, fill=TEXT_2, anchor='ls')
 
     week(d, 640, 112, 488, 406)
 

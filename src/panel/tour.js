@@ -7,6 +7,7 @@
 import { app, persist, EMBEDDED } from './core.js';
 import { esc } from './ui.js';
 import { clamp } from '../lib/util.js';
+import { step as note } from './insight.js';
 
 const STEPS = [
   { sel: '[data-act="tab"][data-tab="today"]', title: 'Today', text: 'What to do next, and what is left today. Press Start block when you sit down to work.' },
@@ -28,6 +29,7 @@ const LOCKED = ['.skip', '#demo-bar', '#top', '#view', '#tabs', '#side', '#agent
 let tour = null;    // the tour on screen, or null
 let timer = 0;      // an automatic start waiting for the page to paint
 let done = false;   // finished in this session; the saved flag may still be on its way
+let shownAt = 0;    // when this tour was shown, for how long it took (usage data)
 
 // ------------------------------------------------------------ when to show
 
@@ -50,6 +52,8 @@ export function startTour({ force = false } = {}) {
   // covers the app): try again on a later render rather than count it as seen.
   if (first < 0) return false;
   open(first);
+  shownAt = performance.now();
+  note('tour:shown');
   return true;
 }
 
@@ -147,9 +151,12 @@ function open(i) {
   tour?.next.focus({ preventScroll: true });
 }
 
-/** Done, Skip and Escape all end here, and the tour is not offered again. */
-function finish() {
+/** Done, Skip and Escape all end here, and the tour is not offered again.
+    `how` is recorded for the usage data: done (past the last stop), skip
+    (Skip or Escape, with the stop it was on), or closed (nothing left to show). */
+function finish(how = 'closed') {
   if (!tour) return;
+  note(`tour:${how}`, how === 'done' ? Math.round(performance.now() - shownAt) : tour.i);
   close();
   done = true;
   // Housekeeping, not an edit: it goes up with the next real change, and
@@ -187,8 +194,8 @@ function lockPage() {
 /** Moves to the next stop on screen (`dir` 1) or the one before (-1); past the last stop the tour ends. */
 function step(dir) {
   const j = nextShown(tour.i, dir);
-  if (j >= 0) { tour.i = j; place(); }
-  else if (dir > 0) finish();
+  if (j >= 0) { tour.i = j; note('tour:stop', j); place(); }
+  else if (dir > 0) finish('done');
 }
 
 /** Places the card again on the next frame, at most once per frame. */
@@ -273,7 +280,7 @@ function setText(node, value) {
 function onClick(e) {
   const b = e.target.closest('[data-tour]');
   if (!b) return;
-  if (b.dataset.tour === 'skip') finish();
+  if (b.dataset.tour === 'skip') finish('skip');
   else step(b.dataset.tour === 'back' ? -1 : 1);
 }
 
@@ -290,7 +297,7 @@ function onKey(e) {
   e.stopPropagation();
   if (e.altKey || e.ctrlKey || e.metaKey) return;
   if (e.key === 'Tab') return trap(e);
-  if (e.key === 'Escape') { e.preventDefault(); finish(); }
+  if (e.key === 'Escape') { e.preventDefault(); finish('skip'); }
   else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
 }

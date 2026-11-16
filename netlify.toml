@@ -12,6 +12,7 @@
 #   /robots.txt, /sitemap.xml written by scripts/stamp_pages.py
 #   /api/agent   netlify/functions/agent.mjs   the assistant, server side
 #   /api/visit   netlify/functions/visit.mjs   visit counts, off by default
+#   /api/metric  netlify/functions/metric.mjs  anonymous usage counts, see site.countUsage
 #
 # The one step before a commit that touches the site's address, who runs it,
 # or a page's title: python3 scripts/stamp_pages.py. It writes those into the
@@ -73,6 +74,15 @@
   from = "/src/panel/panel"
   to = "/app"
   status = 301
+  force = true
+
+# Developer scripts and their browser test pages are for a local dev server
+# only. The test pages write to the site's own storage, so the live site never
+# serves them.
+[[redirects]]
+  from = "/scripts/*"
+  to = "/404.html"
+  status = 404
   force = true
 
 # Content-Security-Policy: only this site's own scripts run, so a title from

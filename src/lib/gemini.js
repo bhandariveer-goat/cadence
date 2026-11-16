@@ -19,7 +19,7 @@
 // change, and generateContent "the recommended path for stable deployments".
 // Reference: https://ai.google.dev/api/generate-content
 
-import { SYSTEM, TOOLS } from './agentspec.js';
+import { SYSTEM, toolsFor } from './agentspec.js';
 
 // Google's low-latency model, with tool calls. It answers in a few seconds,
 // which matters because Netlify stops a free-plan function after 10, and its
@@ -37,14 +37,16 @@ export const geminiUrl = (model = GEMINI_MODEL) =>
 
 // The same tools, as Gemini function declarations. Their input schemas are
 // plain JSON Schema already.
-const DECLARATIONS = TOOLS.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.input_schema }));
+const declarations = (email) => toolsFor({ email }).map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.input_schema }));
 
-/** The full request body. Only the conversation comes from a client. */
-export function geminiRequest(messages, model = GEMINI_MODEL) {
+/** The full request body. Only the conversation comes from a client. `email`
+    adds the tool that reads Gmail, which the server allows only on a paid
+    plan (see EMAIL_TOOL in agentspec.js). */
+export function geminiRequest(messages, model = GEMINI_MODEL, { email = false } = {}) {
   return {
     systemInstruction: { parts: [{ text: SYSTEM }] },
     contents: toContents(messages),
-    tools: [{ functionDeclarations: DECLARATIONS }],
+    tools: [{ functionDeclarations: declarations(email) }],
     // VALIDATED: the model may answer in words or call a tool, and a tool call
     // is held to its schema.
     toolConfig: { functionCallingConfig: { mode: 'VALIDATED' } },

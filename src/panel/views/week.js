@@ -118,11 +118,15 @@ export function weekGrid() {
       <div></div>
       ${perDay.map(({ d, k }) => {
         const due = dueOn(k);
+        // All-day events from email (a deadline, a cancellation) have no place
+        // on the grid, so the day's heading names them; the day view lists them.
+        const fromEmail = dayAgenda(k).filter((it) => it.allDay && it.source === 'mail');
         const pd = planDay[k];
+        const tip = [...due.map((t) => t.title), ...fromEmail.map((it) => `${it.title} (from email)`)].join(', ');
         return `<button class="wg-day ${k === todayKey ? 'today' : ''}" data-act="open-day" data-day="${k}" aria-label="Open ${esc(d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' }))}">
           <span class="dow">${DOW_SHORT[d.getDay()]}</span>
           <span class="num">${d.getDate()}</span>
-          <span class="wg-due" data-tip="${esc(due.map((t) => t.title).join(', '))}">${due.length ? `${due.length} due` : pd?.minutes ? fmtMinutes(pd.minutes) : ''}</span>
+          <span class="wg-due" data-tip="${esc(tip)}">${due.length ? `${due.length} due` : fromEmail.length ? `${fromEmail.length} from email` : pd?.minutes ? fmtMinutes(pd.minutes) : ''}</span>
         </button>`;
       }).join('')}
     </div>
@@ -162,7 +166,11 @@ function block(it, y) {
   const cls = `wg-block k-${kind} ${short}`;
 
   if (it.type === 'busy') {
-    const tip = `${it.title}, ${clockOf(it.at)} to ${clockOf(it.end)}`;
+    const tip = `${it.title}, ${clockOf(it.at)} to ${clockOf(it.end)}${it.source === 'mail' ? ', from email' : ''}`;
+    // An event found in email opens to the words it came from (views/mail.js).
+    if (it.source === 'mail' && it.id) {
+      return `<button class="${cls}" style="${style}" data-act="open-mail-event" data-id="${esc(it.id)}" data-tip="${esc(tip)}"><b>${esc(it.title)}</b><span>${clockOf(it.at)} · From email</span></button>`;
+    }
     return `<div class="${cls}" style="${style}" data-tip="${esc(tip)}"><b>${esc(it.title)}</b><span>${clockOf(it.at)}</span></div>`;
   }
   if (it.type === 'fixed') {

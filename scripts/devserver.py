@@ -23,7 +23,7 @@ import re
 import sys
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -57,8 +57,16 @@ CSP_REPORTS = []
 MOCK_CLUB = {'id': '00000000-0000-4000-8000-00000000c1ab', 'name': 'Robotics'}
 AGENT_CALLS = []
 VISITS = {}     # "source|medium|campaign" -> count
+COUNTS = {}     # "install id|word" -> days counted (stand-in for usage_events)
+UX = []         # records of how the app is used (stand-in for ux_events)
+STEPS_SEEN = {} # sign-up step -> count (stand-in for funnel_counts)
 ENQUIRIES = []  # what the contact form sent, minus anything a bot filled in
 LABEL = re.compile(r'^[a-z0-9_-]{0,40}$')
+USAGE_ID = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+USAGE_WORDS = ('active', 'onboarded', 'has_work', 'checked_in', 'connected')
+USAGE_KINDS = ('screen', 'click', 'dead_click', 'rage_click', 'step', 'error', 'timing', 'session', 'milestone')
+USAGE_STEPS = ('signin:shown', 'signin:started', 'signin:submitted', 'signin:done')
+USAGE_NAME = re.compile(r'^[a-z0-9][a-z0-9_.:-]{0,79}$')
 
 
 def _moment(stamp):
@@ -186,6 +194,12 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if MOCK and path == '/mock/visits':
             return self._json(200, VISITS)
+        if MOCK and path == '/mock/usage':
+            return self._json(200, COUNTS)
+        if MOCK and path == '/mock/ux':
+            return self._json(200, UX)
+        if MOCK and path == '/mock/steps':
+            return self._json(200, STEPS_SEEN)
         if MOCK and path == '/mock/enquiries':
             return self._json(200, ENQUIRIES)
         if MOCK and path == '/mock/csp-reports':
@@ -245,6 +259,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._agent()
         if MOCK and path == '/api/visit':
             return self._visit()
+        if MOCK and path == '/api/metric':
+            return self._metric()
         if MOCK and path == '/api/canvas-feed':
             return self._canvas_feed()
         if MOCK and 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', ''):
@@ -364,10 +380,89 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, MOCK_CLUB['id'])
         if path == '/rest/v1/clubs' and 'id=eq.' in query:
             return self._json(200, [{'id': MOCK_CLUB['id'], 'name': MOCK_CLUB['name']}])
+        if path == '/rest/v1/rpc/insights':
+            # The owner is whoever signed in as owner@... (the real project lists owners in a table).
+            if not str(who.get('email', '')).startswith('owner@'):
+                return self._json(400, {'code': 'P0001', 'message': 'not allowed'})
+            return self._json(200, self._insights(int(body.get('p_days') or 30)))
         if path == '/rest/v1/rpc/bump_agent_usage':
             USAGE[who['id']] = USAGE.get(who['id'], 0) + 1
             return self._json(200, [{'mine': USAGE[who['id']], 'total': sum(USAGE.values())}])
         return self._json(200, [])
+
+    def _insights(self, days):
+        """Stand-in for insights() in supabase/schema.sql: the same shape, worked out from what
+        /api/metric has been sent since this server started. Only for trying the page."""
+        days = min(max(days, 1), 180)
+        today = datetime.now().date()
+        iso = lambda d: d.isoformat()
+        def median(xs, q=0.5):
+            xs = sorted(xs)
+            if not xs:
+                return None
+            k = (len(xs) - 1) * q
+            lo, hi = int(k), min(int(k) + 1, len(xs) - 1)
+            return round(xs[lo] + (xs[hi] - xs[lo]) * (k - lo))
+        active = {}
+        for key, dates in COUNTS.items():
+            if key.endswith('|active'):
+                active[key.split('|')[0]] = sorted(set(dates))
+        within = lambda d, n: (today - datetime.strptime(d, '%Y-%m-%d').date()).days < n
+        first = {i: ds[0] for i, ds in active.items()}
+        def distinct(rows, key):
+            return len({r['id'] for r in rows if key(r)})
+        def group(rows, key):
+            out = {}
+            for r in rows:
+                out.setdefault(key(r), []).append(r)
+            return out
+        recent = [e for e in UX if time.time() - e['at'] < days * 86400]
+        starts = {}
+        for e in UX:
+            starts[e['id']] = min(starts.get(e['id'], e['at']), e['at'])
+        steps = [e for e in recent if e['k'] == 'step']
+        retention = []
+        for n in (1, 7, 30):
+            old = [i for i, d in first.items() if (today - datetime.strptime(d, '%Y-%m-%d').date()).days >= n]
+            back = [i for i in old if iso(datetime.strptime(first[i], '%Y-%m-%d').date() + timedelta(days=n)) in active[i]]
+            retention.append({'after_days': n, 'installs': len(old), 'came_back': len(back)})
+        errors = group([e for e in recent if e['k'] == 'error'], lambda e: e['n'])
+        newbies = {i for i, t in starts.items() if time.time() - t < days * 86400}
+        early = {e['id'] for e in UX if e['k'] == 'error' and e['at'] < starts[e['id']] + 300}
+        def top(kind, label, limit, desc=True):
+            g = group([e for e in recent if e['k'] == kind], label)
+            rows = [{'key': k, 'n': len(v), 'installs': len({e['id'] for e in v})} for k, v in g.items()]
+            return sorted(rows, key=lambda r: (-r['n'] if desc else r['n'], str(r['key'])))[:limit]
+        return {
+            'days': days,
+            'overview': {'installs': len(active), 'active_today': sum(1 for ds in active.values() if iso(today) in ds),
+                         'active_7_days': sum(1 for ds in active.values() if any(within(d, 7) for d in ds)),
+                         'active_30_days': sum(1 for ds in active.values() if any(within(d, 30) for d in ds))},
+            'daily': [{'day': iso(today - timedelta(days=days - 1 - i)), 'active': sum(1 for ds in active.values() if iso(today - timedelta(days=days - 1 - i)) in ds)} for i in range(days)],
+            'retention': retention,
+            'signup': sorted([{'name': k, 'times': v, 'step_order': USAGE_STEPS.index(k) + 1} for k, v in STEPS_SEEN.items()], key=lambda r: r['step_order']),
+            'setup': sorted([{'name': n, 'installs': distinct(steps, lambda e, n=n: e['n'] == n)} for n in {e['n'] for e in steps if e['n'].startswith('setup:')}], key=lambda r: (-r['installs'], r['name'])),
+            'setup_time': {'finished': len([e for e in steps if e['n'] == 'setup:done']),
+                           'median_seconds': median([e['v'] for e in steps if e['n'] == 'setup:done' and e['v'] is not None]),
+                           'slowest_tenth_seconds': median([e['v'] for e in steps if e['n'] == 'setup:done' and e['v'] is not None], 0.9)},
+            'tour': {'shown': distinct(steps, lambda e: e['n'] == 'tour:shown'), 'finished': distinct(steps, lambda e: e['n'] == 'tour:done'), 'skipped': distinct(steps, lambda e: e['n'] == 'tour:skip')},
+            'tour_skips': sorted([{'stop': k + 1, 'times': len(v)} for k, v in group([e for e in steps if e['n'] == 'tour:skip' and e['v'] is not None], lambda e: e['v']).items()], key=lambda r: r['stop']),
+            'screens': sorted([{'screen': k, 'total_minutes': round(sum(e['v'] or 0 for e in v) / 60000, 1), 'stays': len(v), 'median_stay_seconds': round((median([e['v'] for e in v if e['v'] is not None]) or 0) / 1000), 'installs': len({e['id'] for e in v})}
+                              for k, v in group([e for e in recent if e['k'] == 'screen' and e['v'] is not None], lambda e: e['n']).items()], key=lambda r: -r['total_minutes'])[:20],
+            'most_pressed': [{'control': r['key'], 'presses': r['n'], 'installs': r['installs']} for r in top('click', lambda e: e['n'], 15)],
+            'least_pressed': [{'control': r['key'], 'presses': r['n'], 'installs': r['installs']} for r in top('click', lambda e: e['n'], 10, desc=False)],
+            'dead_clicks': [{'screen': r['key'][0], 'pressed_on': r['key'][1], 'presses': r['n'], 'installs': r['installs']} for r in top('dead_click', lambda e: (e['s'] or 'none', e['n']), 10)],
+            'rage_clicks': [{'screen': r['key'][0], 'control': r['key'][1], 'bursts': r['n'], 'installs': r['installs']} for r in top('rage_click', lambda e: (e['s'] or 'none', e['n']), 10)],
+            'errors': sorted([{'error': k, 'times': len(v), 'in_first_5_minutes': sum(1 for e in v if e['at'] < starts[e['id']] + 300), 'installs': len({e['id'] for e in v})} for k, v in errors.items()], key=lambda r: (-r['times'], r['error']))[:10],
+            'early_errors': {'new_installs': len(newbies), 'with_error': len(newbies & early)},
+            'speed': sorted([{'what': k, 'times': len(v), 'median_ms': median([e['v'] for e in v if e['v'] is not None]), 'slowest_tenth_ms': median([e['v'] for e in v if e['v'] is not None], 0.9)}
+                             for k, v in group([e for e in recent if e['k'] == 'timing'], lambda e: e['n']).items()], key=lambda r: (-r['times'], r['what']))[:15],
+            'value': sorted([{'milestone': k, 'installs': len(v), 'median_minutes': round((median([e['v'] for e in v if e['v'] is not None]) or 0) / 60, 1)}
+                             for k, v in group([e for e in recent if e['k'] == 'milestone'], lambda e: e['n']).items()], key=lambda r: (-r['installs'], r['milestone'])),
+            'visits': {'visits': len([e for e in recent if e['k'] == 'session' and e['n'] == 'end']), 'installs': distinct(recent, lambda e: e['k'] == 'session' and e['n'] == 'end'),
+                       'median_minutes': round((median([e['v'] for e in recent if e['k'] == 'session' and e['n'] == 'end' and e['v'] is not None]) or 0) / 60000, 1) if any(e['k'] == 'session' and e['n'] == 'end' for e in recent) else None},
+            'stops': [],
+        }
 
     def _canvas_feed(self):
         """Stand-in for netlify/functions/canvas-feed.mjs. A signed-in request
@@ -466,6 +561,52 @@ class Handler(SimpleHTTPRequestHandler):
             return self.end_headers()
         key = '|'.join(labels)
         VISITS[key] = VISITS.get(key, 0) + 1
+        self.send_response(204)
+        self.end_headers()
+
+    def _metric(self):
+        """Stand-in for netlify/functions/metric.mjs: the same three shapes and
+        rules, kept in memory. GET /mock/usage lists the counts, /mock/ux the
+        records of how the app is used, /mock/steps the sign-up counts."""
+        body = self._body()
+        def no():
+            self.send_response(400)
+            return self.end_headers()
+        if isinstance(body.get('steps'), list):
+            steps = body['steps']
+            if len(body) != 1 or not 1 <= len(steps) <= 4 or any(x not in USAGE_STEPS for x in steps):
+                return no()
+            for x in steps:
+                STEPS_SEEN[x] = STEPS_SEEN.get(x, 0) + 1
+            self.send_response(204)
+            return self.end_headers()
+        iid = body.get('id')
+        if not isinstance(iid, str) or not USAGE_ID.match(iid):
+            return no()
+        if isinstance(body.get('events'), list):
+            session, events = body.get('session'), body['events']
+            if not isinstance(session, str) or not USAGE_ID.match(session) or len(events) > 50:
+                return no()
+            for r in events:
+                ok = (isinstance(r, dict) and isinstance(r.get('q'), int) and 0 <= r['q'] <= 100000
+                      and r.get('k') in USAGE_KINDS and isinstance(r.get('n'), str) and USAGE_NAME.match(r['n'])
+                      and ('s' not in r or (isinstance(r['s'], str) and USAGE_NAME.match(r['s'])))
+                      and ('v' not in r or (isinstance(r['v'], int) and 0 <= r['v'] <= 2000000000)))
+                if ok and not any(e['id'] == iid and e['session'] == session and e['q'] == r['q'] for e in UX):
+                    UX.append({'id': iid, 'session': session, 'q': r['q'], 'k': r['k'], 'n': r['n'], 's': r.get('s'), 'v': r.get('v'), 'at': time.time()})
+            self.send_response(204)
+            return self.end_headers()
+        event = body.get('event')
+        if event == 'forget':
+            for k in [k for k in COUNTS if k.startswith(iid + '|')]:
+                del COUNTS[k]
+            UX[:] = [e for e in UX if e['id'] != iid]
+        elif event in USAGE_WORDS:
+            key = iid + '|' + event
+            if event == 'active' or key not in COUNTS:
+                COUNTS.setdefault(key, []).append(time.strftime('%Y-%m-%d'))
+        else:
+            return no()
         self.send_response(204)
         self.end_headers()
 

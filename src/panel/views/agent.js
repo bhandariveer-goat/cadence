@@ -7,8 +7,8 @@
 // showing its work is not one to trust with a week.
 //
 // It always works: sentences are read offline (lib/agent.js). On a site that
-// runs the server function, a model does the reading instead (Gemini or
-// Claude, whichever the site is set up with), for a student with an email
+// runs the server function, a model does the reading instead (Groq, Gemini
+// or Claude, whichever src/config.js names), for a student with an email
 // account or with only a name (through a hidden anonymous account), or
 // Claude does when the student has added their own Anthropic key
 // (lib/agentllm.js). The offline reader is the fallback if that call fails.
@@ -19,17 +19,21 @@
 // "/secret" opens outline mode: pick an assignment and get an outline of how
 // to do it yourself, never the work itself (lib/outline.js).
 
-import { app, restore, go, push, DEMO, rankedTasks } from '../core.js';
+import { app, restore, persist, go, push, DEMO, rankedTasks } from '../core.js';
 import { respond } from '../../lib/agent.js';
 import { converse, directTransport, proxyTransport } from '../../lib/agentllm.js';
+import { usesEmail } from '../../lib/agentspec.js';
 import { diffPlans, KIND_LABEL, dayWord } from '../../lib/agentops.js';
 import { aiAvailable } from '../../lib/ai.js';
 import { CONFIG, cloudConfigured } from '../../config.js';
 import { anonymousToken } from '../../lib/cloud.js';
-import { svg, I, esc, toast, $, ago, plural } from '../ui.js';
+import { svg, I, esc, toast, $, ago, plural, sheet } from '../ui.js';
 import { loadChats, saveChats, newChatId, titleFor, MAX_CHATS } from '../../lib/chats.js';
 import { offlineOutline, assignmentPayload, requestOutline } from '../../lib/outline.js';
 import { composeGuide } from './guide.js';
+import * as gmail from '../../lib/sources/gmail.js';
+import { clientIdFor } from '../../lib/sources/googleCalendar.js';
+import { POLICY_CHANGE } from '../../lib/policy.js';
 
 /** The assistant's state for this page, set up the first time it is needed,
     with the chat that was open last time opened again. */
@@ -108,6 +112,77 @@ function siteEndpoint() {
     : /^https?:$/.test(location.protocol) ? new URL(CONFIG.agentEndpoint, location.origin).href
       : CONFIG.site.domain ? `https://${CONFIG.site.domain}${CONFIG.agentEndpoint}` : null;
 }
+
+/**
+ * What the assistant uses to read Gmail when the student asks it to, or null
+ * where it cannot: on the website (signing in to Google needs the Chrome
+ * extension), in the demo, and before Gmail is connected under Calendars.
+ *
+ * Every read is the student's to allow: before the assistant reads anything,
+ * a sheet says what it wants to read, and nothing is read unless they tap
+ * "Read my email" (Google asks that a person confirms each such use). A read
+ * they already allowed, for the same words and days, is not asked about
+ * twice in one question. One reader is made for each question.
+ */
+function emailReader() {
+  // Off unless src/config.js switches it on: then the assistant never reads email.
+  if (CONFIG.emailToAssistant !== true) return null;
+  if (DEMO || !app.S.gmail?.enabled || !gmail.available()) return null;
+  const allowed = new Set();
+  return async ({ query, days, now }) => {
+    const clientId = clientIdFor(app.S.sources?.google);
+    if (!clientId) throw new Error('Gmail needs to be connected again under Calendars.');
+    const ask = `${query}|${days}`;
+    if (!allowed.has(ask)) {
+      const what = query ? `emails that match "${esc(query)}"` : 'your inbox';
+      const ok = await sheet(`<h2 data-about="email">Read your email for this?</h2>
+        <p class="lead">To answer you, the assistant wants to read ${what} from the last ${days === 1 ? 'day' : `${days} days`}: up to 10 emails, read only.</p>
+        <div class="actions"><button class="btn ghost" value="cancel">Not this time</button><button class="btn primary" name="op" value="read">Read my email</button></div>`);
+      if (ok?.get('op') !== 'read') throw new Error('The student chose not to let the assistant read their email this time.');
+      allowed.add(ask);
+    }
+    const token = await gmail.freshToken(app.S.gmail.email, clientId);
+    try {
+      const got = await gmail.readMail(token, { account: app.S.gmail.email, query, days, now });
+      await persist((st) => { st.gmail.lastRead = Date.now(); st.gmail.error = null; }, { recalc: false, edit: false });
+      return got;
+    } catch (e) {
+      if (e?.code === 401 || e?.code === 403) {
+        gmail.drop();
+        await persist((st) => { st.gmail.error = e.message; }, { recalc: false, edit: false });
+      }
+      throw e;
+    }
+  };
+}
+
+/** Has this person agreed to the terms, but not yet seen the latest change to
+    who receives their data (lib/policy.js)? Never in the demo. */
+const needsPolicyNotice = () => !DEMO && !!app.S.profile?.consentedAt && String(app.S.profile.policySeen || '') < POLICY_CHANGE.date;
+
+/** Shown once at open to someone who agreed to the policy before its latest
+    change, when that change is about usage counts (src/lib/metrics.js). Until
+    they say OK they are not counted. Not shown in the demo or to anyone who
+    has not agreed to the terms yet. */
+export async function askPolicyNotice() {
+  if (needsPolicyNotice() && app.S.profile?.onboarded) await policyNotice();
+}
+
+/** Tell them what changed, with the privacy policy a tap away. True once they say OK. */
+async function policyNotice() {
+  const when = new Date(`${POLICY_CHANGE.date}T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  const policy = /^https?:$/.test(location.protocol) ? '/privacy' : `https://${CONFIG.site?.domain || ''}/privacy`;
+  const res = await sheet(`<h2>Our privacy policy changed</h2>
+    <p class="lead">On ${esc(when)}: ${esc(POLICY_CHANGE.what)} <a href="${esc(policy)}" target="_blank" rel="noopener">Read the privacy policy</a>.</p>
+    <div class="actions"><button class="btn ghost" value="cancel">Not now</button><button class="btn primary" name="op" value="ok">OK, continue</button></div>`);
+  if (res?.get('op') !== 'ok') return false;
+  await persist((st) => { st.profile.policySeen = POLICY_CHANGE.date; }, { recalc: false });
+  return true;
+}
+
+// A request to read or check email (not "I need to email Mr. Lee"), for the
+// reply when the AI could not answer it.
+const READ_EMAIL = /\b(check|read|search|scan|look\s+(at|through)|any(thing)?|new|did|has|have|got)\b[^.?!]*\b(e-?mails?|inbox|gmail)\b|\bwhat('s|\s+is)\s+in\s+my\s+(inbox|gmail|e-?mail)\b/i;
 
 let anonymousTokens = null;
 // The token for a student without an email account, made once per page and
@@ -203,7 +278,7 @@ function bubble(m, i) {
     : '<button class="btn soft small" data-act="agent-show">Open calendar</button>'}
         </div>
       </div>` : ''}
-      ${last && m.chips?.length ? `<div class="ag-chips">${m.chips.map((c) => `<button class="ag-chip" data-act="agent-say" data-text="${esc(c.text)}">${esc(c.label)}</button>`).join('')}</div>` : ''}
+      ${last && m.chips?.length ? `<div class="ag-chips">${m.chips.map((c) => `<button class="ag-chip" data-act="agent-say" data-chosen="1" data-text="${esc(c.text)}">${esc(c.label)}</button>`).join('')}</div>` : ''}
     </div>`;
 }
 
@@ -214,7 +289,7 @@ function bubble(m, i) {
     answer, no network), the sentence is read on the device instead and the
     reply says why. Any change to the plan is applied and kept for Undo, and
     the chat is saved. */
-async function send(text) {
+async function send(text, { chosen = false } = {}) {
   const a = ensureAgent();
   const clean = String(text || '').trim();
   if (!clean || a.busy) return;
@@ -233,15 +308,22 @@ async function send(text) {
   const before = app.S;
   let result = null;
 
-  const via = transport();
+  let via = transport();
   let fellBack = '';
+  // A change to who receives what is told before anything more goes to an AI
+  // company. Until they say OK, the sentence is read on the device instead.
+  if (via && needsPolicyNotice() && !(await policyNotice())) {
+    via = null;
+    fellBack = 'The AI is waiting until you have seen the change to the privacy policy, so this was read on your device instead.';
+  }
   if (via) {
     try {
       // A long conversation is restarted rather than trimmed, and so is one
       // that was with the other model: each keeps parts the other cannot read.
-      if (a.messages.length > 30 || a.via !== via.kind) a.messages = [];
+      // So is one that read email, now that the assistant may not.
+      if (a.messages.length > 30 || a.via !== via.kind || (CONFIG.emailToAssistant !== true && usesEmail(a.messages))) a.messages = [];
       a.via = via.kind;
-      const r = await converse({ text: clean, state: before, messages: a.messages, send: via, now });
+      const r = await converse({ text: clean, state: before, messages: a.messages, send: via, now, readEmail: emailReader(), chosen });
       const diff = r.next ? diffPlans(before, r.next, now) : null;
       if (Number.isFinite(r.remaining)) a.remaining = r.remaining;
       result = {
@@ -253,16 +335,33 @@ async function send(text) {
       // read on the device, and the reply says so.
       result = null;
       const why = String(e?.message || '');
+      // The server can ask for a fresh conversation (this one read email where
+      // the site's model may not). The next message starts one by itself, so
+      // the student need not do anything.
+      const fresh = /new chat/i.test(why);
+      if (fresh) a.messages = [];
       // The day's limit is said as it is, not as "busy".
       fellBack = /limit for today/i.test(why) ? why
-        : /busy|limit/i.test(why) ? 'The AI is busy right now.'
-          : /too long/i.test(why) ? 'The AI took too long to answer.'
-            : 'The AI could not be reached.';
+        : fresh ? 'The AI could not carry on this conversation, so your next message starts a fresh one.'
+          : /busy|limit/i.test(why) ? 'The AI is busy right now.'
+            : /too long/i.test(why) ? 'The AI took too long to answer.'
+              : 'The AI could not be reached.';
     }
   }
+  // Only the AI can read email. The reader on the device still reads the
+  // sentence as usual (it may hold an assignment); when it asked to read email,
+  // the reply also says why that part could not be done.
+  const emailNote = !result && READ_EMAIL.test(clean)
+    ? (CONFIG.emailToAssistant !== true
+      ? 'The assistant does not read your email. With Gmail connected under Calendars in the Cadence Chrome extension, Cadence finds events in your email and adds them to your calendar.'
+      : !app.S.gmail?.enabled
+        ? 'To have Cadence read your email, connect Gmail under Calendars in the Cadence Chrome extension, then ask again.'
+        : 'Reading your email needs the AI assistant, and it could not answer just now. Try again in a minute.')
+    : '';
   if (!result) {
     result = respond(clean, before, now);
-    if (fellBack) result = { ...result, text: `${result.text}\n\n${fellBack}${/limit for today/i.test(fellBack) ? '' : ' This was read on your device instead, so try again in a minute for a fuller answer.'}` };
+    if (emailNote) result = (result.next || result.ops?.length) ? { ...result, text: `${result.text}\n\n${emailNote}` } : { ...result, text: emailNote };
+    if (fellBack) result = { ...result, text: `${result.text}\n\n${fellBack}${/limit for today|privacy policy/i.test(fellBack) ? '' : ' This was read on your device instead, so try again in a minute for a fuller answer.'}` };
   }
 
   const snapshot = result.next ? structuredClone(before) : null;
@@ -404,7 +503,10 @@ export const actions = {
   'agent-open': (el) => { const a = ensureAgent(); a.open = true; a.focusNext = true; if (el?.dataset?.seed && !a.draft) a.draft = el.dataset.seed; render(); },
   'agent-close': () => { ensureAgent().open = false; render(); $('#btn-agent')?.focus({ preventScroll: true }); },
   'agent-toggle': () => { const a = ensureAgent(); a.open = !a.open; a.focusNext = a.open; render(); },
-  'agent-say': (el) => { const a = ensureAgent(); if (!a.open) { a.open = true; } send(el.dataset.text); },
+  // A tap on one of the assistant's offered choices (data-chosen) is the
+  // student agreeing to exactly that, which is what lets a change through in
+  // a chat that has read email (converse's `chosen`).
+  'agent-say': (el) => { const a = ensureAgent(); if (!a.open) { a.open = true; } send(el.dataset.text, { chosen: el.dataset.chosen === '1' }); },
   'agent-mic': () => toggleMic(),
   'agent-memory': () => { if (matchMedia('(max-width: 767px)').matches) { ensureAgent().open = false; render(); } if (app.view !== 'memory') push('memory'); },
   'agent-show': () => { if (matchMedia('(max-width: 767px)').matches) ensureAgent().open = false; go('calendar'); },

@@ -9,9 +9,12 @@
 // is large, so it is kept for the chat that is open only. Going back to an
 // older chat after a reload starts the model's side of it afresh; what was
 // said is still shown. Undo snapshots (a copy of the plan) are never stored,
-// so older replies have no Undo after a reload.
+// so older replies have no Undo after a reload. Emails the assistant read are
+// never stored either: a saved chat keeps the assistant's answer about them,
+// but the text of the emails is left out (withoutEmails below).
 
 import { currentBucket } from './store.js';
+import { EMAIL_TOOL } from './agentspec.js';
 
 export const MAX_CHATS = 30;
 // Kept small: on the website the plan shares this browser's storage.
@@ -45,12 +48,33 @@ export function loadChats() {
   }
 }
 
-/** What is written down: no undo snapshots, and model messages for the open chat only. */
+// What replaces the emails in a saved chat, so the model still sees that a read happened.
+const EMAILS_LEFT_OUT = JSON.stringify({ emails_not_kept: 'The emails read here were left out when this chat was saved. Read them again if they are needed.' });
+
+/**
+ * The model's messages with the text of every email it read left out, so a
+ * saved chat holds no copy of anyone's email. The answers to the student
+ * are kept; so is a refusal or an error, which holds no email.
+ */
+export function withoutEmails(messages = []) {
+  const reads = new Set();
+  return messages.map((m) => {
+    if (m?.role === 'assistant' && Array.isArray(m.content)) {
+      for (const b of m.content) if (b?.type === 'tool_use' && b.name === EMAIL_TOOL.name) reads.add(b.id);
+      return m;
+    }
+    if (m?.role !== 'user' || !Array.isArray(m.content)) return m;
+    if (!m.content.some((b) => b?.type === 'tool_result' && reads.has(b.tool_use_id))) return m;
+    return { ...m, content: m.content.map((b) => (b?.type === 'tool_result' && reads.has(b.tool_use_id) && !b.is_error ? { ...b, content: EMAILS_LEFT_OUT } : b)) };
+  });
+}
+
+/** What is written down: no undo snapshots, model messages for the open chat only, and no emails. */
 function storable(list, current, withMessages = true) {
   return list.slice(0, MAX_CHATS).map((c) => ({
     id: c.id, title: c.title, createdAt: c.createdAt, updatedAt: c.updatedAt, via: c.via || null,
     thread: c.thread.map(({ snapshot, ...m }) => (snapshot ? { ...m, undoable: false } : m)),
-    messages: withMessages && c.id === current ? (c.messages || []) : []
+    messages: withMessages && c.id === current ? withoutEmails(c.messages || []) : []
   }));
 }
 

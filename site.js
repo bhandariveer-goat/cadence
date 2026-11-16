@@ -36,7 +36,7 @@ const store = {
 
 // The date the public pages last changed. scripts/prelaunch_check.py fails if
 // this is older than the newest commit that touched them, so it cannot rot.
-const SITE_UPDATED = '2026-11-02';
+const SITE_UPDATED = '2026-11-15';
 
 const ICON = {
   search: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
@@ -72,7 +72,8 @@ function fillSite() {
   }
   // Sentences that are only true in some set-ups are written into the page
   // and switched here, so the page never claims something this copy lacks.
-  const facts = { cloud: cloudConfigured(), visits: !!site.countVisits, contact: !!site.contactEmail, reply: !!site.replyWithin };
+  const ai = String(CONFIG.assistant || '').toLowerCase();
+  const facts = { cloud: cloudConfigured(), visits: !!site.countVisits, usage: !!site.countUsage, counts: !!(site.countVisits || site.countUsage), 'visits-only': !!site.countVisits && !site.countUsage, contact: !!site.contactEmail, reply: !!site.replyWithin, groq: ai === 'groq', gemini: ai === 'gemini', claude: ai === 'claude' };
   for (const el of $$('[data-needs]')) {
     const [not, name] = el.dataset.needs.startsWith('no-') ? [true, el.dataset.needs.slice(3)] : [false, el.dataset.needs];
     if (name in facts) el.hidden = not ? facts[name] : !facts[name];

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" data-theme-default="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>Cadence panel preview</title>
+  <script src="/src/panel/theme.js"></script>
+  <link rel="stylesheet" href="/src/panel/panel.css">
+  <link rel="stylesheet" href="/src/panel/web.css">
+  <link rel="stylesheet" href="/src/panel/tour.css">
+</head>
+<body>
+  <div id="root"><div class="boot" role="status" aria-label="Loading Cadence"><span class="boot-mark"></span></div></div>
+  <!-- Test-only: the extension panel with stand-ins for Chrome's APIs, Gmail and the on-device model. Never shipped. -->
+  <script src="/scripts/fake_chrome.js"></script>
+  <script type="module" src="/scripts/panel_preview.js"></script>
+</body>
+</html>

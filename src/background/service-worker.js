@@ -7,6 +7,8 @@ import { loadState, saveState, update } from '../lib/store.js';
 import { MIN } from '../lib/util.js';
 import { runAll, applyResults, pushGoogle } from '../lib/sources/sources.js';
 import { recomputeState } from '../lib/replanner.js';
+import { CONFIG } from '../config.js';
+import { answerSite, siteOrigin, readSiteMessage } from '../lib/mailShare.js';
 
 const PREFIX = 'cadence:session:';
 const DAILY = 'cadence:daily';
@@ -37,12 +39,14 @@ async function armAutoSync() {
 async function autoSync() {
   const state = await loadState();
   if (!state.profile?.onboarded) return;
-  const enabled = Object.values(state.sources || {}).some((s) => s?.enabled);
+  // Events found in email are not a calendar: they are read by an open
+  // Cadence page, never here (lib/mailEvents.js).
+  const enabled = Object.entries(state.sources || {}).some(([id, s]) => id !== 'mail' && s?.enabled);
   if (!enabled) return;
   try {
-    const results = await runAll(state, {
-      saveGoogle: (t) => update((st) => { Object.assign(st.sources.google, t); return st; })
-    });
+    // No one is watching here, so Google is never asked to show its sign-in
+    // window: if the quiet renewal fails, the panel shows the error instead.
+    const results = await runAll(state, { interactive: false });
     const fresh = await loadState();
     applyResults(fresh, results);
     fresh.autoSync.lastRun = new Date().toISOString();
@@ -52,7 +56,7 @@ async function autoSync() {
     // Mirror opted-in blocks, if the student turned that on.
     if (fresh.sources?.google?.push) {
       try {
-        const push = await pushGoogle(fresh, { saveGoogle: (t) => update((st) => { Object.assign(st.sources.google, t); return st; }) });
+        const push = await pushGoogle(fresh, { interactive: false });
         if (push) await update((st) => {
           st.sources.google.pushed = push.map;
           st.sources.google.lastPush = new Date().toISOString();
@@ -83,9 +87,22 @@ chrome.action.onClicked.addListener(async (tab) => {
     try {
       await chrome.tabs.sendMessage(tab.id, { type: 'cadence:open' });
       return;
-    } catch { /* content script not present — fall through */ }
+    } catch { /* content script not present: fall through */ }
   }
   chrome.tabs.create({ url: chrome.runtime.getURL('src/panel/panel.html?standalone=1') });
+});
+
+// The Cadence website, open in this same browser, asking for the events found
+// in email (src/panel/mailbridge.js). Only that site can send these
+// (manifest.json externally_connectable), and the origin is checked again
+// here, with the message itself, before anything is read (lib/mailShare.js).
+// Anything else gets no answer at all.
+chrome.runtime.onMessageExternal.addListener((msg, sender, respond) => {
+  const origin = siteOrigin(CONFIG.site?.domain);
+  if (!origin || sender?.origin !== origin || !readSiteMessage(msg)) return false;
+  answerSite(msg, sender, { origin, version: chrome.runtime.getManifest().version, loadState, update, recompute: recomputeState })
+    .then((reply) => respond(reply || { ok: false }), () => respond({ ok: false }));
+  return true;                                  // the answer comes later
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, respond) => {

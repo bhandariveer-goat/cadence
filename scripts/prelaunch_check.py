@@ -247,6 +247,16 @@ check('Visit counting is off, or everything it needs is in place',
 check('The privacy page has both wordings for visit counting',
       'data-needs="no-visits"' in read('privacy.html') and 'data-needs="visits"' in read('privacy.html'))
 
+# The same for anonymous usage counts (src/lib/metrics.js): either off, or the
+# function, the table and a database to write to are all there; and the pages
+# have the wording for both cases.
+usage_counting = bool(re.search(r'countUsage:\s*true', config))
+check('Usage counting is off, or everything it needs is in place',
+      not usage_counting or (cloud_set and (ROOT / 'netlify/functions/metric.mjs').is_file() and all(f in read('supabase/schema.sql') for f in ('record_usage', 'forget_usage', 'record_events', 'count_steps'))),
+      'site.countUsage is true but the Supabase project, netlify/functions/metric.mjs or the usage functions in supabase/schema.sql are missing')
+check('The privacy page and the homepage have the wording for usage counting, on and off',
+      all('data-needs="usage"' in read(f) and 'data-needs="no-counts"' in read(f) for f in ('privacy.html', 'index.html')))
+
 # ------------------------------------------------- being found and shared
 try:
     stamped, cfg = stamp_pages.build()
@@ -537,12 +547,16 @@ no_policy = sorted({f'{method} {table}' for table, call in calls_to_the_database
 check('Every request the app makes has a policy that lets it change or see rows', not no_policy, '; '.join(no_policy[:5]))
 check('Every request the app makes is one the database grants', not refused and any(True for _ in calls_to_the_database(app_js)), '; '.join(refused[:5]))
 check('Every request that reads two tables says which link joins them', not unclear, '; '.join(unclear[:5]))
-hidden_tables = {'agent_usage', 'visit_counts'}
+hidden_tables = {'agent_usage', 'visit_counts', 'usage_events', 'ux_events', 'ux_quota', 'funnel_counts', 'owners'}
 exposed = sorted(t for t in hidden_tables if t in granted)
-check('The two counting tables are granted to nobody', not exposed and hidden_tables <= tables, ', '.join(exposed))
+check('The counting tables are granted to nobody', not exposed and hidden_tables <= tables, ', '.join(exposed))
 to_anyone = [' '.join(g.split()) for g in re.findall(r'grant [^;]*\bto\b[^;]*\banon\b[^;]*;', schema)]
-ALLOWED_TO_ANYONE = {'grant usage on schema public to anon, authenticated;', 'grant execute on function count_visit(text, text, text) to anon, authenticated;'}
-check('Nothing in the database is granted to people who are not signed in, except the visit counter',
+ALLOWED_TO_ANYONE = {'grant usage on schema public to anon, authenticated;', 'grant execute on function count_visit(text, text, text) to anon, authenticated;',
+                     # The usage counts (lib/metrics.js): record one word for a random ID, or forget that ID's rows.
+                     'grant execute on function record_usage(uuid, text), forget_usage(uuid) to anon, authenticated;',
+                     # How the app is used, and the sign-up screen's daily numbers (src/panel/insight.js).
+                     'grant execute on function record_events(uuid, uuid, jsonb), count_steps(text[]) to anon, authenticated;'}
+check('Nothing in the database is granted to people who are not signed in, except the visit counter and the usage counts',
       set(to_anyone) == ALLOWED_TO_ANYONE, '; '.join(g for g in to_anyone if g not in ALLOWED_TO_ANYONE))
 uncalled = sorted(f for f in called if f not in functions or f not in runnable)
 check('Every database function the app calls exists and may be run', not uncalled, ', '.join(uncalled))
@@ -576,19 +590,32 @@ for fn in ('netlify/functions/agent.mjs', 'netlify/functions/visit.mjs'):
 # Google's products.
 agent_fn = read('netlify/functions/agent.mjs')
 privacy_text = read('privacy.html')
-says_who = {
-    'Google': 'generativelanguage.googleapis.com' in read('src/lib/gemini.js'),
-    'Anthropic': 'api.anthropic.com' in read('src/lib/agentspec.js'),
+# The site's own assistant is the company named in src/config.js; the privacy
+# page must name it where a reader sees it (the other set-ups' wording waits in
+# HTML comments), with a row in its table of companies. A student's own key
+# always goes to Anthropic, so Anthropic is always named too.
+visible_privacy = re.sub(r'<!--.*?-->', '', privacy_text, flags=re.S)
+site_ai = stamp_pages.js_string(config, 'assistant').lower()
+AI_COMPANY = {   # set-up -> (company, the sentence that names it)
+    'groq': ('Groq', 'goes to Groq, a company that runs AI models'),
+    'gemini': ('Google', 'goes to Gemini, an AI model made by Google'),
+    'claude': ('Anthropic', 'goes to Claude, an AI model made by Anthropic'),
 }
-model_of = {'Google': 'Gemini', 'Anthropic': 'Claude'}
-unnamed = [who for who, used in says_who.items() if used and not (
-    f'{model_of[who]}, an AI model made by {who}' in privacy_text
-    and re.search(rf'<tr><td>{who}</td><td>[^<]*\bassistant\b', privacy_text, re.I))]
-check('The privacy page names both companies the assistant can send messages to', not unnamed,
+check("src/config.js names the site's assistant: groq, gemini or claude", site_ai in AI_COMPANY, f'assistant is "{site_ai}"')
+named = ([AI_COMPANY[site_ai]] if site_ai in AI_COMPANY else []) + [('Anthropic', 'Claude, an AI model made by Anthropic')]
+unnamed = [company for company, sentence in named if not (
+    sentence in visible_privacy and re.search(rf'<tr[^>]*><td>{company}</td><td>[^<]*\bassistant\b', visible_privacy, re.I))]
+check("The privacy page names the company behind the site's assistant, and Anthropic for a student's own key", not unnamed,
       'missing the sentence or the row in the table of companies for: ' + ', '.join(unnamed))
-check('The Gemini assistant stays off until the plan is chosen and the privacy page says what that means',
-      "process.env.GEMINI_TIER" in agent_fn and re.search(r"gemini \? \(tier === 'free' \|\| tier === 'paid' \? 'gemini' : null\)", agent_fn) is not None
+providers_src = read('src/lib/providers.js')
+check('The server uses only the assistant named in src/config.js',
+      "import { CONFIG } from '../../src/config.js';" in agent_fn and 'pickProvider(CONFIG.assistant' in agent_fn)
+check('Gemini runs only once its plan is chosen, and the privacy page says what the free plan means',
+      'process.env.GEMINI_TIER' in agent_fn and "keys.gemini && (plan === 'free' || plan === 'paid') ? 'gemini' : null" in providers_src
       and 'may read it' in privacy_text)
+check('Groq runs only once its zero data retention setting is confirmed, and the privacy page says Groq keeps nothing',
+      'process.env.GROQ_RETENTION' in agent_fn and "keys.groq && kept === 'zero' ? 'groq' : null" in providers_src
+      and "Cadence keeps Groq's zero data retention setting on" in privacy_text)
 
 # ------------------------------------------------- what the pages promise
 # scripts/claims_check.py ties each sentence about privacy to the code that
@@ -597,13 +624,17 @@ claim_rows, claim_failures = claims_check.run()
 for cid, cname, _says, _shows in claim_rows:
     why = [f.split(': ', 1)[1] for f in claim_failures if f.startswith(cid + ':')]
     check(f'The code keeps this promise: {cname}', not why, '; '.join(why))
+# And the rules about email the code keeps whatever the pages say.
+for rid, rname, _proofs in claims_check.INVARIANTS:
+    why = [f.split(': ', 1)[1] for f in claim_failures if f.startswith(rid + ':')]
+    check(f'The code keeps this rule about email: {rname}', not why, '; '.join(why))
 lock_ok, lock_detail = claims_check.lock_status()
 check('What Cadence collects matches what the privacy page was last reviewed against', lock_ok, lock_detail)
 check('CLAIMS.md (promise to code table) is up to date', read('CLAIMS.md') == claims_check.markdown(claim_rows),
       'run: python3 scripts/claims_check.py --markdown')
 
 # ------------------------------------------------------------------ secrets
-secret = re.compile(r'sk-ant-[A-Za-z0-9_-]{8,}|(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|service_role|sb_secret_[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]*|AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{30,}|GOCSPX-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY')
+secret = re.compile(r'gsk_[A-Za-z0-9]{20,}|sk-ant-[A-Za-z0-9_-]{8,}|(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|service_role|sb_secret_[A-Za-z0-9_-]{8,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]*|AIza[0-9A-Za-z_-]{20,}|AQ\.[0-9A-Za-z_-]{30,}|GOCSPX-[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY')
 leaks = []
 for p in list(ROOT.rglob('*')):
     if not p.is_file() or '.git' in p.parts or p.suffix in ('.png', '.ico', '.zip') or p.name == 'prelaunch_check.py':

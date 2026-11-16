@@ -29,6 +29,35 @@ export const CONFIG = {
   // needs the full https:// address of the deployed site here.
   agentEndpoint: '/api/agent',
 
+  // Which company's AI answers on the site's server, for students without a
+  // key of their own: 'groq', 'gemini' or 'claude'. The server function uses
+  // this one and no other, and only once its key is set in Netlify (LAUNCH.md,
+  // step 4). The privacy page names the same company from this setting, so
+  // after changing it run python3 scripts/stamp_pages.py.
+  assistant: 'gemini',
+
+  // The Google OAuth client ID that Google Calendar and Gmail sign in with: a
+  // "Web application" client in Cadence's Google Cloud project, whose
+  // authorized redirect is https://<extension id>.chromiumapp.org/google for
+  // the published extension (docs/GOOGLE_VERIFICATION.md, step 2). Public by
+  // design, like the Supabase publishable key: it names the app to Google and
+  // only that redirect can use it. While it is empty, Cadence asks whoever
+  // connects for an ID of their own, which suits a copy someone runs themselves.
+  googleClientId: '659538769348-0c9lvldu27lq5bopm3oht6or86ee12vb.apps.googleusercontent.com',
+
+  // Whether the assistant may read email itself (its read_email tool). Off:
+  // true only after Google's verification covers sending email to an AI
+  // company. With it off, email is read only on the student's computer, by
+  // the extension, to find events (lib/mailEvents.js), and nothing from email
+  // reaches the assistant's AI company.
+  emailToAssistant: false,
+
+  // The published Chrome extension's ID, from the Chrome Web Store. The
+  // website asks the extension in the same browser for the events it found in
+  // email (src/panel/mailbridge.js). Empty: the website does not ask. An
+  // unpacked copy has a different ID on every computer.
+  extensionId: 'famiefaacigiakfkdaogbmmgcjgpgjen',
+
   // Shown on the privacy policy and terms pages. Fill these in before launch;
   // the pages say so plainly while they are empty.
   //
@@ -54,7 +83,16 @@ export const CONFIG = {
     // turn it on, because the privacy page says "no tracking" while it is off
     // and changes its wording by itself when it is on. Needs the Supabase
     // project and the two SUPABASE_ variables on the server (see LAUNCH.md).
-    countVisits: false
+    countVisits: false,
+    // Anonymous counts of use: a random ID, a daily "active" word and four
+    // yes/no milestones, so you can see whether people come back and whether
+    // they get as far as having work in a plan. No names, emails, plans,
+    // titles, times or anything from email, and the person can turn it off in
+    // Account (src/lib/metrics.js). Needs the database changes in
+    // supabase/schema.sql applied first, and the two SUPABASE_ variables on the
+    // server (LAUNCH.md). The privacy page and the homepage change their
+    // wording by themselves when this is on: run python3 scripts/stamp_pages.py.
+    countUsage: true
   }
 };
 

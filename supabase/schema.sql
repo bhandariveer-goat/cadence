@@ -762,6 +762,313 @@ begin
 end $$;
 
 
+-- ------------------------------------------------------------- usage counts
+-- Anonymous counts of use, so the person who runs Cadence can see whether
+-- people come back and whether they get as far as having work in a plan. Only
+-- when site.countUsage is true in src/config.js (see lib/metrics.js).
+--
+-- A row is: a random ID made by one browser, a day, and one of a few words
+-- (active, onboarded, has_work, checked_in, connected). The ID is not the
+-- account, the name, the email or anything else, and is made again if the
+-- person turns usage counts off. No IP address, cookie, page, title or message
+-- is ever kept, and nothing comes from email. The day is the server's, not the
+-- browser's. Rows older than 400 days are deleted.
+--
+-- Anyone can send these, so the numbers are estimates, not a meter. What stops
+-- abuse is that a request can only add one of five words for one ID for one
+-- day, and that the table is capped per day.
+
+create table if not exists usage_events (
+  install_id uuid not null,
+  day date not null default current_date,
+  event text not null check (event in ('active', 'onboarded', 'has_work', 'checked_in', 'connected')),
+  primary key (install_id, day, event)
+);
+create index if not exists usage_events_day_event on usage_events (day, event);
+
+alter table usage_events enable row level security;
+
+create or replace function record_usage(p_id uuid, p_event text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_id is null then raise exception 'no id'; end if;
+  if p_event not in ('active', 'onboarded', 'has_work', 'checked_in', 'connected') then raise exception 'bad event'; end if;
+
+  delete from usage_events where day < current_date - 400;
+
+  -- A milestone is counted once per ID, on the first day it is seen.
+  if p_event <> 'active' and exists (select 1 from usage_events u where u.install_id = p_id and u.event = p_event) then return; end if;
+  -- A day's rows are capped, so a flood of made-up IDs cannot fill the table.
+  if (select count(*) from usage_events u where u.day = current_date) >= 50000 then return; end if;
+
+  insert into usage_events (install_id, day, event) values (p_id, current_date, p_event) on conflict do nothing;
+end $$;
+
+-- Someone who turns usage counts off, or deletes their data, takes their rows
+-- with them. The ID is a random secret held by their browser, so knowing it is
+-- the permission.
+create or replace function forget_usage(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_id is null then raise exception 'no id'; end if;
+  delete from usage_events where install_id = p_id;
+  delete from ux_events where install_id = p_id;
+  delete from ux_quota where install_id = p_id;
+end $$;
+
+
+-- ------------------------------------------------------ how the app is used
+-- With the same random ID as the counts above, and only after the same
+-- agreement: which screen is open and for how long it is used, which control
+-- is pressed (by its name in Cadence's code, never what was typed or where on
+-- the screen), presses on things that are not controls, quick repeated
+-- presses, how far setup and the tour get, errors (their kind and the place in
+-- Cadence's code), and how long Cadence's own requests take. See
+-- src/panel/insight.js, which decides what is recorded, and lib/metrics.js,
+-- which sends it.
+--
+-- A row is: the random ID, a random ID for the visit (new each time the app is
+-- opened), its order in the visit, the server's time, a kind from a fixed
+-- list, a name made of code characters only, the screen it happened on, and a
+-- number (milliseconds, a count, or a step). Rows older than 180 days are
+-- deleted. Nothing from email: Cadence's email screens are never recorded.
+
+create table if not exists ux_events (
+  install_id uuid not null,
+  session_id uuid not null,
+  seq integer not null check (seq between 0 and 100000),
+  at timestamptz not null default now(),
+  kind text not null check (kind in ('screen', 'click', 'dead_click', 'rage_click', 'step', 'error', 'timing', 'session', 'milestone')),
+  name text not null check (name ~ '^[a-z0-9][a-z0-9_.:-]{0,79}$'),
+  screen text check (screen is null or screen ~ '^[a-z0-9][a-z0-9_.:-]{0,79}$'),
+  value integer check (value is null or value between 0 and 2000000000),
+  primary key (install_id, session_id, seq)
+);
+create index if not exists ux_events_at on ux_events (at);
+create index if not exists ux_events_kind_name on ux_events (kind, name);
+
+-- How many rows each ID, and everyone together (the all-zero ID), has added
+-- today, so one browser, or a flood of made-up IDs, cannot fill the table.
+create table if not exists ux_quota (
+  day date not null default current_date,
+  install_id uuid not null,
+  n integer not null default 0,
+  primary key (day, install_id)
+);
+
+alter table ux_events enable row level security;
+alter table ux_quota enable row level security;
+
+-- Adds up to 50 records for one ID and one visit. A record that is not one of
+-- the shapes above is dropped and the rest are kept.
+create or replace function record_events(p_id uuid, p_session uuid, p_events jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  e jsonb;
+  everyone constant uuid := '00000000-0000-0000-0000-000000000000';
+  mine integer; total integer; room integer; added integer := 0; got integer;
+begin
+  if p_id is null or p_session is null or p_id = everyone then raise exception 'no id'; end if;
+  if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) > 50 then raise exception 'bad batch'; end if;
+
+  delete from ux_events where at < now() - interval '180 days';
+  delete from ux_quota where day < current_date - 2;
+
+  select coalesce((select n from ux_quota where day = current_date and install_id = p_id), 0) into mine;
+  select coalesce((select n from ux_quota where day = current_date and install_id = everyone), 0) into total;
+  room := least(3000 - mine, 1000000 - total);
+  if room <= 0 then return; end if;
+
+  for e in select value from jsonb_array_elements(p_events) loop
+    exit when added >= room;
+    if jsonb_typeof(e) is distinct from 'object' then continue; end if;
+    begin
+      insert into ux_events (install_id, session_id, seq, kind, name, screen, value)
+      values (p_id, p_session, (e->>'q')::integer, e->>'k', e->>'n', nullif(e->>'s', ''), (e->>'v')::integer)
+      on conflict do nothing;
+      get diagnostics got = row_count;
+      added := added + got;
+    exception when others then null;
+    end;
+  end loop;
+
+  if added > 0 then
+    insert into ux_quota as q (day, install_id, n) values (current_date, p_id, added), (current_date, everyone, added)
+    on conflict (day, install_id) do update set n = q.n + excluded.n;
+  end if;
+end $$;
+
+
+-- --------------------------------------------------- the sign-up screen
+-- Before anyone has agreed to anything, so with no ID of any kind: how many
+-- times a day the sign-up screen was shown, typed in, sent, and got someone
+-- in. A row is a day, one of those four names, and a number. Kept 400 days.
+
+create table if not exists funnel_counts (
+  day date not null default current_date,
+  name text not null check (name in ('signin:shown', 'signin:started', 'signin:submitted', 'signin:done')),
+  count integer not null default 0,
+  primary key (day, name)
+);
+alter table funnel_counts enable row level security;
+
+create or replace function count_steps(p_names text[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare s text;
+begin
+  if p_names is null or coalesce(array_length(p_names, 1), 0) not between 1 and 4 then raise exception 'bad steps'; end if;
+  delete from funnel_counts where day < current_date - 400;
+  foreach s in array p_names loop
+    if s is null or s not in ('signin:shown', 'signin:started', 'signin:submitted', 'signin:done') then raise exception 'bad step'; end if;
+    insert into funnel_counts as f (day, name, count) values (current_date, s, 1)
+    on conflict (day, name) do update set count = f.count + 1 where f.count < 1000000;
+  end loop;
+end $$;
+
+
+-- ---------------------------------------------------- reading it: the owner
+-- The records above can be read by no one with the public key. The person who
+-- runs Cadence reads them as totals through insights(), which the Insights
+-- page in the app calls (src/panel/views/insights.js). It answers only for an
+-- account listed in owners, and only with counts, medians and names made of
+-- code characters, never a row of one browser's activity. To add yourself,
+-- sign in to Cadence with your email once, then in the SQL editor:
+--
+--   insert into owners select id from auth.users where email = 'you@example.com';
+--
+-- The table is granted to nobody and has no policy, so it can be changed only
+-- there.
+
+create table if not exists owners (
+  user_id uuid primary key references auth.users on delete cascade
+);
+alter table owners enable row level security;
+
+create or replace function insights(p_days integer default 30) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  d integer := least(greatest(coalesce(p_days, 30), 1), 180);
+  since timestamptz;
+begin
+  if auth.uid() is null or not exists (select 1 from owners where user_id = auth.uid()) then
+    raise exception 'not allowed';
+  end if;
+  since := now() - make_interval(days => d);
+
+  return jsonb_build_object(
+    'days', d,
+
+    'overview', (select to_jsonb(q) from (
+      select count(distinct install_id) as installs,
+        count(distinct install_id) filter (where day = current_date) as active_today,
+        count(distinct install_id) filter (where day >= current_date - 6) as active_7_days,
+        count(distinct install_id) filter (where day >= current_date - 29) as active_30_days
+      from usage_events where event = 'active') q),
+
+    'daily', (select coalesce(jsonb_agg(to_jsonb(q) order by q.day), '[]'::jsonb) from (
+      select g.day::date as day,
+        (select count(distinct u.install_id) from usage_events u where u.event = 'active' and u.day = g.day::date) as active
+      from generate_series(current_date - (d - 1), current_date, interval '1 day') g(day)) q),
+
+    'retention', (select coalesce(jsonb_agg(to_jsonb(q) order by q.after_days), '[]'::jsonb) from (
+      with first_seen as (select install_id, min(day) as d0 from usage_events where event = 'active' group by install_id)
+      select n.after_days,
+        count(*) filter (where f.d0 <= current_date - n.after_days) as installs,
+        count(*) filter (where f.d0 <= current_date - n.after_days and exists (
+          select 1 from usage_events a where a.install_id = f.install_id and a.event = 'active' and a.day = f.d0 + n.after_days)) as came_back
+      from first_seen f cross join (values (1), (7), (30)) n(after_days)
+      group by n.after_days) q),
+
+    'signup', (select coalesce(jsonb_agg(to_jsonb(q) order by q.step_order), '[]'::jsonb) from (
+      select name, sum(count)::integer as times,
+        case name when 'signin:shown' then 1 when 'signin:started' then 2 when 'signin:submitted' then 3 else 4 end as step_order
+      from funnel_counts where day >= current_date - (d - 1) group by name) q),
+
+    'setup', (select coalesce(jsonb_agg(to_jsonb(q) order by q.installs desc, q.name), '[]'::jsonb) from (
+      select name, count(distinct install_id)::integer as installs
+      from ux_events where kind = 'step' and name like 'setup:%' and at >= since group by name) q),
+
+    'setup_time', (select to_jsonb(q) from (
+      select count(*)::integer as finished,
+        round(percentile_cont(0.5) within group (order by value)::numeric, 0) as median_seconds,
+        round(percentile_cont(0.9) within group (order by value)::numeric, 0) as slowest_tenth_seconds
+      from ux_events where kind = 'step' and name = 'setup:done' and at >= since) q),
+
+    'tour', (select to_jsonb(q) from (
+      select count(distinct install_id) filter (where name = 'tour:shown')::integer as shown,
+        count(distinct install_id) filter (where name = 'tour:done')::integer as finished,
+        count(distinct install_id) filter (where name = 'tour:skip')::integer as skipped
+      from ux_events where kind = 'step' and name like 'tour:%' and at >= since) q),
+
+    'tour_skips', (select coalesce(jsonb_agg(to_jsonb(q) order by q.stop), '[]'::jsonb) from (
+      select (value + 1)::integer as stop, count(*)::integer as times
+      from ux_events where kind = 'step' and name = 'tour:skip' and value is not null and at >= since group by value) q),
+
+    'screens', (select coalesce(jsonb_agg(to_jsonb(q) order by q.total_minutes desc), '[]'::jsonb) from (
+      select name as screen,
+        round(sum(value) / 60000.0, 1) as total_minutes,
+        count(*)::integer as stays,
+        round((percentile_cont(0.5) within group (order by value) / 1000.0)::numeric, 0) as median_stay_seconds,
+        count(distinct install_id)::integer as installs
+      from ux_events where kind = 'screen' and value is not null and at >= since group by name order by sum(value) desc limit 20) q),
+
+    'most_pressed', (select coalesce(jsonb_agg(to_jsonb(q) order by q.presses desc, q.control), '[]'::jsonb) from (
+      select name as control, count(*)::integer as presses, count(distinct install_id)::integer as installs
+      from ux_events where kind = 'click' and at >= since group by name order by count(*) desc, name limit 15) q),
+
+    'least_pressed', (select coalesce(jsonb_agg(to_jsonb(q) order by q.presses, q.control), '[]'::jsonb) from (
+      select name as control, count(*)::integer as presses, count(distinct install_id)::integer as installs
+      from ux_events where kind = 'click' and at >= since group by name order by count(*), name limit 10) q),
+
+    'dead_clicks', (select coalesce(jsonb_agg(to_jsonb(q) order by q.presses desc, q.pressed_on), '[]'::jsonb) from (
+      select coalesce(screen, 'none') as screen, name as pressed_on, count(*)::integer as presses, count(distinct install_id)::integer as installs
+      from ux_events where kind = 'dead_click' and at >= since group by screen, name order by count(*) desc, name limit 10) q),
+
+    'rage_clicks', (select coalesce(jsonb_agg(to_jsonb(q) order by q.bursts desc, q.control), '[]'::jsonb) from (
+      select coalesce(screen, 'none') as screen, name as control, count(*)::integer as bursts, count(distinct install_id)::integer as installs
+      from ux_events where kind = 'rage_click' and at >= since group by screen, name order by count(*) desc, name limit 10) q),
+
+    'errors', (select coalesce(jsonb_agg(to_jsonb(q) order by q.times desc, q.error), '[]'::jsonb) from (
+      with first_seen as (select install_id, min(at) as t0 from ux_events group by install_id)
+      select e.name as error, count(*)::integer as times,
+        count(*) filter (where e.at < f.t0 + interval '5 minutes')::integer as in_first_5_minutes,
+        count(distinct e.install_id)::integer as installs
+      from ux_events e join first_seen f using (install_id)
+      where e.kind = 'error' and e.at >= since group by e.name order by count(*) desc, e.name limit 10) q),
+
+    'early_errors', (select to_jsonb(q) from (
+      with first_seen as (select install_id, min(at) as t0 from ux_events group by install_id having min(at) >= since)
+      select count(*)::integer as new_installs,
+        count(*) filter (where exists (select 1 from ux_events e where e.install_id = f.install_id and e.kind = 'error' and e.at < f.t0 + interval '5 minutes'))::integer as with_error
+      from first_seen f) q),
+
+    'speed', (select coalesce(jsonb_agg(to_jsonb(q) order by q.times desc, q.what), '[]'::jsonb) from (
+      select name as what, count(*)::integer as times,
+        round(percentile_cont(0.5) within group (order by value)::numeric, 0) as median_ms,
+        round(percentile_cont(0.9) within group (order by value)::numeric, 0) as slowest_tenth_ms
+      from ux_events where kind = 'timing' and value is not null and at >= since group by name order by count(*) desc, name limit 15) q),
+
+    'value', (select coalesce(jsonb_agg(to_jsonb(q) order by q.installs desc, q.milestone), '[]'::jsonb) from (
+      select name as milestone, count(*)::integer as installs,
+        round((percentile_cont(0.5) within group (order by value) / 60.0)::numeric, 1) as median_minutes
+      from ux_events where kind = 'milestone' and value is not null and at >= since group by name) q),
+
+    'visits', (select to_jsonb(q) from (
+      select count(*)::integer as visits, count(distinct install_id)::integer as installs,
+        round((percentile_cont(0.5) within group (order by value) / 60000.0)::numeric, 1) as median_minutes
+      from ux_events where kind = 'session' and name = 'end' and value is not null and at >= since) q),
+
+    'stops', (select coalesce(jsonb_agg(to_jsonb(q) order by q.installs desc, q.last_screen), '[]'::jsonb) from (
+      with last_seen as (
+        select distinct on (install_id) install_id, screen, kind, name, at
+        from ux_events order by install_id, at desc, seq desc)
+      select coalesce(screen, 'none') as last_screen, kind || ':' || name as last_thing, count(*)::integer as installs
+      from last_seen where at < now() - interval '7 days' and at >= now() - interval '90 days'
+      group by 1, 2 order by count(*) desc, 1 limit 10) q)
+  );
+end $$;
+
+
 -- --------------------------------------------------------- delete my account
 -- Removes the sign-in itself; every table above references auth.users or
 -- profiles with "on delete cascade", so the plan, check-ins, kudos, nudges and
@@ -801,7 +1108,7 @@ grant usage on schema public to anon, authenticated;
 -- tables were made (many projects grant every new table to everyone and
 -- leave the rest to the policies). Nothing at all is for someone not signed in.
 revoke all on profiles, partnerships, invites, clubs, club_members, checkins, kudos, nudges, club_posts,
-  planner_state, agent_usage, agent_usage_total, agent_usage_tickets, join_attempts, visit_counts, partner_overview from anon, authenticated;
+  planner_state, agent_usage, agent_usage_total, agent_usage_tickets, join_attempts, visit_counts, usage_events, ux_events, ux_quota, funnel_counts, owners, partner_overview from anon, authenticated;
 
 -- Signed in: the tables the app reads and writes, and only in the ways it does.
 grant select, insert, update on profiles to authenticated;
@@ -824,8 +1131,9 @@ grant insert (club_id, text) on club_posts to authenticated;
 grant select, insert, update, delete on planner_state to authenticated;
 grant select on partner_overview to authenticated;
 
--- agent_usage (and its totals and tickets), join_attempts and visit_counts
--- are granted to nobody. They are reached only
+-- agent_usage (and its totals and tickets), join_attempts, visit_counts and
+-- the usage tables (usage_events, ux_events, ux_quota, funnel_counts) and
+-- owners are granted to nobody. They are reached only
 -- through their functions, which run with the database owner's rights, and
 -- read by the project's owner in the dashboard.
 
@@ -834,18 +1142,21 @@ grant select on partner_overview to authenticated;
 revoke execute on function
   my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid), leave_club(uuid),
   club_members_progress(uuid, timestamptz), my_club_overview(timestamptz),
-  bump_agent_usage(boolean), refund_agent_usage(uuid), delete_my_account(), count_visit(text, text, text), handle_new_user(), club_sessions(jsonb),
+  bump_agent_usage(boolean), refund_agent_usage(uuid), delete_my_account(), count_visit(text, text, text), record_usage(uuid, text), forget_usage(uuid), record_events(uuid, uuid, jsonb), count_steps(text[]), insights(integer), handle_new_user(), club_sessions(jsonb),
   limit_per_day(), anonymous_account()
   from public, anon, authenticated;
 
 grant execute on function
   my_club_ids(), is_connected(uuid), accept_invite(text), create_club(text, text, jsonb), join_club(text), rotate_club_code(uuid), leave_club(uuid),
   club_members_progress(uuid, timestamptz), my_club_overview(timestamptz),
-  bump_agent_usage(boolean), refund_agent_usage(uuid), delete_my_account(), anonymous_account()
+  bump_agent_usage(boolean), refund_agent_usage(uuid), delete_my_account(), anonymous_account(), insights(integer)
   to authenticated;
 
--- The visit counter is the one thing a visitor without an account can call.
+-- The visit counter and the usage counts are the only things a visitor without
+-- an account can call.
 grant execute on function count_visit(text, text, text) to anon, authenticated;
+grant execute on function record_usage(uuid, text), forget_usage(uuid) to anon, authenticated;
+grant execute on function record_events(uuid, uuid, jsonb), count_steps(text[]) to anon, authenticated;
 
 -- Tell the API to look again, so the grants and functions above are in
 -- effect straight away.

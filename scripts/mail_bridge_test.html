@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Email events: website bridge tests</title>
+  <style>body { font: 14px/1.5 system-ui, sans-serif; margin: 16px; background: #fff; color: #111; } pre { white-space: pre-wrap; }</style>
+</head>
+<body class="web">
+  <h1>Email events: website bridge tests</h1>
+  <p>The website asking a stand-in extension (the real lib/mailShare.js over in-memory storage). Test-only, never shipped.</p>
+  <pre id="out">Running...</pre>
+  <div id="toast" hidden></div>
+  <script src="/scripts/fake_site_chrome.js"></script>
+  <script type="module" src="/scripts/mail_bridge_test.js"></script>
+</body>
+</html>

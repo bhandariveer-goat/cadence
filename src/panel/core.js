@@ -3,10 +3,15 @@
 // and navigation. Views read `app` and call these; app.js wires up rendering.
 
 import { loadState, saveState, update, useBucket } from '../lib/store.js';
+import { POLICY_CHANGE } from '../lib/policy.js';
 import { learn } from '../lib/estimator.js';
 import { isStale } from '../lib/priority.js';
 import { recomputeState, allBusy as busyFromState, plannable as taskPlannable } from '../lib/replanner.js';
-import { runAll, applyResults, pushGoogle, SOURCE_META, sourceEvents } from '../lib/sources/sources.js';
+import { runAll, applyResults, pushGoogle, SOURCE_META, sourceEvents, isCalendar } from '../lib/sources/sources.js';
+import * as gmail from '../lib/sources/gmail.js';
+import { clientIdFor } from '../lib/sources/googleCalendar.js';
+import { noteUsage, forgetUsage, usageIsOn, usageConfigured } from '../lib/metrics.js';
+import { findEvents, applyFound, alreadyRead, leaseHeld, nanoState, deleteEvent, undoDelete, dateOrder } from '../lib/mailEvents.js';
 import * as canvas from '../lib/canvas.js';
 import * as ai from '../lib/ai.js';
 import { createSync } from '../lib/sync.js';
@@ -34,6 +39,7 @@ export const app = {
   S: null,
   view: 'today',
   stack: [],            // sub-screens opened from a tab, for Back
+  usageOn: null,        // whether anonymous usage counts are on for this browser (lib/metrics.js); null until read
   ctx: {},              // Canvas page context from the content script
   courses: [],
   syncing: false,
@@ -88,7 +94,7 @@ export function back() {
   render();
 }
 
-/** Which tab lights up — sub-screens belong to the tab they were opened from. */
+/** Which tab lights up: sub-screens belong to the tab they were opened from. */
 export const activeTab = () => (app.stack.length ? app.stack[0].view : app.view);
 
 // A new screen starts at its top.
@@ -231,7 +237,30 @@ export async function boot() {
   if (app.cloud?.signedIn) await syncDown();
   if (insideCanvas && app.S.profile.onboarded && shouldAutoSync()) syncCanvas({ quiet: true });
   if (app.S.profile.onboarded && sourcesStale()) refreshSources({ quiet: true });
+  if (app.S.profile.onboarded) watchMail();
+  startUsage();
+  // The website shows the events the extension in this browser found in email.
+  if (app.S.profile.onboarded && !DEMO && !inExtension() && CONFIG.extensionId) import('./mailbridge.js').then((b) => b.startMailBridge());
   if (app.sync.available && app.S.profile.onboarded) loadCrew();
+}
+
+// ------------------------------------------------------- anonymous usage counts
+
+let usageStarted = false;
+
+/**
+ * Anonymous counts of use (lib/metrics.js), when this copy has them switched
+ * on. The people who agreed to the privacy policy before it said so are shown
+ * what changed once, and are counted only after they have seen it. Counted:
+ * now, whenever the page is shown again, and after changes to the plan (which
+ * is when a milestone such as the first assignment becomes true).
+ */
+function startUsage() {
+  if (usageStarted || DEMO || !usageConfigured()) return;
+  usageStarted = true;
+  usageIsOn().then((on) => { app.usageOn = on; render(); });
+  import('./views/agent.js').then((m) => m.askPolicyNotice?.()).catch(() => {}).finally(() => noteUsage(app.S, { demo: DEMO }));
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') noteUsage(app.S, { demo: DEMO }); });
 }
 
 /** Crew (partners, clubs) rides on the same sign-in as everything else. */
@@ -295,9 +324,18 @@ export async function signInLocal(name) {
   await persist((st) => {
     st.account = { mode: 'local', id: null, email: '', name: clean, createdAt: new Date().toISOString() };
     st.profile.name = clean;
-    st.profile.consentedAt ||= consentStamp();
+    consentNow(st);
   }, { recalc: false });
   keepStorage();
+}
+
+/** Record agreeing to the terms and the privacy policy: when, and which
+    version of the policy, so a later change is announced (lib/policy.js).
+    Someone who agreed before keeps their date, and is told about the change. */
+function consentNow(st) {
+  if (st.profile.consentedAt) return;
+  st.profile.consentedAt = consentStamp();
+  if (st.profile.consentedAt) st.profile.policySeen = POLICY_CHANGE.date;
 }
 
 /** When the sign-in screen's "13 or older, I agree" box was ticked in this browser. */
@@ -401,7 +439,7 @@ async function finishCloudSignIn(name) {
     const known = st.account?.name || st.profile.name || '';
     st.account = { mode: 'cloud', id: user.id, email: user.email, name: String(name || known || '').trim(), createdAt: st.account?.createdAt || new Date().toISOString() };
     if (st.account.name) st.profile.name = st.account.name;
-    st.profile.consentedAt ||= consentStamp();
+    consentNow(st);
     st.cloud.pulledAt = new Date().toISOString();
     // Nothing syncs in either direction until the person has said which plan
     // to keep. The flag is saved, so closing the tab at this point cannot let
@@ -446,6 +484,8 @@ export async function signOut({ wipe = true, force = false } = {}) {
   if (wipe) {
     const { resetState } = await import('../lib/store.js');
     app.S = await saveState(await resetState());
+    gmail.drop();                         // the Gmail sign-in held in memory goes too
+    await forgetUsage();                  // and this browser's anonymous usage counts, here and on the server
     // What else this browser kept for the person: the hidden account the
     // assistant and calendar links use (deleted on the server after 30 days
     // without use), an invite not yet used, and the terms agreement.
@@ -509,10 +549,13 @@ function pushSoon(delay = 1500) {
 
 /** Replace what is here with the account's plan. Connections made on this device stay. */
 async function adoptRemote(remote) {
-  const account = app.S.account;
   const at = new Date(remote.editedAt).toISOString();
-  app.S = await saveState({ ...adopt(app.S, remote.data), account, editedAt: at });
-  app.S = await update((st) => {
+  // What belongs to this device (its calendars and the events found in email,
+  // the Gmail connection, keys, the account session) is taken from storage,
+  // not from this page's memory: another page may have changed it since this
+  // one loaded (a Disconnect, or an email event deleted on the website).
+  app.S = await update((local) => {
+    const st = { ...adopt(local, remote.data), account: local.account, editedAt: at };
     Object.assign(st.cloud, { pulledAt: new Date().toISOString(), seenAt: at, error: null, conflict: false });
     recompute(st);
     return st;
@@ -676,6 +719,9 @@ export async function persist(mutator, { recalc = true, edit = true } = {}) {
   // because pressing it now would undo this change as well.
   if (edit) document.dispatchEvent(new Event('cadence:edited'));
   app.S = await update((st) => { mutator(st); if (edit) st.editedAt = new Date().toISOString(); if (recalc) recompute(st); return st; });
+  // A student who has just finished setup starts being counted now, not at the next open.
+  if (!usageStarted && app.S.profile?.onboarded && signedIn()) startUsage();
+  else if (usageStarted) noteUsage(app.S, { demo: DEMO });
   updateBadge();
   render();
   if (edit) pushSoon();
@@ -688,7 +734,21 @@ export const undoTo = (snapshot) => ({ label: 'Undo', run: () => restore(snapsho
     keeping the current sync details so the account is not confused. */
 export async function restore(snapshot) {
   document.dispatchEvent(new Event('cadence:edited'));
-  app.S = await saveState({ ...snapshot, cloud: app.S.cloud, editedAt: new Date().toISOString() });
+  // The account session, the Gmail connection and the events found in email
+  // belong to this device, not to the plan: an Undo or an assistant reply never
+  // brings back an old one. Gmail's and the email events are read from
+  // storage, so a second open page cannot undo a Disconnect made in another,
+  // and an Undo cannot bring back an email event the student deleted.
+  const stored = await loadState();
+  const next = {
+    ...snapshot, cloud: app.S.cloud, gmail: stored.gmail,
+    sources: { ...snapshot.sources, mail: stored.sources?.mail || snapshot.sources?.mail },
+    editedAt: new Date().toISOString()
+  };
+  // The plan was made around the email events the snapshot had; when they
+  // have changed since, it is made again around the ones kept.
+  if (JSON.stringify(next.sources.mail?.events || []) !== JSON.stringify(snapshot.sources?.mail?.events || [])) recompute(next);
+  app.S = await saveState(next);
   updateBadge();
   render();
   pushSoon();
@@ -711,7 +771,7 @@ export const allBusy = (st = app.S) => busyFromState(st);
 // old, and due on a date (or added by the student, or picked to do first).
 export const plannable = (t, st = app.S) => taskPlannable(t, st);
 
-/** Estimates, ranking and the plan — homework, commitments and every calendar. */
+/** Estimates, ranking and the plan: homework, commitments and every calendar. */
 export function recompute(st = app.S) {
   return recomputeState(st);
 }
@@ -783,7 +843,8 @@ export function dayAgenda(k) {
   for (const b of external.filter((x) => x.source !== 'skip' && new Date(x.start) < end && new Date(x.end) > day)) {
     items.push({
       type: 'busy', at: +new Date(b.start), end: +new Date(b.end), title: b.title,
-      source: b.source, allDay: !!b.allDay, url: b.url || null, calendarName: b.calendarName || ''
+      source: b.source, allDay: !!b.allDay, url: b.url || null, calendarName: b.calendarName || '',
+      id: b.id || null, mail: b.mail || null
     });
   }
   for (const ci of (S.checkins || []).filter((x) => x.date === k)) {
@@ -935,7 +996,7 @@ export function learnedNotes() {
  * and the last good data stays on screen either way.
  */
 export async function refreshSources({ only = null, quiet = false } = {}) {
-  const enabled = Object.entries(app.S.sources || {}).filter(([id, s]) => s.enabled || id === only);
+  const enabled = Object.entries(app.S.sources || {}).filter(([id, s]) => isCalendar(id) && (s.enabled || id === only));
   if (!enabled.length) return null;
 
   app.sourcesSyncing = true;
@@ -943,9 +1004,10 @@ export async function refreshSources({ only = null, quiet = false } = {}) {
   const { toast } = await import('./ui.js');
   try {
     // Connected calendars belong to this device and are not part of what is
-    // saved to the account, so refreshing them is not an edit.
+    // saved to the account, so refreshing them is not an edit. A refresh that
+    // runs by itself (quiet) never opens Google's sign-in window.
     const results = await runAll(app.S, {
-      saveGoogle: (t) => persist((st) => { Object.assign(st.sources.google, t); }, { recalc: false, edit: false }),
+      interactive: !quiet,
       feedFetch: feedFetch(),
       serverFetch: serverFetch()
     }, { only });
@@ -983,9 +1045,7 @@ export async function pushGoogleBlocks({ quiet = false } = {}) {
   if (!g?.enabled || !g.push) return null;
   const { toast } = await import('./ui.js');
   try {
-    const res = await pushGoogle(app.S, {
-      saveGoogle: (t) => persist((st) => { Object.assign(st.sources.google, t); }, { recalc: false, edit: false })
-    });
+    const res = await pushGoogle(app.S, { interactive: !quiet });
     if (!res) return null;
     await persist((st) => {
       st.sources.google.pushed = res.map;
@@ -1007,6 +1067,156 @@ export async function pushGoogleBlocks({ quiet = false } = {}) {
 }
 
 // True when automatic sync is on and the sources are due to be checked again.
+// ---------------------------------------------------------- email events
+//
+// With Gmail connected under Calendars and "Add events from email
+// automatically" on, the extension reads the recent inbox and adds the events
+// it finds (lib/mailEvents.js). It runs only while a Cadence page is open:
+// Google's sign-in is held in this page's memory, and Chrome's on-device AI
+// cannot run in the background worker. Nothing it reads or finds leaves this
+// browser. The website shows the same events by asking the extension
+// (mailbridge.js), and never reads email itself.
+
+const MAIL_EVERY = 30 * MIN;
+let mailTimer = null;
+
+/** Is this the extension (which has its own storage), rather than the website? */
+export const inExtension = () => typeof chrome !== 'undefined' && !!chrome?.storage?.local;
+
+/** Can this page read email for events: the extension, not the demo, signed in, Gmail connected and the switch on? */
+export const mailReady = (st = app.S) => !DEMO && gmail.available() && signedIn() && !!st?.gmail?.enabled && !!st?.sources?.mail?.enabled;
+
+/** Is a reading due: never tried, or last tried more than 30 minutes ago? */
+const mailDue = () => { const t = app.S?.sources?.mail?.lastTry; return !t || Date.now() - +new Date(t) > MAIL_EVERY; };
+
+/**
+ * Read the inbox now and then while this page is open: when it is shown, and
+ * every 30 minutes while it stays visible. Started once per page.
+ */
+export function watchMail() {
+  if (mailTimer || DEMO || !gmail.available()) return;
+  const tick = () => { if (document.visibilityState === 'visible' && mailReady() && mailDue()) refreshMail({ quiet: true }); };
+  mailTimer = setInterval(tick, MIN);
+  document.addEventListener('visibilitychange', tick);
+  window.addEventListener('pagehide', () => {
+    clearInterval(mailTimer);
+    mailTimer = null;
+    document.removeEventListener('visibilitychange', tick);
+  }, { once: true });
+  tick();
+}
+
+/**
+ * Read the inbox and fold in the events found. A quiet run (on its own) never
+ * opens Google's sign-in window and shows no message. One page reads at a
+ * time: each takes a lease in storage (sources.mail.scanStartedAt), and a page
+ * that finds a lease taken in the last few minutes leaves the reading to the
+ * page that holds it. Returns what changed, or null.
+ */
+export async function refreshMail({ quiet = true } = {}) {
+  if (!mailReady() || app.mailRunning) return null;
+  app.mailRunning = true;
+  render();
+  try {
+    const run = () => readMailNow({ quiet });
+    // Web Locks keep two of this extension's pages from even trying at once; the lease is what counts where locks are not shared.
+    return navigator.locks?.request
+      ? await navigator.locks.request('cadence-mail-scan', { ifAvailable: true }, (lock) => (lock ? run() : null))
+      : await run();
+  } finally {
+    app.mailRunning = false;
+    render();
+  }
+}
+
+/** The reading itself, once refreshMail() has made sure no other is running here. */
+async function readMailNow({ quiet }) {
+  const { toast, plural } = await import('./ui.js');
+  const now = new Date();
+  let claimed = false;
+  await persist((st) => {
+    const m = st.sources?.mail;
+    if (!m?.enabled || !st.gmail?.enabled || leaseHeld(m, now)) return;
+    m.scanStartedAt = now.toISOString();
+    claimed = true;
+  }, { recalc: false, edit: false });
+  if (!claimed) {
+    if (!quiet) toast('Cadence is already checking your email in another tab.');
+    return null;
+  }
+  const account = app.S.gmail.email;
+  const order = dateOrder();
+  try {
+    const clientId = clientIdFor(app.S.sources.google);
+    let token;
+    try {
+      if (!clientId) throw new Error('No client ID');
+      token = await gmail.freshToken(account, clientId, { interactive: !quiet });
+    } catch {
+      throw Object.assign(new Error('Gmail needs your approval again.'), { code: 401 });
+    }
+    const nano = (await nanoState()) === 'available';
+    const { messages } = await gmail.readInbox(token, { account, skip: alreadyRead(app.S.sources.mail, { nano }), now });
+    const found = await findEvents(messages, { now, engine: nano ? 'nano' : 'rules', order, school: app.S.school });
+    let merged = null;
+    await persist((st) => {
+      const m = st.sources?.mail;
+      if (!m) return;
+      // Disconnected, switched off, or connected to another address while
+      // reading: nothing read is kept.
+      if (!m.enabled || !st.gmail?.enabled || String(st.gmail.email || '').toLowerCase() !== String(account || '').toLowerCase()) { m.scanStartedAt = null; return; }
+      merged = applyFound(m, found, { now, order });
+    }, { edit: false });
+    if (!quiet) {
+      const added = merged ? merged.added + merged.replaced : 0;
+      toast(!merged ? 'Gmail was disconnected while Cadence was reading it, so nothing was added.'
+        : added ? `Found ${plural(added, 'event')} in your email`
+          : merged.removed ? `Removed ${plural(merged.removed, 'cancelled event')} from your calendar`
+            : 'No new events in your email');
+    }
+    return merged;
+  } catch (e) {
+    const message = mailProblem(e);
+    if (e?.code === 401 || e?.code === 403) gmail.drop();
+    await persist((st) => {
+      const m = st.sources?.mail;
+      if (!m) return;
+      m.scanStartedAt = null;
+      m.lastTry = now.toISOString();
+      m.error = message;
+    }, { recalc: false, edit: false });
+    if (!quiet) toast(message);
+    return null;
+  }
+}
+
+/** What went wrong, as the student should hear it. */
+function mailProblem(e) {
+  if (e?.code === 401 || e?.code === 403) return 'Gmail needs your approval again. Choose Check email now to give it.';
+  if (/could not be reached|took too long/i.test(String(e?.message || ''))) return 'Gmail could not be reached. Cadence will try again in a while.';
+  return 'Cadence could not read your email this time. It will try again in a while.';
+}
+
+/**
+ * Delete an event found in email, so it is not added again. On the website
+ * the extension owns these events, so the extension is asked to delete it
+ * (mailbridge.js). Returns the deleted event, or null.
+ */
+export async function deleteMailEvent(id) {
+  if (!inExtension()) return (await import('./mailbridge.js')).dismissInExtension(id);
+  let gone = null;
+  await persist((st) => { if (st.sources?.mail) gone = deleteEvent(st.sources.mail, id, new Date()); }, { edit: false });
+  return gone;
+}
+
+/** Take back the deletion of an email event, while that is still allowed. Returns {ok, why}. */
+export async function undoMailEvent(id) {
+  if (!inExtension()) return (await import('./mailbridge.js')).restoreInExtension(id);
+  let result = { ok: false, why: 'gone' };
+  await persist((st) => { if (st.sources?.mail) result = undoDelete(st.sources.mail, id, new Date(), { order: dateOrder() }); }, { edit: false });
+  return result;
+}
+
 export const sourcesStale = () => {
   const { enabled, everyMinutes, lastRun } = app.S.autoSync || {};
   if (!enabled) return false;

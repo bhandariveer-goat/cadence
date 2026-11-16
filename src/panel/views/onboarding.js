@@ -17,6 +17,7 @@ import { open as openSetup } from '../setup.js';
 import { scheduleLabel } from './parts.js';
 import { presetCommitment } from './commitments.js';
 import { interpret, applyOps } from '../../lib/agent.js';
+import { step, setupSeconds } from '../insight.js';
 
 const TILES = [
   { kind: 'practice', label: 'Music or art', sub: 'Instrument, voice, drawing', title: 'Instrument practice' },
@@ -39,6 +40,8 @@ function draft() {
 const steps = () => ['activities', 'school'];
 // The screen being shown.
 const stepName = () => steps()[Math.min(draft().step, steps().length - 1)];
+/** Which setup screen is showing, by its code name (for the usage data, src/panel/insight.js). */
+export const obStep = () => stepName();
 
 // The buttons at the bottom of each screen: back (when there is a screen
 // before) and next.
@@ -114,6 +117,7 @@ function calendarsRow() {
 /** Ends onboarding and opens Today, starting the first Canvas sync and
     loading the crew where those are available. */
 async function finish() {
+  step('setup:done', setupSeconds());
   app.ob = null;
   app.stack = [];
   app.view = 'today';
@@ -130,6 +134,9 @@ async function next() {
   const name = stepName();
   if (name === 'activities') {
     const said = o.said.trim();
+    // How the first screen was left: with activities picked or typed, or skipped.
+    step(o.picks.length || said ? 'setup:activities:next' : 'setup:activities:skip', o.picks.length);
+    if (said) step('setup:activities:typed');
     await persist((st) => {
       for (const kind of o.picks) {
         if (st.commitments.some((c) => c.kind === kind && !c.archived)) continue;
@@ -158,7 +165,7 @@ export const actions = {
   },
   'ob-next': () => next(),
   'ob-calendars': () => openSetup({ from: 'onboarding' }),
-  'ob-back': () => { const o = draft(); o.step = Math.max(0, o.step - 1); render(); }
+  'ob-back': () => { step('setup:back'); const o = draft(); o.step = Math.max(0, o.step - 1); render(); }
 };
 
 export const submitActions = {};

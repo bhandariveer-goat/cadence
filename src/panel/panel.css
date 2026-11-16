@@ -1164,3 +1164,34 @@ dialog.setup .lead { margin-top: var(--s2); color: var(--text-2); font-size: var
 .tabbar.gliding .tab[aria-current="page"] svg { background: none; }
 .tabbar.gliding .tab[aria-current="page"]::before { opacity: 0; }
 .tab svg, .tab span { position: relative; z-index: 1; }
+
+/* The exact words an event found in email came from (views/mail.js). */
+.mail-quote { margin: var(--s2) 0 0; padding: var(--s1) var(--s3); border-left: 3px solid var(--line); color: var(--text); font-size: var(--t-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ------------------------------------------------------------- insights
+   The owner's page (views/insights.js): plain bars and figures, one colour. */
+
+.ix-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); margin-bottom: var(--s4); }
+.ix-bar .seg { margin-bottom: 0; }
+.ix-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--s3); margin-bottom: var(--s6); }
+.ix-stats.flat { margin-bottom: 0; }
+.ix-stat { padding: var(--s3) var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.ix-stats.flat .ix-stat { border: 0; padding: 0; background: transparent; }
+.ix-big { font-size: var(--t-h2); font-weight: 650; line-height: 1.2; }
+.ix-section { margin-bottom: var(--s2); }
+.ix-lead { margin: 0 0 var(--s2); }
+.ix-bars { display: grid; gap: var(--s2); }
+.ix-row { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) minmax(0, 15rem); gap: var(--s3); align-items: center; font-size: var(--t-sm); }
+.ix-label { overflow-wrap: anywhere; }
+.ix-track { height: 10px; background: var(--surface-3); border-radius: var(--r-sm); overflow: hidden; }
+.ix-track i { display: block; height: 100%; background: var(--accent); border-radius: var(--r-sm); }
+.ix-num { color: var(--text-2); overflow-wrap: anywhere; }
+.ix-daily { display: block; width: 100%; height: auto; }
+.ix-col { fill: var(--accent); }
+.ix-axis { stroke: var(--line-strong); stroke-width: 1; }
+.ix-tick { fill: var(--muted); font-size: 11px; }
+.ix-foot { margin-top: var(--s4); }
+@media (max-width: 640px) {
+  .ix-row { grid-template-columns: minmax(0, 1fr) minmax(0, 7rem); row-gap: var(--s1); }
+  .ix-label { grid-column: 1 / -1; }
+}

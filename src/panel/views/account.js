@@ -10,9 +10,10 @@ import { app, persist, push, back, render, insideCanvas, DEMO, signOut, syncDown
 import { parseICS } from '../../lib/calendar.js';
 import { parseCanvasFeed, looksLikeCanvasIcs } from '../../lib/sources/canvasFeed.js';
 import { exportChats } from '../../lib/chats.js';
-import { applyImported } from '../../lib/sources/sources.js';
+import { applyImported, isCalendar } from '../../lib/sources/sources.js';
 import { aiAvailable } from '../../lib/ai.js';
 import { cloudConfigured } from '../../config.js';
+import { usageConfigured, setUsage, noteUsage } from '../../lib/metrics.js';
 import { showUpStreak } from '../../lib/habits.js';
 import { memoryOf, insights, planPrefs } from '../../lib/memory.js';
 import { portable } from '../../lib/cloud.js';
@@ -97,6 +98,9 @@ export function viewAccount() {
       ${IN_EXTENSION ? `<label class="integration toggle"><span class="ic">${svg(I.bell, 18)}</span>
         <span class="grow"><span class="t block">Reminders</span><small>A nudge before each block and check-in</small></span>
         <input type="checkbox" data-act="set-toggle" data-key="remindersEnabled" ${S.settings.remindersEnabled ? 'checked' : ''}><i></i></label>` : ''}
+      ${usageConfigured() && !DEMO ? `<label class="integration toggle"><span class="ic">${svg(I.chart, 18)}</span>
+        <span class="grow"><span class="t block">Anonymous usage data</span><small>A random ID with the screens you use, for how long, and what you press, so Cadence can be made easier to use. Never your name, what you type, your plan or email.</small></span>
+        <input type="checkbox" data-act="usage-toggle" ${app.usageOn === false ? '' : 'checked'}><i></i></label>` : ''}
       ${window.CadenceTheme ? row('theme-sheet', window.CadenceTheme.current() === 'dark' ? I.moon : I.sun, 'Appearance', themeLine()) : ''}
       ${row('role', I.swap, teacher ? 'Switch to student view' : 'Teacher and club leader tools', teacher ? 'Plan your own week' : 'Draft assignments by voice, run a club')}
     </div>
@@ -184,7 +188,7 @@ function memorySummary(S) {
 /** One line summarising which calendars are connected. */
 function calendarsSummary() {
   const src = app.S.sources || {};
-  const on = Object.entries(src).filter(([, s]) => s.enabled);
+  const on = Object.entries(src).filter(([id, s]) => s.enabled && isCalendar(id));
   if (!on.length) return 'Connect Canvas and Google Calendar';
   const broken = on.find(([, s]) => s.error);
   if (broken) return 'One calendar needs attention';
@@ -493,5 +497,14 @@ export const actions = {
 };
 
 export const changeActions = {
+  // Off deletes this browser's ID and asks the server to forget everything recorded with it; on starts again with a new ID.
+  'usage-toggle': async (el) => {
+    const { forgotten } = await setUsage(el.checked);
+    app.usageOn = el.checked;
+    if (el.checked) noteUsage(app.S, { demo: DEMO });
+    render();
+    toast(el.checked ? 'Usage data on' : forgotten ? 'Usage data off, and what was recorded from this browser was deleted.'
+      : 'Usage data off. Cadence could not reach its server to delete what was recorded earlier; it holds only a random ID and is removed within 400 days.');
+  },
   'set-toggle': (el) => persist((st) => { st.settings[el.dataset.key] = el.checked; }, { recalc: false })
 };

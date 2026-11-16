@@ -1,13 +1,14 @@
 // The sync runner: fetches every connected calendar source, caches what it
 // gets, and keeps one source's failure from affecting the others.
 //
-// Each source returns normalized data — busy-shaped events and task-shaped
-// assignments — so neither the calendar UI nor the scheduler needs to know
+// Each source returns normalized data (busy-shaped events and task-shaped
+// assignments), so neither the calendar UI nor the scheduler needs to know
 // where anything came from.
 
 import * as canvasFeed from './canvasFeed.js';
 import * as google from './googleCalendar.js';
 import { parseICS } from '../calendar.js';
+import { inLocalTime } from '../mailEvents.js';
 
 export const SOURCE_META = {
   canvasFeed: { label: 'Canvas calendar feed', short: 'Canvas' },
@@ -64,15 +65,15 @@ export function emptySource() {
 // Whether a source is switched on.
 const ok = (state, id) => !!state.sources?.[id]?.enabled;
 
-// A source that can't fetch on its own — a Canvas feed that came from an
-// uploaded file rather than a link — stays enabled but sits out automatic
+// A source that can't fetch on its own (a Canvas feed that came from an
+// uploaded file rather than a link) stays enabled but sits out automatic
 // runs, so autosync never marks it failed.
 const runnable = (state, id) => (id === 'canvasFeed' || LINK_FEEDS[id] ? !!state.sources?.[id]?.url : true);
 
 /**
  * Run one source. Throws on failure; the caller records the error so the
  * cached data from the last good run stays on screen.
- * @param {object} deps  { saveGoogle } persists refreshed Google tokens
+ * @param {object} deps  { interactive: false } where no one is there to sign in (the background worker)
  */
 export async function runSource(id, state, deps = {}) {
   const cfg = state.sources?.[id] || {};
@@ -93,7 +94,7 @@ export async function runSource(id, state, deps = {}) {
 
   if (id === 'google') {
     if (!google.available()) throw new Error('Google sync needs the Chrome extension');
-    const token = await google.freshToken(cfg, { save: deps.saveGoogle || (() => {}) });
+    const token = await google.freshToken(cfg, { interactive: deps.interactive !== false });
     const calendars = cfg.calendars?.length ? cfg.calendars : await google.listCalendars(token);
     const chosen = (cfg.selected?.length ? cfg.selected : calendars.filter((c) => c.selected).map((c) => c.id)) || ['primary'];
     const { events, errors } = await google.fetchEvents(token, { calendarIds: chosen, daysAhead: horizon });
@@ -158,17 +159,23 @@ export function applyImported(state, id, { assignments = [], events = [] }) {
   return state;
 }
 
-/** Cached events from every enabled source, in Cadence's busy shape. */
+/** Cached events from every enabled source, in Cadence's busy shape. Events
+    found in email (state.sources.mail) keep the date and clock times the email
+    gave, so their start and end are worked out again here in this computer's
+    time (lib/mailEvents.js localTimes). */
 export function sourceEvents(state) {
   const out = [];
   for (const [id, s] of Object.entries(state.sources || {})) {
     if (!s?.enabled) continue;
-    for (const e of s.events || []) out.push({ ...e, source: e.source || id });
+    for (const e of s.events || []) out.push(id === 'mail' ? inLocalTime({ ...e, source: id }) : { ...e, source: e.source || id });
   }
   return out;
 }
 
-/** Assignments the feed knows about — merged into tasks by the replanner. */
+/** Is this source a calendar? Everything under sources is, except the events found in email. */
+export const isCalendar = (id) => id !== 'mail';
+
+/** Assignments the feed knows about, merged into tasks by the replanner. */
 export function sourceAssignments(state) {
   const out = [];
   for (const [, s] of Object.entries(state.sources || {})) {
@@ -189,7 +196,7 @@ export async function pushGoogle(state, deps = {}, { daysAhead = 21 } = {}) {
   const g = state.sources?.google;
   if (!g?.enabled || !g.push) return null;
   const { pushableBlocks } = await import('../replanner.js');
-  const token = await google.freshToken(g, { save: deps.saveGoogle || (() => {}), scopes: [google.SCOPES.read, google.SCOPES.write] });
+  const token = await google.freshToken(g, { scopes: [google.SCOPES.read, google.SCOPES.write], interactive: deps.interactive !== false });
   const desired = pushableBlocks(state, { daysAhead });
   const result = await google.reconcileBlocks(token, g.pushCalendarId || 'primary', desired, { daysAhead });
   return { ...result, desired: desired.length };

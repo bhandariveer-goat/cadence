@@ -100,8 +100,10 @@ There are two ways a sentence becomes operations:
 2. **With a model** (`lib/agentllm.js`). A tool-use loop: the model calls
    tools, the browser runs each against a working copy of the plan and returns
    what actually changed, and nothing is saved until the turn ends. Signed in
-   on a site that runs the server function, the model is Google's Gemini
-   (`gemini-3.5-flash-lite`, chosen for speed: Netlify stops a free-plan function after 10 seconds); with the student's own Anthropic key, it is Claude
+   on a site that runs the server function, the model is the one named by
+   `assistant` in `src/config.js`: Groq (the setting now), Google's Gemini or
+   Claude. Each is chosen to answer inside Netlify's 10-second limit for a
+   free-plan function. With the student's own Anthropic key, it is Claude
    (`claude-opus-5-5`), straight from the browser. Every message goes to the
    model when one is available. If the call fails for any reason the
    on-device reader answers instead.
@@ -115,12 +117,17 @@ are sent as a time with no title.
 browser. It accepts a request only with a Supabase session that Supabase
 confirms, counts it against a per-account daily limit and a site-wide daily
 limit kept in Postgres, and forwards only `messages`: the model, the
-instructions and the tools are fixed in `lib/agentspec.js` and
-`lib/gemini.js`.
+instructions and the tools are fixed in `lib/agentspec.js`, `lib/groq.js` and
+`lib/gemini.js`. It runs only the company `src/config.js` names
+(`pickProvider` in `lib/providers.js`), so the privacy page, which names the
+same company from the same setting, cannot disagree with it.
 
 The browser speaks one conversation format whichever model answers.
-`lib/gemini.js` turns it into a Gemini `generateContent` request and turns
-the reply back. Gemini's reply also travels in its own block, untouched,
+`lib/groq.js` turns it into a Chat Completions request for Groq (OpenAI's
+format) and turns the reply back; tool results become `tool` messages and a
+tool call whose arguments are not valid JSON reaches the tool with no input,
+so the tool says what is missing. `lib/gemini.js` turns it into a Gemini
+`generateContent` request and turns the reply back. Gemini's reply also travels in its own block, untouched,
 because Gemini attaches signatures to its tool calls and refuses a later
 request that does not return them exactly; `checkMessages` refuses any such
 block that holds something Cadence never sends (a file for Gemini to fetch,
@@ -135,17 +142,22 @@ counted by `bump_agent_usage()`, which also removes anonymous accounts unused
 for 30 days.
 
 Using Gemini for a site students use goes against Google's Gemini API terms,
-which set a minimum age of 18; see `LAUNCH.md`, step 4.
+which set a minimum age of 18; see `LAUNCH.md`, step 4. Groq's agreement
+allows apps used by people under 18 (the owner answers for the law), though
+the person holding the Groq account must be 18 or older.
 
 Set these in Netlify → Project configuration → Environment variables (never in
 `netlify.toml`, which functions cannot read, and never in this repository):
 
 | Variable | |
 | --- | --- |
-| `GEMINI_API_KEY` | the key from Google AI Studio. When it is set, Gemini answers |
-| `GEMINI_TIER` | `free` or `paid`: which Google plan the key is on. Must be set for Gemini to run. The privacy page is written for the free plan (Google may use and read messages) |
+| `GROQ_API_KEY` | with `assistant: 'groq'`: the key from console.groq.com |
+| `GROQ_RETENTION` | must be `zero`: your word that Groq's zero data retention setting is on (console.groq.com → Settings → Data Controls). Without it Groq is not used |
+| `GROQ_MODEL` | optional, another Groq model; the default is in `lib/groq.js`. Email is read only with Groq's production models (`GROQ_PRODUCTION_MODELS`) |
+| `GEMINI_API_KEY` | with `assistant: 'gemini'`: the key from Google AI Studio |
+| `GEMINI_TIER` | `free` or `paid`: which Google plan the key is on. Must be set for Gemini to run. With `free` (Google may use and read messages) the site's assistant cannot read email; students with their own Anthropic key still can |
 | `GEMINI_MODEL` | optional, another Gemini model; the default is in `lib/gemini.js` |
-| `ANTHROPIC_API_KEY` | used instead when there is no `GEMINI_API_KEY` |
+| `ANTHROPIC_API_KEY` | with `assistant: 'claude'` |
 | `SUPABASE_URL` | required, same as `src/config.js` |
 | `SUPABASE_KEY` | required: the publishable key, same as `supabaseKey` in `src/config.js` (`SUPABASE_ANON_KEY` is still read, for a set-up made before the rename) |
 | `AGENT_DAILY_LIMIT` | optional, default 60 requests per account per day. The database stops counting an account at 61 (so one account cannot use up the day for everyone), so a higher limit also needs that number raised in `bump_agent_usage()` |
@@ -243,7 +255,10 @@ Google requires an OAuth client, and only you can create it:
    Under **Authorized redirect URIs** paste the URI Cadence shows you in
    your account → Calendars → Google → Connect. It looks like:
    `https://<extension-id>.chromiumapp.org/google`
-6. Copy the **Client ID** and paste it into Cadence when it asks.
+6. Copy the **Client ID** into `googleClientId` in `src/config.js` (a client
+   ID is public, like the Supabase publishable key), so no one who connects is
+   asked for one. On a copy without it, Cadence asks whoever connects to paste
+   an ID of their own.
 
 Then Cadence → Calendars → **Connect**, approve the consent screen, and pick
 which calendars count as busy.
@@ -253,8 +268,11 @@ Two limits worth knowing:
 - **Google sync only works in the Chrome extension.** On the hosted website the
   browser blocks these cross-origin requests; the manual `.ics` import still
   works there. Same for the Canvas feed fetch.
-- **Tokens last about an hour.** Cadence renews silently in the background and
-  only asks you to sign in again if that fails.
+- **Tokens last about an hour, and are never stored.** Google's sign-in (for
+  Calendar and for Gmail) is held in memory and asked for again, silently,
+  when it runs out or the page reloads. Only something you start can open
+  Google's sign-in window: the background sync and automatic refreshes never
+  do, and show "Needs attention" on the card instead.
 
 ### Adding Cadence's blocks to Google Calendar
 
@@ -282,10 +300,129 @@ Google for *only* events with that property, so:
 **Remove Cadence events** takes every one of them back off, leaving the rest
 alone. Turning the toggle off asks whether to remove or keep what's there.
 
+### Gmail: events found in email
+
+In the Chrome extension, the student can connect Gmail and Cadence finds the
+practices, games, deadlines and schedule changes in their recent email and
+adds them to their calendar. Everything happens in the student's own browser:
+the email is read straight from Google with Google's read-only Gmail
+permission, the events are found on their computer, and nothing from the email
+is sent to Cadence's server or to any AI company. The full design is in
+`docs/EMAIL_EVENTS_SPEC.md` and `docs/EMAIL_EVENTS_PLAN.md`; the reading rules
+(account check, text only, hidden HTML removed) come from the Daymark project
+(github.com/dylanxzthomas/swefall2026), rebuilt in `src/lib/sources/gmail.js`.
+
+How it works:
+
+1. Calendars, **Gmail, to find events**, **Connect Gmail** explains what is read,
+   where, and what is kept, then asks Google for a `gmail.readonly` token with
+   the same OAuth client as Google Calendar (`launchWebAuthFlow`, about an
+   hour, no refresh token). The token is held in memory by `gmail.js` and never
+   stored. The same click starts Chrome's one-time download of its on-device
+   AI where the computer can run it (Chrome allows that only after a click).
+2. While a Cadence page is open in the extension (`watchMail()` in
+   `src/panel/core.js`: when shown, then every 30 minutes), `refreshMail()`
+   reads up to 25 inbox messages from the last 14 days with `readInbox()`,
+   skipping promotions, social, forum mail, spam, trash, drafts and anything
+   read before. A quiet reading never opens Google's sign-in window; one page
+   reads at a time (a lease in storage, plus Web Locks).
+3. `src/lib/mailEvents.js` finds the events, one email at a time: with Chrome's
+   Prompt API (Gemini Nano, on the device) where it is available, and with
+   date-and-keyword rules otherwise or when the model fails on an email (that
+   email is read again by the model later). Every candidate is checked in code:
+   the quoted sentence must be in the email, the date must be real, near, and
+   agree with any weekday or date the sentence names, the times must be real.
+   An email written like instructions to an AI is skipped.
+4. The events go under `state.sources.mail`, labelled **From email**, with the
+   sentence each came from. Everything under `sources` belongs to the device:
+   `portable()` leaves it out of the account copy, `adopt()` keeps it, and
+   `restore()` takes it from storage, so an Undo never brings back a deleted one.
+   A newer email that says an event changed replaces it (same sender, same
+   title, the old date named); a cancellation removes the event it names; a
+   forward or reminder is not added twice. Deleting an event keeps it from
+   coming back; Undo works for 15 minutes.
+5. The assistant never sees these events: `converse()` in `src/lib/agentllm.js`
+   runs on `forAssistant(state)`, a copy without them and planned again, and
+   replays its changes onto the real plan. Its own email reading (`read_email`)
+   is off: `emailToAssistant: false` in `src/config.js`.
+6. The Cadence website in the same browser shows the same events by asking the
+   extension (`src/panel/mailbridge.js` and `src/lib/mailShare.js`, through
+   `externally_connectable` in `manifest.json`, which names only the site's
+   address). It is off until `extensionId` is set in `src/config.js`.
+
+Tests: `python3 scripts/devserver.py 8765 --mock`, then open
+`/scripts/mail_events_test.html`, `/scripts/mail_core_test.html` and
+`/scripts/mail_bridge_test.html` (stand-ins for Chrome's APIs, Gmail and the
+model; the real model cannot be tested without a computer that runs it).
+`/scripts/panel_preview.html` opens the extension panel with sample events.
+
+What only you can do in Google Cloud Console, on the same project and OAuth
+client as Google Calendar:
+
+1. **APIs & Services → Library** → enable **Gmail API**.
+2. **OAuth consent screen → Scopes** → add `.../auth/gmail.readonly`. It is a
+   *restricted* scope: fine for up to 100 test users while the app is in
+   testing, but publishing it to everyone needs Google's verification and a
+   yearly third-party security assessment.
+3. Students who connect must be listed under **Test users** until then.
+   `docs/GOOGLE_VERIFICATION.md` has the full steps and what to ask Google.
+
+### Anonymous usage data
+
+So you can see whether people come back, where they get stuck and what they
+never find. `site.countUsage` in `src/config.js` turns it on; off, nothing is
+sent and the privacy page and homepage change their wording by themselves
+(`python3 scripts/stamp_pages.py`). Everything goes to
+`netlify/functions/metric.mjs`, which calls three database functions:
+
+- `record_usage()`: a random ID and one of five words (`active` at most daily,
+  then `onboarded`, `has_work`, `checked_in`, `connected` once each), sent by
+  `src/lib/metrics.js`. Kept 400 days.
+- `record_events()`: records of how the app is used, made by
+  `src/panel/insight.js` with the same ID and a random ID for the visit: time
+  used on each screen, presses by their code name (`data-act`, `field:email`,
+  `link:privacy`), presses on things that are not controls, three quick presses
+  on one thing, setup and tour steps and skips, errors (kind and code
+  location), the time to open and the time of Cadence's own requests, and the
+  time from agreeing to each first milestone. Kept 180 days.
+- `count_steps()`: the sign-up screen shown, typed in, sent and got in, per day
+  with no ID, before anyone has agreed to anything.
+
+Never sent: anything typed, field contents, the words on a control, screen
+positions, mouse movement or scrolling, the plan, messages, error messages, and
+nothing from Gmail or email (names containing "mail", and sheets whose heading
+has `data-about="email"`, are skipped). Records wait for the student to have
+agreed to the terms and seen the notice (`POLICY_CHANGE` in `src/lib/policy.js`),
+never run in the demo, and the Account switch deletes the ID and asks the
+server to forget everything recorded with it (sign out and Delete my data do
+too). Read the numbers with `supabase/ux_reports.sql` (18 reports: sign-up and
+setup funnels, setup time, tour skips, time per screen, most and least pressed,
+dead and repeated presses, errors in the first five minutes, speed, time to
+value, the actions that go with coming back, where interest runs out, visits
+and day 1 retention) and `supabase/usage_queries.sql`;
+`docs/VALUE_PROPOSITION_AND_FTUE.md` says what each means and how far to trust it.
+
+**Reading it without SQL: the Insights page.** Open `/app?insights=1` on the
+website, signed in with your email, and it draws the same numbers as bars and
+figures (sign-up funnel, setup and tour steps, time per screen, what gets
+pressed, dead and repeated presses, errors, speed, time to a first win, coming
+back, where interest ran out). It is not linked from anywhere and is not in the
+extension. The raw tables stay locked to everyone: the page calls `insights()`
+in `supabase/schema.sql`, which answers only an account listed in the `owners`
+table and returns totals, never one browser's rows. To list yourself, sign in
+to Cadence once, finish setup, then run in the Supabase SQL editor:
+`insert into owners select id from auth.users where email = 'you@example.com';`
+
+To turn it on for a copy: run `supabase/usage_check.sql` and
+`supabase/ux_check.sql` in the SQL editor (they keep nothing), apply
+`supabase/schema.sql`, have `SUPABASE_URL` and `SUPABASE_KEY` on the server,
+deploy, and run `stamp_pages.py` and `claims_check.py --markdown`. Setting it
+off again is the same two commands.
+
 ### Autosync
 
 A background alarm re-fetches every connected source (default every 20 minutes,
-adjustable 15–60) and re-plans around the result. Each source is independent:
+adjustable from 15 to 60) and re-plans around the result. Each source is independent:
 an expired Google token or an unreachable Canvas feed shows an error on that
 one card while the others keep working, and the last good data stays on screen.
 There's a **Refresh now** button for when you can't wait.
@@ -304,7 +441,7 @@ The things a site is expected to have, and where each one lives.
 | Storage notice | One sentence the first time, with a link to the privacy page | The sign-in screen says where the plan is kept |
 | Back to top | A button that appears after a screen and a half | Pressing the tab you are on |
 | Reading progress | A 2px line under the header | Not used: an app page is not read top to bottom |
-| Questions | Ten, on the homepage, each opening in place | |
+| Questions | Thirteen, on the homepage, each opening in place | |
 | Contact | The contact page: a form, a promise of when to expect a reply (`site.replyWithin`), and a thank-you page after sending. A Contact button in the corner leads to it | A Contact link under Account and on the sign-in screen |
 | A page that is not there | `404.html`, with links back and the site search | Unknown screens fall back to Today |
 | Last updated | In the footer (`SITE_UPDATED` in `site.js`), and at the top of the privacy and terms pages | "Synced" and "saved" times next to what they describe |
@@ -386,7 +523,10 @@ Netlify serves from the same file.
 planner runs in the visitor's browser on one made-up student's week, with the
 clock set to a Monday at 3:15pm for the length of each call and put back
 straight after. The two changes a visitor can make go through the planner the
-same way. The page also holds the starting week as plain HTML, copied from
+same way. Sam's robotics meeting is a made-up event from email, put through
+the same check the extension runs on everything it finds (`check()` in
+`src/lib/mailEvents.js`); `scripts/claims_check.py` lets this one file hold an
+email event only while it has no way to save or send anything. The page also holds the starting week as plain HTML, copied from
 this code, so it reads the same without scripts; if the planner's rules
 change, copy it again (between the `evening:week` and `evening:why`
 markers in `index.html`).
@@ -562,17 +702,34 @@ src/config.js                            the values that belong to whoever runs 
 src/panel/shell.js, app.js, core.js      frame, routing, state and sync
 src/panel/views/                         signin, onboarding, today, calendar, week,
                                          plan (School), activities, account, agent,
-                                         crew, commitments, guide, calendars, create
+                                         crew, commitments, guide, calendars, create, mail
 src/lib/daymodel.js                      free time and load, per date
 src/lib/scheduler.js, priority.js        the planner
 src/lib/agent.js                         reading sentences on the device
 src/lib/agentops.js                      the operations, the plan diff, the answers
 src/lib/agentspec.js, agentllm.js        the model's instructions, tools, the loop
 src/lib/gemini.js                        the conversation in and out of Gemini
+src/lib/groq.js                          the conversation in and out of Groq
+src/lib/providers.js                     which company answers on the server, and whether it may read email (off: emailToAssistant)
+scripts/groq_check.py                    checks a Groq key, its tool calling and its token limit, before deploying
 src/lib/cloud.js                         sign-in and sync
 src/lib/sources/                         Canvas feed, Google Calendar, sync runner
+src/lib/sources/gmail.js                 reading Gmail in the browser (the inbox for events; the assistant's tool, off)
+src/lib/mailEvents.js                    finding events in email on the device, checking them, keeping the list in step
+src/lib/mailShare.js                     what the extension tells the website about those events
+src/lib/metrics.js                       anonymous usage data: counts, records of use and sign-up steps (off with site.countUsage)
+src/panel/insight.js                     what is recorded about how the app is used, by code name only
+src/panel/views/insights.js              the owner's Insights page (/app?insights=1): the totals as charts
+netlify/functions/metric.mjs             receives them, and requests to forget an ID
+src/panel/mailbridge.js                  the website asking the extension in the same browser for them
+src/panel/views/mail.js                  an email event's detail: the sentence it came from, Delete, Undo
+scripts/mail_*_test.html, metrics_test.html, panel_preview.html   browser tests (not shipped)
+supabase/usage_queries.sql, ux_reports.sql    reading the usage data
+supabase/usage_check.sql, ux_check.sql        checking its SQL and reports on a real database (changes nothing)
+docs/VALUE_PROPOSITION_AND_FTUE.md       value proposition, first-run experience, and how both are measured
 supabase/schema.sql                      database tables and security policies
 scripts/devserver.py                     local server with mock backends
+scripts/make_ux_check.py                 writes supabase/ux_check.sql from the schema and the reports
 scripts/stamp_pages.py                   writes config values, canonical and share tags, robots.txt and the sitemap
 scripts/make_social_image.py             draws icons/social.png (needs Pillow; only when the picture should change)
 scripts/prelaunch_check.py               launch gates, house style, and whether the site can be found and shared

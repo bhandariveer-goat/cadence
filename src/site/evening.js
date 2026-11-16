@@ -18,8 +18,9 @@
 import { DEFAULT_STATE } from '../lib/store.js';
 import { recomputeState, allBusy } from '../lib/replanner.js';
 import { workWindows, DAY } from '../lib/daymodel.js';
-import { newCommitment } from '../lib/habits.js';
-import { fmtTime, fmtMinutes, fmtClock, startOfDay, escapeHtml as esc } from '../lib/util.js';
+import { newCommitment, isFixed } from '../lib/habits.js';
+import { check, ymd } from '../lib/mailEvents.js';
+import { fmtTime, fmtMinutes, fmtClock, startOfDay, dateKey, escapeHtml as esc } from '../lib/util.js';
 
 // The Monday of the story. A fixed date, so every visitor sees the same plan,
 // in a week when no country changes its clocks. Only weekday names are shown.
@@ -47,34 +48,61 @@ export function startingWeek() {
     st.account = { ...st.account, mode: 'local', name: 'Sam' };
     st.school = { ...st.school, days: [1, 2, 3, 4, 5], start: '08:00', end: '15:00' };
     st.sleep = { bed: '22:30', wake: '07:00' };
+    // Two activities, made the way the Activities tab makes them: practice at
+    // set times, and a weekly goal with no set time that Cadence finds time for.
     st.commitments = [newCommitment({
       id: 'practice', kind: 'sport', title: 'Basketball practice',
       schedule: { mode: 'fixed', days: [1, 3], start: '15:30', end: '17:30' }
+    }), newCommitment({
+      id: 'essay', kind: 'custom', title: 'College essay',
+      target: { sessions: 2, minutes: 45 }
     })];
+    // One event that came in by email, kept the way the Chrome extension keeps it.
+    st.sources.mail.enabled = true;
+    st.sources.mail.events = [roboticsEmail()];
     const task = (id, title, courseName, due, minutes, category) => ({
       id, source: 'manual', title, courseName, due: due.toISOString(), userEstimateMin: minutes, category, status: 'todo', description: ''
     });
     st.tasks = {
       calc: task('calc', 'Calculus problem set 4.2', 'AP Calculus', at(1, 8), 60, 'problemset'),
       spanish: task('spanish', 'Study for the Spanish quiz', 'Spanish 3', at(3, 9), 45, 'quiz'),
-      essay: task('essay', 'History essay draft', 'US History', at(7, 8), 150, 'essay')
+      // What School's "Add an assignment" box makes of the sentence "Robotics
+      // build log due Friday, about an hour" (lib/parse.js): due at 11:59pm.
+      log: task('log', 'Robotics build log', '', at(4, 23, 59), 60, 'project')
     };
     return recomputeState(st);
   });
 }
 
 /**
+ * The robotics meeting, from an email the team captain sent on Sunday: what
+ * Chrome's built-in model reports for that email, put through the same check
+ * the extension runs on everything it finds in email (lib/mailEvents.js), so
+ * it is kept in exactly the shape the app keeps it.
+ */
+function roboticsEmail() {
+  const quote = 'We are meeting Thursday from 3:30 to 5 in room 114 to finish the drivetrain.';
+  const message = { id: 'robotics', subject: 'Robotics this week', fromName: 'Robotics captain', fromKey: 'robotics-captain', receivedMs: +at(-1, 19), text: `Hi all. ${quote} Bring your build logs.` };
+  return check({ title: 'Robotics meeting', date: ymd(at(3, 12)), start: '15:30', end: '17:00', kind: 'meeting', quote }, message, NOW, { engine: 'nano' }).event;
+}
+
+/**
  * The two things a visitor can change, each made the way the app makes it:
- * practice running late is an hour added to the calendar as busy (Calendar,
- * "Add to your calendar"), and a new assignment is one added with its time
- * (School, "Add an assignment"). Then the plan is worked out again, exactly
- * as it is in the app after either. Returns the new week.
+ * practice moving is that day's practice called off, the way the assistant
+ * calls off one day of an activity, and the new time added to the calendar as
+ * busy (Calendar, "Add to your calendar"); a new assignment is one added with
+ * its time (School, "Add an assignment"). Then the plan is worked out again,
+ * exactly as it is in the app after either. Returns the new week.
  */
 export const CHANGES = {
-  late: {
-    label: 'Practice runs late tonight',
-    did: 'Practice runs an hour over, until 6:30pm, so that hour is no longer free.',
-    apply: (st) => { st.busy.push({ id: 'late', title: 'Practice running late', source: 'manual', start: at(0, 17, 30).toISOString(), end: at(0, 18, 30).toISOString() }); }
+  moved: {
+    label: "Coach moves Wednesday's practice to 6pm",
+    did: "Wednesday's practice now runs from 6pm to 8pm, so the afternoon opens up and the evening fills.",
+    apply: (st) => {
+      const practice = st.commitments.find((c) => c.id === 'practice');
+      (practice.skip ||= {})[dateKey(at(2, 12))] = true;
+      st.busy.push({ id: 'moved', title: 'Basketball practice', source: 'manual', start: at(2, 18).toISOString(), end: at(2, 20).toISOString() });
+    }
   },
   lab: {
     label: 'A lab report comes in',
@@ -120,6 +148,12 @@ const list = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at
 /** The blocks planned for one assignment, earliest first. */
 const blocksFor = (st, id) => (st.plan?.sessions || []).filter((s) => s.taskId === id).sort((a, b) => new Date(a.start) - new Date(b.start));
 
+/** The sessions planned this week for one weekly goal, earliest first. */
+const sessionsOf = (st, id) => (st.plan?.sessions || []).filter((s) => s.commitmentId === id && offsetOf(s.start) < 7).sort((a, b) => new Date(a.start) - new Date(b.start));
+
+/** The activities with a weekly goal and no set time: the ones Cadence plans sessions for. */
+const goals = (st) => (st.commitments || []).filter((c) => !c.archived && !isFixed(c));
+
 /** Where an assignment's work went: "tonight at 5:30pm", or "Wednesday and Thursday" for several days. */
 function placement(blocks) {
   if (!blocks.length) return 'not planned';
@@ -155,7 +189,7 @@ function freeTonight(st) {
   return { free: free.filter(([a, b]) => (b - a) / 60000 >= (st.settings.sessionMinMin || 20)), fixed };
 }
 
-/** Why the week looks the way it does: the free hours, then each assignment, soonest due first. */
+/** Why the week looks the way it does: the free hours, the activities, then each assignment, soonest due first. */
 function whyLines(st) {
   const { free, fixed } = freeTonight(st);
   const taken = fixed.map((b) => `${b.title.toLowerCase()} from ${fmtTime(b.start)} to ${fmtTime(b.end)}`);
@@ -163,6 +197,19 @@ function whyLines(st) {
     title: `Free tonight: ${list(free.map(([a, b]) => `${fmtTime(a)} to ${fmtTime(b)}`)) || 'none'}`,
     text: `School ends at ${fmtClock(st.school.end)}${taken.length ? `, followed by ${list(taken)}` : ''}. Cadence stops planning work ${DAY.windDown} minutes before Sam's ${fmtClock(st.sleep.bed)} bedtime.`
   }];
+  for (const c of goals(st)) {
+    const blocks = sessionsOf(st, c.id);
+    lines.push({
+      title: c.title,
+      text: `Sam's goal is ${c.target.sessions} sessions of ${fmtMinutes(c.target.minutes)} a week, at no set time. ${blocks.length ? `Cadence planned ${blocks.length === 1 ? 'one' : 'them'} ${eachBlock(blocks)}.` : 'None of them fit this week.'}`
+    });
+  }
+  for (const e of (st.sources?.mail?.enabled && st.sources.mail.events) || []) {
+    lines.push({
+      title: e.title,
+      text: `It came in an email from the ${e.mail.from.toLowerCase()}, so it's on the calendar ${dayWord(e.start)} from ${fmtTime(e.start)} to ${fmtTime(e.end)} and no work goes there.`
+    });
+  }
   const tasks = Object.values(st.tasks).filter((t) => t.status !== 'done').sort((a, b) => new Date(a.due) - new Date(b.due));
   for (const t of tasks) {
     const blocks = blocksFor(st, t.id);
@@ -191,9 +238,15 @@ const eachBlock = (blocks) => list(blocks.map((b) => `${dayWord(b.start, { eveni
 /** What one change did, read off the plans before and after it. */
 function changeLines(before, after, key) {
   const out = [CHANGES[key].did];
+  const sig = (bs) => bs.map((b) => `${b.start}|${b.minutes}`).join(',');
+  for (const c of goals(after)) {
+    const was = sessionsOf(before, c.id), now = sessionsOf(after, c.id);
+    if (sig(was) === sig(now)) out.push(`${c.title} keeps its ${now.length === 1 ? 'session' : 'sessions'}, ${eachBlock(now)}.`);
+    else if (!was.length) out.push(`${c.title} now fits ${eachBlock(now)}.`);
+    else out.push(`${c.title} moves from ${eachBlock(was)} to ${now.length ? eachBlock(now) : 'nowhere this week'}.`);
+  }
   for (const t of Object.values(after.tasks).sort((a, b) => new Date(a.due) - new Date(b.due))) {
     const was = blocksFor(before, t.id), now = blocksFor(after, t.id);
-    const sig = (bs) => bs.map((b) => `${b.start}|${b.minutes}`).join(',');
     if (!before.tasks[t.id]) out.push(`${t.title} goes in ${placement(now)}, before it's due ${dayWord(t.due)} at ${fmtTime(t.due)}.`);
     else if (sig(was) !== sig(now)) {
       // Day names alone can read the same before and after; then say the times.
@@ -213,12 +266,12 @@ function weekHtml(st, marks = {}) {
   const rows = [];
   for (let o = 0; o < SHOWN_DAYS; o++) {
     const items = [
-      ...fixedOn(st, o).map((b) => ({ kind: 'fixed', start: b.start, end: b.end, title: b.title })),
+      ...fixedOn(st, o).map((b) => ({ kind: 'fixed', start: b.start, end: b.end, title: b.title, email: b.source === 'mail' })),
       ...(st.plan?.sessions || []).filter((s) => s.taskId && offsetOf(s.start) === o)
         .map((s) => ({ kind: 'work', start: s.start, end: s.end, title: s.title, minutes: s.minutes, mark: marks[`${s.taskId}|${s.start}`] }))
     ].sort((a, b) => new Date(a.start) - new Date(b.start));
     rows.push(`<li><span class="ev-day">${WEEKDAYS[o]}</span>${items.length ? `<ol class="ev-items">${items.map((it) => `
-      <li class="ev-item ${it.kind}${it.mark ? ` ${it.mark}` : ''}"><span class="ev-time">${fmtTime(it.start)}</span><span class="ev-what">${esc(it.title)}${it.mark ? `<small>${it.mark === 'new' ? 'New' : 'Moved'}</small>` : ''}</span><span class="ev-len">${fmtMinutes(it.minutes ?? (new Date(it.end) - new Date(it.start)) / 60000)}</span></li>`).join('')}</ol>` : '<p class="ev-none">Nothing planned</p>'}</li>`);
+      <li class="ev-item ${it.kind}${it.mark ? ` ${it.mark}` : ''}"><span class="ev-time">${fmtTime(it.start)}</span><span class="ev-what">${esc(it.title)}${it.mark ? `<small>${it.mark === 'new' ? 'New' : 'Moved'}</small>` : ''}${it.email ? '<small class="ev-from">From email</small>' : ''}</span><span class="ev-len">${fmtMinutes(it.minutes ?? (new Date(it.end) - new Date(it.start)) / 60000)}</span></li>`).join('')}</ol>` : '<p class="ev-none">Nothing planned</p>'}</li>`);
   }
   return `<ol class="ev-week">${rows.join('')}</ol>`;
 }
@@ -230,7 +283,8 @@ function marksFor(before, after) {
   for (const s of after.plan?.sessions || []) {
     if (!s.taskId) continue;
     const key = `${s.taskId}|${s.start}`;
-    if (!before.tasks[s.taskId]) marks[key] = 'new';
+    // A weekly goal's session is never new: the goal was there before.
+    if (!s.commitmentId && !before.tasks[s.taskId]) marks[key] = 'new';
     else if (!had.has(key)) marks[key] = 'moved';
   }
   return marks;
@@ -273,7 +327,7 @@ export function mount(host) {
     for (const b of buttons) b.setAttribute('aria-pressed', String(applied.includes(b.dataset.evChange)));
     if (taking) {
       paint(host, shown);
-      status.textContent = `Took back "${CHANGES[key].label.toLowerCase()}" and planned the week again without it.`;
+      status.textContent = `Took back "${CHANGES[key].label[0].toLowerCase()}${CHANGES[key].label.slice(1)}" and planned the week again without it.`;
     } else {
       paint(host, shown, { before, key });
       status.textContent = `${CHANGES[key].label}, so Cadence planned the week again.`;

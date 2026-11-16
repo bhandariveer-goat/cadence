@@ -135,8 +135,13 @@ export const colorFor = () => 'var(--k-work)';
  * The browser's own <dialog> keeps focus inside and hands it back on close.
  */
 const FIELDS = 'input:not([type=hidden]), select, textarea, .choices, .feel, .stepper, .days, .tiles';
-export function sheet(html, { onMount } = {}) {
+export function sheet(html, opts = {}) {
   const dlg = $('#sheet');
+  // One at a time. A sheet asked for while another is open (the assistant's
+  // "Read your email?" while a Disconnect question is showing, say) waits for
+  // that one to close. Taking over its form would also take over its answer.
+  if (dlg.open) return new Promise((resolve) => dlg.addEventListener('close', () => resolve(sheet(html, opts)), { once: true }));
+  const { onMount } = opts;
   const form = $('#sheet-form');
   form.innerHTML = `<div class="grab" aria-hidden="true"></div>${html}`;
   const confirm = !form.querySelector(FIELDS);

@@ -23,8 +23,12 @@ import * as create from './views/create.js';
 import * as onboarding from './views/onboarding.js';
 import * as agent from './views/agent.js';
 import * as memory from './views/memory.js';
+import * as mail from './views/mail.js';
+import * as insights from './views/insights.js';
 import { openPalette, installShortcuts, shortcutsSheet } from './views/palette.js';
 import { maybeStartTour, startTour } from './tour.js';
+import { startInsight, update as noteScreen } from './insight.js';
+import { allowDetail } from '../lib/metrics.js';
 import { open as openSetup } from './setup.js';
 import { checkinPicker } from './views/commitments.js';
 import * as showcase from './autoplay.js';
@@ -46,7 +50,8 @@ const VIEWS = {
   account: account.viewAccount,
   memory: memory.viewMemory,
   guide: guide.viewGuide,
-  create: create.viewCreate
+  create: create.viewCreate,
+  insights: insights.viewInsights
 };
 
 const TABS = {
@@ -57,7 +62,7 @@ const TABS = {
 const ACTIONS = {
   ...today.actions, ...plan.actions, ...crew.actions, ...activities.actions, ...account.actions, ...signin.actions,
   ...calendar.actions, ...calendars.actions, ...commitments.actions, ...guide.actions, ...create.actions,
-  ...onboarding.actions, ...agent.actions, ...memory.actions,
+  ...onboarding.actions, ...agent.actions, ...memory.actions, ...mail.actions, ...insights.actions,
   go: (el) => { if (el.dataset.mode) app.planMode = el.dataset.mode; go(el.dataset.tab); },
   tab: (el) => { if (el.dataset.tab === activeTab() && app.stack.length === 0) { $('#view').scrollTop = 0; return; } go(el.dataset.tab); },
   back: () => back(),
@@ -82,6 +87,8 @@ let rendering = false, again = false;
 
 // The tab last drawn, so the homepage's frame can show a change of tab (autoplay.js).
 let shownTab = null;
+// The screen last drawn, by its code name, for the usage data (insight.js).
+let shownScreen = '';
 
 /** Draws the whole app from app.S: the header, the tabs and the current
     screen, or the sign-in or onboarding screen when one of those comes first.
@@ -114,6 +121,7 @@ function renderApp() {
     ask.setAttribute('aria-pressed', String(!!app.agent?.open));
 
     if (gate) {
+      shownScreen = gate === 'signin' ? `signin:${app.signin?.step || 'start'}` : `setup:${onboarding.obStep()}`;
       shownTab = null;
       $('#side').hidden = true;
       $('#agent').hidden = true;
@@ -135,6 +143,7 @@ function renderApp() {
       ${svg(ic)}<span>${label}</span>${id === 'crew' && unseen ? '<i class="dot-badge" role="img" aria-label="New"></i>' : ''}</button>`).join('');
 
     $('#view').innerHTML = VIEWS[app.view]();
+    shownScreen = app.agent?.open ? 'assistant' : app.view;
     if (moved) showcase.tabChange(from, leaving, tabs.findIndex(([id]) => id === active) - tabs.findIndex(([id]) => id === shownTab));
     else if (showcase.on()) showcase.redrawn();
     shownTab = active;
@@ -155,6 +164,9 @@ function renderApp() {
     restartTimer();
   } finally {
     rendering = false;
+    // The anonymous usage data (lib/metrics.js, insight.js): whether it may be kept, and which screen is up.
+    allowDetail(app.S, { demo: DEMO });
+    noteScreen();
     if (again) { again = false; renderApp(); }
   }
 }
@@ -346,6 +358,15 @@ agent.installAgentInput();
 installTips();
 installFieldHelpers();
 
+// How the app is used, for the anonymous usage data. Kept only once the person
+// has agreed and not turned it off (lib/metrics.js); never in the demo or the
+// homepage's frame. A sheet open over a screen is that screen's sheet.
+startInsight({
+  screenOf: () => (shownScreen ? `${shownScreen}${document.querySelector('#sheet[open]') ? ':sheet' : ''}` : ''),
+  demo: DEMO,
+  embedded: EMBEDDED
+});
+
 // The theme can change from here, from another tab, or with the system at
 // sunset. The header button always follows; the page is redrawn only when it
 // is the one that shows the choice, so nothing being typed elsewhere is lost.
@@ -363,6 +384,8 @@ document.addEventListener('cadence:act', (e) => {
 
 boot().then(() => {
   if (app.linkProblem) { toast(app.linkProblem); app.linkProblem = null; }
+  // The owner's page, on the website only, at /app?insights=1. Not linked from anywhere.
+  if (STANDALONE && !DEMO && !EMBEDDED && new URLSearchParams(location.search).get('insights') === '1' && signedIn()) insights.openInsights();
   // In the homepage's frame, the demo shows itself around (autoplay.js).
   showcase.startAutoplay();
 });

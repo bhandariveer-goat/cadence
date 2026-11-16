@@ -219,61 +219,121 @@ Calendar connection and its events, and their Canvas feed link. Those are
 credentials or other people's data, and they stay on the device where they
 were set up. `portable()` in `src/lib/cloud.js` is what leaves them out.
 
-## 4. The assistant with Gemini (optional)
+## 4. The assistant (optional)
 
 Without this the assistant still reads plain sentences on the device. With it,
-anyone signed in with an email gets an AI model that understands whatever they
-type and changes the plan through the same steps they could take themselves.
+anyone signed in gets an AI model that understands whatever they type and
+changes the plan through the same steps they could take themselves.
+
+`assistant` in `src/config.js` names the company that answers: `groq`,
+`gemini` or `claude`. The server function uses that one and no other, and
+the privacy page names the same company (run `python3 scripts/stamp_pages.py`
+after changing it). It is set to `groq`.
+
+### Groq (the setting now)
+
+Groq may not train on what it receives (its Services Agreement, section 4.2)
+and stores nothing once zero data retention is on. That is what would let the
+assistant read a student's Gmail under Google's rules if `emailToAssistant` in
+`src/config.js` were switched on; it is off, and Cadence finds events in email
+on the student's computer instead, with no AI company involved
+(`docs/GOOGLE_VERIFICATION.md`). Groq also allows apps used
+by people under 18 (the app's owner answers for the law), unlike Gemini's
+terms. Its agreement does say the person who holds the Groq account must be 18
+or older.
+
+**It is not free to run.** Signing up costs nothing, but Groq's free plan
+allows 8,000 tokens a minute per model, counting the reply, and one Cadence
+question is more than that (below), so on the free plan the assistant cannot
+answer at all. Move the Groq account to the **Developer plan** (pay per token,
+roughly a cent or so a question at Groq's prices; set a spend limit there).
+Students with their own Anthropic key are not affected by any of this.
+
+1. console.groq.com → **Settings → Data Controls** → turn on **Zero Data
+   Retention**. Without it Groq may keep messages for up to 30 days to
+   troubleshoot and check for abuse, and the privacy page would be wrong.
+2. console.groq.com → **API Keys** → create a key.
+3. Check it before deploying, from this folder:
+   `read -s GROQ_API_KEY && export GROQ_API_KEY && python3 scripts/groq_check.py`
+   (`read -s` takes the key without showing it or saving it in your shell
+   history). It reports whether tool calling works, and whether a plain
+   question (and, if email reading for the assistant is ever switched on, one
+   that has read email) fits the plan's per-minute limit.
+4. Netlify → Project configuration → Environment variables, scope Functions:
+   - `GROQ_API_KEY`: the key. Paste it there and nowhere else: not into a
+     file in this folder, not into a chat or an email. The pre-launch check
+     fails if anything shaped like a Groq key (`gsk_...`) is in the code.
+   - `GROQ_RETENTION`: `zero`. Your word that step 1 is done. Without it the
+     assistant stays off, so Groq never runs with retention on.
+   - `SUPABASE_URL` and `SUPABASE_KEY`: the same Project URL and publishable
+     key as in `src/config.js` (step 3).
+   - Optional: `GROQ_MODEL` to try another model; the default is in
+     `src/lib/groq.js`. If email reading for the assistant is ever switched
+     on, it runs only with Groq's production models (`GROQ_PRODUCTION_MODELS`
+     there).
+5. Then do the steps under "Every set-up" below.
+
+What a plan allows is set per model and shown by `groq_check.py`. A question
+costs one model request for each tool step, and each request carries Cadence's
+instructions, the student's week and the chat so far (about 6,600 tokens),
+plus room for a 1,500-token reply.
+When the plan is too small for a request, students see "The AI could not be
+reached" and the on-device reader answers instead; when it is busy, "The AI is
+busy right now".
+
+### Gemini
 
 **Read this first.** Google's Gemini API terms say the API is for people 18
 and over, and may not be part of a service "directed towards or ... likely to
 be accessed by individuals under the age of 18". Cadence is made for
-high-school students. Using Gemini here was a deliberate choice, and Google
-could switch the key off because of it. The server function still supports
-Claude, whose maker allows products used by people under 18 when they add
-safeguards: remove `GEMINI_API_KEY` and set `ANTHROPIC_API_KEY` to switch,
-with no change to the code.
+high-school students, so Google could switch the key off because of it.
 
-1. **Optional, and better for students:** aistudio.google.com → Projects. In
+1. Set `assistant: 'gemini'` in `src/config.js` and run
+   `python3 scripts/stamp_pages.py`.
+2. **Optional, and better for students:** aistudio.google.com → Projects. In
    your key's project, press **Set up billing**. On the paid plan Google says
    it does not use what students type to improve its products. On the free
-   plan, which you chose to start with, Google may use it and people at Google
-   may read it, and the privacy page says so. Free also has lower rate
-   limits, so a class using it at once may see "busy".
-2. If you do turn billing on: AI Studio → Spend → Monthly spend cap → Edit
-   spend cap. New accounts pay in advance (Prepay), which limits spending to
-   the credit bought.
-3. Netlify → Project configuration → Environment variables, scope Functions:
-   - `GEMINI_API_KEY`: the key. Paste it there and nowhere else: not into a
-     file in this folder, not into a chat or an email. The pre-launch check
-     fails if anything shaped like a Google key appears in the code.
-   - `GEMINI_TIER`: `free` while the key has no billing, `paid` once it does.
-     Without it the assistant stays off, so using Gemini is always a choice.
-     The privacy page is written for the free plan, which is the worse case
-     and so stays true after you upgrade.
-   - `SUPABASE_URL` and `SUPABASE_KEY`: the same Project URL and publishable
-     key as in `src/config.js` (step 3).
-4. So people using Cadence with only a name get the assistant too: Supabase →
+   plan, Google may use it and people at Google may read it, and the privacy
+   page says so. The assistant reads no email on either plan while
+   `emailToAssistant` is off in `src/config.js`. If you do
+   turn billing on: AI Studio → Spend → Monthly spend cap → Edit spend cap.
+3. Netlify, scope Functions: `GEMINI_API_KEY` (the key, there and nowhere
+   else) and `GEMINI_TIER` (`free` while the key has no billing, `paid` once
+   it does; without it the assistant stays off), plus `SUPABASE_URL` and
+   `SUPABASE_KEY`. Optional: `GEMINI_MODEL`.
+4. Then do the steps under "Every set-up" below.
+
+The model is `gemini-3.5-flash-lite`, named in `src/lib/gemini.js`: fast enough
+for Netlify's 10-second limit.
+
+### Claude
+
+Set `assistant: 'claude'` in `src/config.js`, run `python3 scripts/stamp_pages.py`,
+and set `ANTHROPIC_API_KEY` in Netlify (from console.anthropic.com, with a
+monthly spend limit set there) with the two `SUPABASE_` variables. Claude
+costs money for every message.
+
+### Every set-up
+
+1. So people using Cadence with only a name get the assistant too: Supabase →
    Authentication → Sign In / Providers → **Allow anonymous sign-ins** → on,
    and save. Each such browser gets a hidden account that the database lets do
    nothing but be counted, so the daily limits apply to them too. Supabase's
    Security Advisor then shows "Anonymous sign-ins enabled"; that is expected.
    Unused ones are removed after 30 days.
-5. Redeploy (Deploys → Trigger deploy). Sign in on the website with your
+2. Redeploy (Deploys → Trigger deploy). Sign in on the website with your
    email, open the assistant and send "I have dinner at 6 then I want to
    work". The reply should come in a few seconds and the plan should change.
    If it answers the way it did before, the on-device reader answered: check
-   the three variables and that the deploy finished.
-6. Decide on `AGENT_DAILY_LIMIT` (default 60 per account per day) and
+   the variables and that the deploy finished.
+3. Decide on `AGENT_DAILY_LIMIT` (default 60 per account per day) and
    `AGENT_DAILY_TOTAL` (default 1500 across all accounts per day). The second
    is the most requests a single day can make, whatever anyone does,
    including people making many hidden accounts.
-
-The model is `gemini-3.5-flash-lite`, named in `src/lib/gemini.js`: fast enough for Netlify's 10-second limit, and with a larger free allowance than `gemini-3.8-flash`, which ran out after a few messages. To try another, set `GEMINI_MODEL` in Netlify (for example `gemini-3.8-flash`, which is smarter but slower and needs billing to be usable).
-
-To use Claude instead, do the same with `ANTHROPIC_API_KEY` (from
-console.anthropic.com, with a monthly spend limit set there) in place of the
-two Gemini variables, and change the privacy page's assistant section to match.
+4. Letting more than 100 students connect Gmail (to find events in their
+   email) needs Google's verification: `docs/GOOGLE_VERIFICATION.md` has
+   everything to submit, and the question to ask Google about the security
+   assessment.
 
 ## 5. The Chrome extension
 
@@ -287,7 +347,39 @@ two Gemini variables, and change the privacy page's assistant section to match.
    listing, the permission explanations the store asks for, and
    `scripts/package_extension.py`, which builds the zip to upload. Once it is
    published, put its address in `site.extensionUrl` so the homepage shows an
-   "Add to Chrome" button.
+   "Add to Chrome" button, and its ID (the last part of that address) in
+   `extensionId`, so the website can show the events the extension finds in
+   email. If the site's address changes, change `externally_connectable` in
+   `manifest.json` to match (the claims check fails until they do).
+
+### Anonymous usage data
+
+`site.countUsage` in `src/config.js` is on. Before the site that sends it is
+deployed, the database needs its half:
+
+1. In Supabase, **SQL editor**, paste `supabase/usage_check.sql` and run it,
+   then the same with `supabase/ux_check.sql`. Each should end with
+   `ERROR: ROLLED BACK: every check passed`, which is success (they keep
+   nothing). Any other error means the SQL needs a fix.
+2. Apply the usage section of `supabase/schema.sql` the way the rest of the
+   schema is applied (below).
+3. `SUPABASE_URL` and `SUPABASE_KEY` are already on the server for the
+   assistant; `netlify/functions/metric.mjs` reads the same two.
+4. After a deploy, open Cadence, then in the SQL editor run
+   `select * from usage_events order by day desc limit 5;`. There should be an
+   `active` row, and `select kind, name from ux_events order by at desc limit 10;`
+   should show the screens and presses from that visit.
+   `supabase/ux_reports.sql` and `supabase/usage_queries.sql` have the reports.
+5. To read them as charts instead: sign in to Cadence with your email, finish
+   setup, and in the SQL editor run
+   `insert into owners select id from auth.users where email = 'you@example.com';`
+   with your address. Then open `/app?insights=1` on the site. Anyone else who
+   opens it is told it is not theirs.
+
+To turn counting off instead, set `countUsage: false` and run
+`python3 scripts/stamp_pages.py` and `python3 scripts/claims_check.py --markdown`:
+nothing is sent, and the pages say there are no analytics. (CLAIMS.md lists only
+the claims that apply to the current setting, so it is regenerated each time.)
 
 ### Updating the database before the site
 
