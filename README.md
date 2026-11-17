@@ -519,24 +519,43 @@ Netlify serves from the same file.
 
 ### The worked examples on the homepage
 
-"Watch it plan Sam's Monday" (`src/site/evening.js`) is worked out live: the real
+"How Cadence plans a week" (`src/site/evening.js`) is worked out live: the real
 planner runs in the visitor's browser on one made-up student's week, with the
 clock set to a Monday at 3:15pm for the length of each call and put back
-straight after. The two changes a visitor can make go through the planner the
-same way. Sam's robotics meeting is a made-up event from email, put through
-the same check the extension runs on everything it finds (`check()` in
+straight after. It is told in three steps: what Sam has (read off the
+week as it stands), the week Cadence planned (one markup, drawn by
+`site.css` as the app's week grid when its frame is 600px wide or more and as
+a list of days below that), and the two changes a visitor can make, which go
+through the planner the same way. Blocks a change moves glide to their new
+place. Sam's robotics meeting is a made-up event from email, put through the
+same check the extension runs on everything it finds (`check()` in
 `src/lib/mailEvents.js`); `scripts/claims_check.py` lets this one file hold an
-email event only while it has no way to save or send anything. The page also holds the starting week as plain HTML, copied from
-this code, so it reads the same without scripts; if the planner's rules
-change, copy it again (between the `evening:week` and `evening:why`
-markers in `index.html`).
+email event only while it has no way to save or send anything.
 
-"See a busier week planned out", behind its heading under the rules, is
-copied from the demo with the clock held at a Sunday at 6:00pm: the assignments and activities are the sample data in
-`src/panel/mock.js`, and every number in it (the total per day, when each
-thing is finished, what did not fit) is what the planner produced. The
-student is made up and the page says so. If the planner's rules change, the
-example has to be copied again; nothing checks it automatically.
+The page holds a copy of what the example first shows, so it reads the same
+without scripts (between the `evening:week`, `evening:have` and
+`evening:why` markers in `index.html`), and the assistant's reply under
+"When plans change, just tell it" is a copy of what Cadence's own reader
+answers on Sam's week. When the planner, the reader or the example changes:
+
+```bash
+python3 scripts/copy_example.py           # copies the example into index.html again
+python3 scripts/copy_example.py --check   # says whether the copy still matches
+```
+
+It runs the same code in JavaScriptCore, the JavaScript shell that comes with
+macOS, so no Node is needed. The reply is only checked, not rewritten; if it
+is out of date the script prints the new one to copy in by hand.
+
+"A packed week, planned start to finish" is copied from the demo with the
+clock held at a Sunday at 6:00pm: the assignments and activities are the
+sample data in `src/panel/mock.js`, and every number in it (the total per
+day, when each thing is finished, what did not fit) is what the planner
+produced. The student is made up and the page says so. If the planner's
+rules change, the example has to be copied again; nothing checks it
+automatically. The Activities picture beside "Nobody else keeps track of
+your activities" uses the same sample activities, partway through a week,
+and is labelled as such.
 
 ## Before launch
 
@@ -732,6 +751,8 @@ scripts/devserver.py                     local server with mock backends
 scripts/make_ux_check.py                 writes supabase/ux_check.sql from the schema and the reports
 scripts/stamp_pages.py                   writes config values, canonical and share tags, robots.txt and the sitemap
 scripts/make_social_image.py             draws icons/social.png (needs Pillow; only when the picture should change)
+scripts/copy_example.py                  copies the homepage example into index.html, or --check that the copy matches (JavaScriptCore)
+scripts/example_run.mjs                  the example and the assistant's reply, worked out for copy_example.py
 scripts/prelaunch_check.py               launch gates, house style, and whether the site can be found and shared
 scripts/claims_check.py                  privacy promises against the code, and the data-surface lock
 CLAIMS.md                                every promise next to the code that keeps it (generated)

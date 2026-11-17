@@ -34,7 +34,8 @@
 <header class="nav nav-home"><div class="wrap">
   <a class="brand" href="/" translate="no"><span class="mark"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 1-8.1 5.9"/><path d="M12 8a4 4 0 1 1-3.8 2.8"/></svg></span>Cadence</a>
   <nav class="links" aria-label="On this page">
-    <a href="#example">See it plan</a>
+    <a href="#example">How it works</a>
+    <a href="#activities">Features</a>
     <a href="#how">How it decides</a>
     <a href="#data">Your data</a>
     <a href="#questions">Questions</a>
@@ -51,7 +52,8 @@
   <details class="menu">
     <summary>Menu</summary>
     <nav aria-label="On this page">
-      <a href="#example">See it plan</a>
+      <a href="#example">How it works</a>
+      <a href="#activities">Features</a>
       <a href="#how">How it decides</a>
       <a href="#data">Your data</a>
       <a href="#questions">Questions</a>
@@ -65,14 +67,18 @@
 <main id="main" tabindex="-1">
 
 <div class="hero"><div class="wrap">
-  <div>
-    <h1>Homework has Canvas. Your activities have Cadence.</h1>
-    <p class="sub">Practice, club deadlines, work shifts, the college essay you keep putting off: Cadence plans them alongside your Canvas homework. It reads your calendar and, in the Chrome extension, your Gmail. When plans change, just tell it.</p>
-    <div class="cta">
-      <a class="btn primary large" href="/app.html">Open Cadence</a>
-      <a class="btn plain large" href="/demo.html">Try a sample week</a>
+  <div class="hero-head">
+    <h1><span>Homework has Canvas.</span> <span>Your activities have Cadence.</span></h1>
+    <div class="hero-side">
+      <p class="sub">Cadence plans your week with practice, club deadlines, a job and the college essay you keep putting off, alongside your Canvas homework.</p>
+      <div class="hero-act">
+        <div class="cta">
+          <a class="btn primary large" href="/app.html">Open Cadence</a>
+          <a class="btn plain large" href="/demo.html">Try a sample week</a>
+        </div>
+        <p class="facts">Free, with no ads. Your school doesn&rsquo;t have to set anything up.</p>
+      </div>
     </div>
-    <p class="facts">It&rsquo;s free, there are no ads, and your school doesn&rsquo;t have to set anything up.</p>
   </div>
   <figure class="live">
     <div class="live-wait" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -81,180 +87,277 @@
   </figure>
 </div></div>
 
-<section id="activities" class="band"><div class="wrap">
-  <div class="section-head">
-    <h2 id="nobody-else-keeps-track-of-your-activities">Nobody else keeps track of your activities</h2>
+<section id="example"><div class="wrap">
+  <div class="section-head split">
+    <h2 id="how-cadence-plans-a-week">How Cadence plans a week</h2>
+    <p class="lead">Sam is made up, but this plan is real: Cadence&rsquo;s planner works it out right here in your browser, as of Monday at 3:15pm. Try a change and watch it plan again. Nothing is saved.</p>
   </div>
-  <div class="places">
-    <div><h3 id="who-tracks-school">School</h3>
-      <p>Canvas lists every assignment and when it&rsquo;s due. Teachers chase late work, and your parents ask about grades.</p></div>
-    <div><h3 id="who-tracks-activities">Activities</h3>
-      <p>Nobody reminds you that the robotics build log is due to your mentor Friday, or that you said you&rsquo;d practice four days this week. That part is on you alone, and it&rsquo;s the first thing to slip.</p></div>
-  </div>
-  <p class="also">Cadence plans both in one week. A goal like four practice days gets its own sessions, and a deadline you add gets time before it&rsquo;s due.</p>
-</div></section>
-
-<section id="example"><div class="wrap evening" data-evening>
-  <div class="evening-intro">
-    <h2 id="watch-it-plan-sams-monday">Watch it plan Sam&rsquo;s Monday</h2>
-    <p class="lead">Sam has basketball practice Monday and Wednesday and wants two sessions on a college essay this week. A robotics meeting on Thursday came in by email, and Sam typed in a build log due Friday. Homework fits around all of it: a calculus problem set due tomorrow morning and a Spanish quiz on Thursday.</p>
-    <p class="note">Sam is made up, but the plan comes from Cadence&rsquo;s real planner, which works it out right here in your browser and works it out again every time you change something. Nothing is saved. If you&rsquo;d like a fuller week to click around in, <a href="/demo.html">try the sample week</a>.</p>
-  </div>
-  <div class="ev-frame">
-      <div class="ev-head">
-        <p><b>Sam&rsquo;s week</b> <span>as of 3:15pm on Monday, with school from 8am to 3pm every weekday</span></p>
-        <ul class="ev-key" aria-label="Key">
-          <li class="fixed">Fixed</li>
-          <li class="work">Planned by Cadence</li>
-        </ul>
+  <div class="evening" data-evening>
+    <div class="ev-step ev-step-have">
+      <h3 class="step" id="what-sam-has"><span class="step-n" aria-hidden="true">1</span>What Sam has</h3>
+      <p class="step-text">Homework from Canvas or typed in, activities, and what&rsquo;s on a calendar or in email.</p>
+      <div data-ev-have><!-- evening:have --><ol class="ev-have"><li><p class="ev-group">Due this week</p><ol>
+      <li class="ev-have-item k-work" data-who="have:calc" data-at="0"><span class="ev-what">Calculus problem set 4.2</span><span class="ev-meta">Due tomorrow at 8am, about 1h of work</span></li>
+      <li class="ev-have-item k-work" data-who="have:spanish" data-at="0"><span class="ev-what">Spanish quiz</span><span class="ev-meta">Due Thursday at 9am, about 45m of work</span></li>
+      <li class="ev-have-item k-work" data-who="have:log" data-at="0"><span class="ev-what">Robotics build log</span><span class="ev-meta">Due Friday at 11:59pm, about 1h of work</span></li></ol></li><li><p class="ev-group">Activities</p><ol>
+      <li class="ev-have-item k-activity" data-who="have:practice" data-at="0"><span class="ev-what">Basketball practice</span><span class="ev-meta">Mondays and Wednesdays, 3:30pm to 5:30pm</span></li>
+      <li class="ev-have-item k-activity" data-who="have:essay" data-at="0"><span class="ev-what">College essay</span><span class="ev-meta">2 sessions of 45m a week, at no set time</span></li></ol></li><li><p class="ev-group">Found in email</p><ol>
+      <li class="ev-have-item k-event" data-who="have:mail_robotics_0" data-at="0"><span class="ev-what">Robotics meeting</span><span class="ev-meta">Thursday, 3:30pm to 5pm, in an email from the robotics captain</span></li></ol></li></ol><!-- /evening:have --></div>
+      <p class="ev-also">School runs 8am to 3pm on weekdays, and Sam goes to bed at 10:30pm.</p>
+    </div>
+    <div class="ev-step ev-step-plan">
+      <h3 class="step" id="the-week-cadence-planned"><span class="step-n" aria-hidden="true">2</span>The week Cadence planned</h3>
+      <div class="ev-frame">
+        <div class="ev-head">
+          <p><b>Sam&rsquo;s week</b> <span>as of 3:15pm on Monday</span></p>
+          <ul class="ev-key" aria-label="Key">
+            <li class="k-school">School</li>
+            <li class="k-activity">Activities</li>
+            <li class="k-event">Events</li>
+            <li class="k-work">Planned by Cadence</li>
+            <li class="ev-ring" data-ev-ring hidden>Moved or new</li>
+          </ul>
+        </div>
+        <div data-ev-week><!-- evening:week --><div class="ev-grid" style="--span:450"><ol class="ev-hours" aria-hidden="true"><li style="--at:30"><span>3pm</span></li><li style="--at:90"><span>4pm</span></li><li style="--at:150"><span>5pm</span></li><li style="--at:210"><span>6pm</span></li><li style="--at:270"><span>7pm</span></li><li style="--at:330"><span>8pm</span></li><li style="--at:390"><span>9pm</span></li><li style="--at:450"><span>10pm</span></li></ol><ol class="ev-week"><li class="ev-col today"><p class="ev-dayhead"><span class="ev-day">Monday</span><span class="ev-due ev-load">1h</span></p><ol class="ev-items"><li class="ev-now" style="--at:45" aria-hidden="true"></li>
+      <li class="ev-item k-school short" data-who="school" data-at="480" style="--at:0;--len:30"><span class="ev-what">School</span><span class="ev-time">until 3pm</span><span class="ev-len">7h</span><span class="ev-when">until 3pm</span></li>
+      <li class="ev-item k-activity tall" data-who="fixed:Basketball practice" data-at="930" style="--at:60;--len:120"><span class="ev-what">Basketball practice</span><span class="ev-time">3:30pm</span><span class="ev-len">2h</span><span class="ev-when">3:30pm to 5:30pm</span></li>
+      <li class="ev-item k-work tall" data-who="work:calc" data-at="1050" style="--at:180;--len:60"><span class="ev-what">Calculus problem set 4.2</span><span class="ev-time">5:30pm</span><span class="ev-len">1h</span><span class="ev-when">5:30pm · 1h</span></li></ol></li><li class="ev-col"><p class="ev-dayhead"><span class="ev-day">Tuesday</span><span class="ev-due">1 due</span></p><ol class="ev-items">
+      <li class="ev-item k-school short" data-who="school" data-at="1920" style="--at:0;--len:30"><span class="ev-what">School</span><span class="ev-time">until 3pm</span><span class="ev-len">7h</span><span class="ev-when">until 3pm</span></li>
+      <li class="ev-item k-activity" data-who="goal:essay" data-at="2360" style="--at:50;--len:45"><span class="ev-what">College essay</span><span class="ev-time">3:20pm</span><span class="ev-len">45m</span><span class="ev-when">3:20pm · 45m</span></li>
+      <li class="ev-item k-work short" data-who="work:spanish" data-at="2415" style="--at:105;--len:25"><span class="ev-what">Spanish quiz</span><span class="ev-time">4:15pm</span><span class="ev-len">25m</span><span class="ev-when">4:15pm · 25m</span></li></ol></li><li class="ev-col"><p class="ev-dayhead"><span class="ev-day">Wednesday</span><span class="ev-due ev-load">1h</span></p><ol class="ev-items">
+      <li class="ev-item k-school short" data-who="school" data-at="3360" style="--at:0;--len:30"><span class="ev-what">School</span><span class="ev-time">until 3pm</span><span class="ev-len">7h</span><span class="ev-when">until 3pm</span></li>
+      <li class="ev-item k-activity tall" data-who="fixed:Basketball practice" data-at="3810" style="--at:60;--len:120"><span class="ev-what">Basketball practice</span><span class="ev-time">3:30pm</span><span class="ev-len">2h</span><span class="ev-when">3:30pm to 5:30pm</span></li>
+      <li class="ev-item k-work short" data-who="work:spanish" data-at="3930" style="--at:180;--len:20"><span class="ev-what">Spanish quiz</span><span class="ev-time">5:30pm</span><span class="ev-len">20m</span><span class="ev-when">5:30pm · 20m</span></li>
+      <li class="ev-item k-work" data-who="work:log" data-at="3960" style="--at:210;--len:40"><span class="ev-what">Robotics build log</span><span class="ev-time">6pm</span><span class="ev-len">40m</span><span class="ev-when">6pm · 40m</span></li></ol></li><li class="ev-col"><p class="ev-dayhead"><span class="ev-day">Thursday</span><span class="ev-due">1 due</span></p><ol class="ev-items">
+      <li class="ev-item k-school short" data-who="school" data-at="4800" style="--at:0;--len:30"><span class="ev-what">School</span><span class="ev-time">until 3pm</span><span class="ev-len">7h</span><span class="ev-when">until 3pm</span></li>
+      <li class="ev-item k-event tall" data-who="fixed:Robotics meeting" data-at="5250" style="--at:60;--len:90"><span class="ev-tags"><small class="ev-from">From email</small></span><span class="ev-what">Robotics meeting</span><span class="ev-time">3:30pm</span><span class="ev-len">1h 30m</span><span class="ev-when">3:30pm · From email</span></li>
+      <li class="ev-item k-work short" data-who="work:log" data-at="5340" style="--at:150;--len:20"><span class="ev-what">Robotics build log</span><span class="ev-time">5pm</span><span class="ev-len">20m</span><span class="ev-when">5pm · 20m</span></li></ol></li><li class="ev-col"><p class="ev-dayhead"><span class="ev-day">Friday</span><span class="ev-due">1 due</span></p><ol class="ev-items">
+      <li class="ev-item k-school short" data-who="school" data-at="6240" style="--at:0;--len:30"><span class="ev-what">School</span><span class="ev-time">until 3pm</span><span class="ev-len">7h</span><span class="ev-when">until 3pm</span></li>
+      <li class="ev-item k-activity" data-who="goal:essay" data-at="6680" style="--at:50;--len:45"><span class="ev-what">College essay</span><span class="ev-time">3:20pm</span><span class="ev-len">45m</span><span class="ev-when">3:20pm · 45m</span></li></ol></li></ol></div><!-- /evening:week --></div>
       </div>
-      <div data-ev-week><!-- evening:week --><ol class="ev-week"><li><span class="ev-day">Monday</span><ol class="ev-items">
-      <li class="ev-item fixed"><span class="ev-time">3:30pm</span><span class="ev-what">Basketball practice</span><span class="ev-len">2h</span></li>
-      <li class="ev-item work"><span class="ev-time">5:30pm</span><span class="ev-what">Calculus problem set 4.2</span><span class="ev-len">1h</span></li></ol></li><li><span class="ev-day">Tuesday</span><ol class="ev-items">
-      <li class="ev-item work"><span class="ev-time">3:20pm</span><span class="ev-what">College essay</span><span class="ev-len">45m</span></li>
-      <li class="ev-item work"><span class="ev-time">4:15pm</span><span class="ev-what">Study for the Spanish quiz</span><span class="ev-len">25m</span></li></ol></li><li><span class="ev-day">Wednesday</span><ol class="ev-items">
-      <li class="ev-item fixed"><span class="ev-time">3:30pm</span><span class="ev-what">Basketball practice</span><span class="ev-len">2h</span></li>
-      <li class="ev-item work"><span class="ev-time">5:30pm</span><span class="ev-what">Study for the Spanish quiz</span><span class="ev-len">20m</span></li>
-      <li class="ev-item work"><span class="ev-time">6pm</span><span class="ev-what">Robotics build log</span><span class="ev-len">40m</span></li></ol></li><li><span class="ev-day">Thursday</span><ol class="ev-items">
-      <li class="ev-item fixed"><span class="ev-time">3:30pm</span><span class="ev-what">Robotics meeting<small class="ev-from">From email</small></span><span class="ev-len">1h 30m</span></li>
-      <li class="ev-item work"><span class="ev-time">5pm</span><span class="ev-what">Robotics build log</span><span class="ev-len">20m</span></li></ol></li><li><span class="ev-day">Friday</span><ol class="ev-items">
-      <li class="ev-item work"><span class="ev-time">3:20pm</span><span class="ev-what">College essay</span><span class="ev-len">45m</span></li></ol></li></ol><!-- /evening:week --></div>
+    </div>
+    <div class="ev-step ev-step-change">
+      <h3 class="step" id="when-something-changes"><span class="step-n" aria-hidden="true">3</span>When something changes</h3>
+      <p class="step-text">Cadence plans the whole week again and says what moved. It leaves practice where your coach puts it and only moves your work, to wherever there&rsquo;s room before it&rsquo;s due.</p>
       <div class="ev-try" data-ev-try hidden>
-        <p id="ev-try-label">Change something and watch the plan adjust</p>
-        <div class="ev-buttons" role="group" aria-labelledby="ev-try-label">
+        <div class="ev-buttons" role="group" aria-label="Change Sam&rsquo;s week">
           <button type="button" class="btn plain small" data-ev-change="moved" aria-pressed="false">Coach moves Wednesday&rsquo;s practice to 6pm</button>
           <button type="button" class="btn plain small" data-ev-change="lab" aria-pressed="false">A lab report comes in</button>
-          <button type="button" class="btn plain small" data-ev-reset>Start over</button>
+          <button type="button" class="btn plain small" data-ev-reset hidden>Start over</button>
         </div>
         <p class="ev-status" data-ev-status role="status"></p>
       </div>
-    </div>
-    <div class="ev-notes">
       <div class="ev-changed" data-ev-changed hidden>
-        <h3 id="what-changed">What changed</h3>
+        <h4 id="what-changed">What changed</h4>
         <ul></ul>
       </div>
+    </div>
+    <div class="ev-notes">
       <h3 id="why-the-week-looks-like-this">Why the week looks like this</h3>
-      <ul data-ev-why><!-- evening:why --><li><b>Free tonight: 5:30pm to 10pm</b> School ends at 3pm, followed by basketball practice from 3:30pm to 5:30pm. Cadence stops planning work 30 minutes before Sam's 10:30pm bedtime.</li><li><b>College essay</b> Sam's goal is 2 sessions of 45m a week, at no set time. Cadence planned them tomorrow at 3:20pm and Friday at 3:20pm.</li><li><b>Robotics meeting</b> It came in an email from the robotics captain, so it's on the calendar Thursday from 3:30pm to 5pm and no work goes there.</li><li><b>Calculus problem set 4.2</b> It's due tomorrow at 8am, and Cadence planned 1h for it tonight at 5:30pm.</li><li><b>Study for the Spanish quiz</b> It's due Thursday at 9am, and Cadence split its 45m across tomorrow and Wednesday.</li><li><b>Robotics build log</b> It's due Friday at midnight, and Cadence split its 1h across Wednesday and Thursday.</li><!-- /evening:why --></ul>
+      <ul data-ev-why><!-- evening:why --><li><b>Free tonight: 5:30pm to 10pm</b> School ends at 3pm, followed by basketball practice from 3:30pm to 5:30pm. Cadence stops planning work 30 minutes before Sam’s 10:30pm bedtime.</li><li><b>College essay</b> Sam’s goal is 2 sessions of 45m a week, at no set time. Cadence planned them tomorrow at 3:20pm and Friday at 3:20pm.</li><li><b>Robotics meeting</b> It came in an email from the robotics captain, so it’s on the calendar Thursday from 3:30pm to 5pm and no work goes there.</li><li><b>Calculus problem set 4.2</b> It’s due tomorrow at 8am, and Cadence planned 1h for it tonight at 5:30pm.</li><li><b>Spanish quiz</b> It’s due Thursday at 9am, and Cadence split its 45m across tomorrow and Wednesday.</li><li><b>Robotics build log</b> It’s due Friday at 11:59pm, and Cadence split its 1h across Wednesday and Thursday.</li><!-- /evening:why --></ul>
+      <p class="note">For a fuller week to click around in, <a href="/demo.html">try the sample week</a>.</p>
     </div>
+  </div>
 </div></section>
 
-<section id="how" class="band"><div class="wrap">
-  <div class="section-head">
-    <h2 id="how-it-decides">How it decides when you work</h2>
-    <p class="lead">Most planners start with a settings page that asks how many hours you want to work. Most students don&rsquo;t know, and even a good answer is wrong on the Tuesday you have a meet. Cadence works out your hours from your calendar instead, using four rules.</p>
-  </div>
-  <ol class="rules">
-    <li><h3 id="free-time-is-worked-out-one-day-at-a-time">Free time is worked out one day at a time</h3>
-      <p>Each day runs from when you wake up to when you go to sleep. Cadence takes out school and everything on your calendar, and work can go anywhere in the time that&rsquo;s left.</p></li>
-    <li><h3 id="work-goes-on-your-lightest-evenings-first">Work goes on your lightest evenings first</h3>
-      <p>Cadence fills the emptiest evenings before the busy ones, and it only piles more onto an evening when something would otherwise miss its due date.</p></li>
-    <li><h3 id="what-is-due-soonest-goes-first">What is due soonest goes first</h3>
-      <p>Cadence plans the most urgent work before anything else. Long assignments get split across several days, and you never get more than two blocks of the same thing back to back.</p></li>
-    <li><h3 id="everything-gets-planned-even-in-a-packed-week">Everything gets planned, even in a packed week</h3>
-      <p>When a week is too full, Cadence makes some days longer and, as a last resort, books work after its due date. It tells you which days and which assignments that affected, so you can decide what to drop, move or ask your teacher about.</p></li>
-  </ol>
-  <details class="more">
-    <summary id="see-a-busier-week-planned-out">See a busier week planned out</summary>
-    <div class="more-body">
-      <p class="note">This is the sample week as Cadence plans it at 6pm on a Sunday. Fiona is made up, but the plan below is exactly what the planner produced for this list.</p>
-      <div class="example">
-        <div class="given">
-          <h3 id="what-was-on-the-list">What was on the list</h3>
-          <ul>
-            <li>Eight assignments, adding up to 18h 40m of work</li>
-            <li>A physics worksheet that was already a day late</li>
-            <li>The biggest one, a research paper draft that takes 8 hours and is due in 13 days</li>
-          </ul>
-          <h3 id="what-was-already-taken">What was already taken</h3>
-          <ul>
-            <li>School, 8:30am to 3:30pm on weekdays</li>
-            <li>Robotics until 5:30pm on Monday and Wednesday, cross-country until 5:45pm on Tuesday and Thursday</li>
-            <li>A family dinner on Tuesday, the dentist on Friday, a food bank shift on Saturday morning</li>
-            <li>Piano five times a week and college essays twice, at no fixed time</li>
-          </ul>
-        </div>
-        <dl class="week">
-          <div><dt>Sunday, from 6pm</dt><dd>The late worksheet first, then college essays, piano, 45 minutes of the calculus problem set, and the permission slip</dd><dd class="time">3h 5m planned</dd></div>
-          <div><dt>Monday</dt><dd>The rest of the problem set, due Tuesday at 8am, then piano and two sittings of The Great Gatsby</dd><dd class="time">2h planned</dd></div>
-          <div><dt>Tuesday</dt><dd>Piano before the family dinner. After it, Gatsby finished and the whole vocab quiz, two days before the quiz</dd><dd class="time">2h planned</dd></div>
-          <div><dt>Wednesday</dt><dd>College essays, the first two blocks of the lab report, and 20 minutes of an interview writeup</dd><dd class="time">2h 15m planned</dd></div>
-          <div><dt>Thursday</dt><dd>Piano, two more blocks of the lab report, and 35 more minutes of the writeup</dd><dd class="time">2h 15m planned</dd></div>
-          <div><dt>Friday</dt><dd>The lab report finished a day early, then piano and 45 minutes of the writeup</dd><dd class="time">2h 15m planned</dd></div>
-          <div><dt>Saturday</dt><dd>The writeup finished around the food bank shift, three blocks of the research paper, and piano at 5pm</dd><dd class="time">3h 10m planned</dd></div>
-        </dl>
-      </div>
-      <ul class="results">
-        <li>Seven of the eight assignments get done before they&rsquo;re due. The eighth, the physics worksheet, was already a day late when the week began, so Cadence puts it first. The closest call is the calculus problem set, which is due Tuesday at 8am and gets finished Monday at 5:55pm.</li>
-        <li>No weekday gets more than 2h 15m of work, and Saturday and Sunday each get a little over three hours.</li>
-        <li>The research paper is split into 13 blocks between Saturday and the following Wednesday, and it&rsquo;s finished three days before it&rsquo;s due.</li>
-        <li>Piano still happens five times and college essays twice. They didn&rsquo;t fit into two hours a weekday, so Cadence raised the weekday limit to 2h 15m and kept every session.</li>
+<section id="activities" class="band"><div class="wrap">
+  <div class="feature">
+    <div class="feature-text">
+      <h2 id="nobody-else-keeps-track-of-your-activities">Nobody else keeps track of your activities</h2>
+      <p class="lead">Canvas lists every assignment, and teachers chase late work. Nobody reminds you that the robotics build log is due to your mentor Friday, or that you said you&rsquo;d practice piano five days this week. That part is on you, and it&rsquo;s the first thing to slip.</p>
+      <p class="lead">Cadence plans your activities in the same week as your homework.</p>
+      <ul class="points">
+        <li><h3 id="set-times-stay-clear">Set times stay clear</h3>
+          <p>Add practice, a club or a job at set times, and Cadence never plans work on top of it.</p></li>
+        <li><h3 id="weekly-goals-get-their-own-sessions">Weekly goals get their own sessions</h3>
+          <p>Say piano five times a week, and Cadence finds the time alongside your homework.</p></li>
+        <li><h3 id="check-ins-add-up">Check-ins add up</h3>
+          <p>Tap Check in after practice. Your check-ins build a record of hours in the shape the Common App asks for.</p></li>
+        <li data-needs="cloud"><h3 id="share-it-with-a-partner-or-your-club">Share it with a partner or your club</h3>
+          <p>Sign in to add an accountability partner or join your club. They see your check-ins for the activities you share, and they can send you a nudge.</p></li>
       </ul>
-      <p class="note">You can open this same week as the <a href="/demo.html">sample week</a>. Its dates shift to match the day you open it, so the details will be a little different.</p>
     </div>
-  </details>
+    <figure class="rp-fig">
+      <div class="rp">
+        <p class="rp-label">This week</p>
+        <ol class="rp-list">
+          <li class="rp-row"><span class="rp-ring" style="--rc: var(--a-practice)"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="18"/><circle class="fill" cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="67.86"/></svg><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></span><span class="rp-text"><b>Piano</b><span>5&times; a week &middot; 30m &middot; evenings</span></span><span class="rp-count">2 of 5</span></li>
+          <li class="rp-row"><span class="rp-ring" style="--rc: var(--a-club)"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="18"/><circle class="fill" cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="0.0"/></svg><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.6 14.6c2.6.3 4.3 2.1 4.9 5"/></svg></span><span class="rp-text"><b>Robotics build nights</b><span>Mon and Wed &middot; 3:45pm to 5:30pm</span></span><span class="rp-count ok">Done</span></li>
+          <li class="rp-row"><span class="rp-ring" style="--rc: var(--a-sport)"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="18"/><circle class="fill" cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="56.55"/></svg><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="15" cy="4.5" r="2"/><path d="M5 12.5l3.5-3.5 4 .5 2.5 3.5 3 .5"/><path d="M12.5 9.5l-2.5 5 3.5 2.5-1 4.5M10 14.5l-3 6.5"/></svg></span><span class="rp-text"><b>Cross-country</b><span>Tue and Thu &middot; 4pm to 5:45pm</span></span><span class="rp-count">1 of 2</span></li>
+          <li class="rp-row"><span class="rp-ring" style="--rc: var(--a-study)"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="18"/><circle class="fill" cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="56.55"/></svg><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20"/></svg></span><span class="rp-text"><b>College essays</b><span>2&times; a week &middot; 45m &middot; evenings</span></span><span class="rp-count">1 of 2</span></li>
+          <li class="rp-row"><span class="rp-ring" style="--rc: var(--a-service)"><svg viewBox="0 0 40 40" aria-hidden="true"><circle class="track" cx="20" cy="20" r="18"/><circle class="fill" cx="20" cy="20" r="18" stroke-dasharray="113.1" stroke-dashoffset="113.1"/></svg><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-8-4.6-8-10.7A4.8 4.8 0 0 1 12 6.6a4.8 4.8 0 0 1 8 3.2c0 6.1-8 10.7-8 10.7z"/></svg></span><span class="rp-text"><b>Food bank shifts</b><span>Sat &middot; 10am to 1pm</span></span><span class="rp-count">0 of 1</span></li>
+        </ol>
+        <p class="rp-label">Your record</p>
+        <div class="rp-card"><span class="rp-tile"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4h9v5a4.5 4.5 0 0 1-9 0z"/><path d="M7.5 6H4.5a3 3 0 0 0 3 4M16.5 6h3a3 3 0 0 1-3 4M12 13.5v4M8 21h8M9.5 17.5h5"/></svg></span><span class="rp-text"><b>54 hours across 5 activities</b><span>Hours per week, weeks per year and a short description for each, built from your check-ins.</span></span></div>
+      </div>
+      <figcaption>Activities in the sample week, partway through the week.</figcaption>
+    </figure>
+  </div>
 </div></section>
 
-<section id="where"><div class="wrap">
-  <div class="section-head">
-    <h2 id="use-it-on-canvas-or-on-any-screen">Use it on Canvas or on any screen</h2>
+<section id="assistant"><div class="wrap">
+  <div class="feature flip">
+    <div class="feature-text">
+      <h2 id="when-plans-change-just-tell-it">When plans change, just tell it</h2>
+      <p class="lead">Type it the way you&rsquo;d say it. Cadence changes your plan and lists what it changed. One tap undoes it.</p>
+      <h3 id="things-you-can-say">Things you can say</h3>
+      <ul class="say">
+        <li>&ldquo;Practice is cancelled today&rdquo;</li>
+        <li>&ldquo;Dinner at 6:30 tonight&rdquo;</li>
+        <li>&ldquo;Spanish quiz Thursday, 30 min&rdquo;</li>
+        <li>&ldquo;I&rsquo;m tired, an hour of work tonight&rdquo;</li>
+      </ul>
+      <p class="say-after">Something with a time goes on your calendar, and any work in its way is planned again. If you only say you&rsquo;re tired, it asks how much you can do and offers the answers as buttons.</p>
+    </div>
+    <figure class="rp-fig">
+      <div class="rp rp-agent">
+        <div class="rp-ag-head"><b>Ask Cadence</b><small>Practice is cancelled Wednesday</small></div>
+        <div class="rp-ag-thread">
+          <p class="rp-you">Practice is cancelled Wednesday</p>
+          <div class="rp-reply">
+            <p>Done. Your plan is rebuilt around it and everything still fits.</p>
+            <div class="rp-changes">
+              <div class="rp-change"><span class="rp-dot"></span><span><b>Basketball practice &middot; off Wednesday</b><small>Removed</small></span></div>
+              <div class="rp-actions"><span class="rp-btn">Undo this</span><span class="rp-btn soft">Open calendar</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="rp-compose"><span class="rp-input">I just got home and I am tired</span><span class="rp-send"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></span></div>
+      </div>
+      <figcaption>What Cadence does when Sam, from the example above, types this on Monday. This reply comes from the reader on your device. When the AI answers, it words its own, and lists the change the same way, with Undo.</figcaption>
+    </figure>
   </div>
-  <div class="places">
-    <div><h3 id="on-canvas">The Chrome extension, on Canvas</h3>
-      <p>The extension adds a Cadence button to every Canvas page and reads your courses and assignments using the login you already have, so there&rsquo;s no API token to create and nothing for your school to install.</p>
-      <!--off <p data-needs="extension"><a class="btn" href="/app" data-site-href="extension" rel="noopener">Add to Chrome</a></p> off--></div>
-    <div><h3 id="on-the-website">This website, on a phone or any computer</h3>
-      <p>The website is the same planner with more room, so you get the week grid with the assistant beside it, plus keyboard shortcuts. When you sign up, you can paste your Canvas calendar feed link and, if you use one, a Google, Outlook or iCloud calendar link, and from then on every due date comes in by itself. The extension adds what the feed leaves out, like points and whether you&rsquo;ve already submitted something.</p></div>
-  </div>
-  <p class="also" data-needs="cloud">If you sign in with the same email on both, they show the same plan. To make an account you enter your email, type in the code Cadence sends you and choose a password, and after that you sign in with just your email and password.</p>
+</div></section>
+
+<section id="more" class="band"><div class="wrap">
+  <h2 id="the-rest-of-your-week-goes-in-the-same-plan">The rest of your week goes in the same plan</h2>
+  <dl class="spec">
+    <div><dt id="homework-with-time-to-do-it">Homework, with time to do it</dt>
+      <dd>Every assignment gets a time estimate. Tap Quicker, About right or Longer when you finish, and later estimates for that kind of work in that class adjust.</dd></div>
+    <div><dt id="your-calendars-and-email">Your calendars and email</dt>
+      <dd>Paste your Canvas calendar feed link once, and a Google, Outlook or iCloud calendar link if you use one, and due dates and events keep coming in. In the Chrome extension, connect Gmail and the practices, games and meetings in your email land on your calendar, marked From email.</dd></div>
+    <div><dt id="on-canvas-or-on-any-screen">On Canvas or on any screen</dt>
+      <dd>The Chrome extension puts a Cadence button on every Canvas page and reads your assignments with the login you already have. The website is the same planner with more room, plus keyboard shortcuts.
+        <!--off <span data-needs="extension"><a class="btn" href="/app" data-site-href="extension" rel="noopener">Add to Chrome</a></span> off--></dd></div>
+  </dl>
+  <p class="also" data-needs="cloud">Sign in with the same email in the extension and on the website, and both show the same plan.</p>
   <!--off <p class="also" data-needs="no-cloud">Connect Google Calendar or paste your Canvas calendar feed link, and Cadence plans around whatever is already there. It only writes to Google Calendar if you turn that on, one item at a time.</p> off-->
 </div></section>
 
-<section id="data" class="band"><div class="wrap">
+<section id="how"><div class="wrap">
+  <div class="section-head">
+    <h2 id="how-it-decides">How it decides when you work</h2>
+    <p class="lead">You don&rsquo;t have to tell Cadence how many hours to work. It works that out from your calendar and what&rsquo;s due, using four rules.</p>
+  </div>
+  <ol class="rules">
+    <li><h3 id="it-starts-when-you-are-free-and-stops-before-bed">It starts when you&rsquo;re free and stops before bed</h3>
+      <p>On a school day, work can start 20 minutes after your last class. On other days it starts at least an hour and a half after you wake up. It always stops 30 minutes before bed, and everything on your calendar stays clear.</p></li>
+    <li><h3 id="no-day-gets-heavier-than-it-has-to">No day gets heavier than it has to</h3>
+      <p>Cadence starts every school day at the lightest load that works and raises it only as far as it takes for everything to be done before it&rsquo;s due.</p></li>
+    <li><h3 id="the-next-deadline-comes-first">The next deadline comes first</h3>
+      <p>Cadence plans the most urgent work before anything else. Long assignments get split across several days, and you never get more than two blocks of the same thing back to back.</p></li>
+    <li><h3 id="every-assignment-gets-a-plan-even-in-a-packed-week">Every assignment gets a plan, even in a packed week</h3>
+      <p>When a week is too full, some days get longer and, as a last resort, work is booked after its due date. Cadence tells you which days and assignments that affected, so you can decide what to drop or ask your teacher about.</p></li>
+  </ol>
+  <div class="packed">
+    <h3 id="a-packed-week-planned-start-to-finish">A packed week, planned start to finish</h3>
+    <p class="note">Fiona, the student in the sample week, is made up, but this is exactly what the planner produced for her list at 6pm on a Sunday. You can <a href="/demo.html">open the same week</a>; its dates shift to match the day you open it, so the details will be a little different.</p>
+    <div class="example">
+      <div class="given">
+      <h4 id="what-was-on-the-list">What was on the list</h4>
+      <ul>
+        <li>Eight assignments, adding up to 18h 40m of work</li>
+        <li>A physics worksheet that was already a day late</li>
+        <li>The biggest one, a research paper draft that takes 8 hours and is due in 13 days</li>
+      </ul>
+      <h4 id="what-was-already-taken">What was already taken</h4>
+      <ul>
+        <li>School, 8:30am to 3:30pm on weekdays</li>
+        <li>Robotics until 5:30pm on Monday and Wednesday, cross-country until 5:45pm on Tuesday and Thursday</li>
+        <li>A family dinner on Tuesday, the dentist on Friday, a food bank shift on Saturday morning</li>
+        <li>Piano five times a week and college essays twice, at no fixed time</li>
+      </ul>
+        <h4 id="what-came-out">What came out</h4>
+        <ul class="results">
+          <li>Seven of the eight assignments get done before they&rsquo;re due. The eighth, the physics worksheet, was already a day late, so Cadence puts it first.</li>
+          <li>The closest call is the calculus problem set, due Tuesday at 8am and finished Monday at 5:55pm.</li>
+          <li>No weekday gets more than 2h 15m of work, and Saturday and Sunday each get a little over three hours.</li>
+          <li>The research paper is split into 13 blocks between Saturday and the following Wednesday, and it&rsquo;s finished three days early.</li>
+          <li>Every piano and college essay session still happens. They didn&rsquo;t fit into two hours a weekday, so Cadence raised the weekday limit to 2h 15m rather than drop one.</li>
+        </ul>
+      </div>
+      <div class="load-frame">
+      <p class="load-head"><b>Work planned each day</b> <span>The line is the weekday limit, raised to 2h 15m so every session fits</span></p>
+      <ol class="load">
+      <li style="--m:185"><span class="load-day">Sunday, from 6pm</span><span class="load-bar"><i></i><b>3h 5m</b></span><span class="load-what">The late worksheet first, then college essays, piano, 45 minutes of the calculus problem set, and the permission slip</span></li>
+      <li style="--m:120"><span class="load-day">Monday</span><span class="load-bar"><i></i><b>2h</b></span><span class="load-what">The rest of the problem set, due Tuesday at 8am, then piano and two sittings of The Great Gatsby</span></li>
+      <li style="--m:120"><span class="load-day">Tuesday</span><span class="load-bar"><i></i><b>2h</b></span><span class="load-what">Piano before the family dinner. After it, Gatsby finished and the whole vocab quiz, two days before the quiz</span></li>
+      <li style="--m:135"><span class="load-day">Wednesday</span><span class="load-bar"><i></i><b>2h 15m</b></span><span class="load-what">College essays, the first two blocks of the lab report, and 20 minutes of an interview writeup</span></li>
+      <li style="--m:135"><span class="load-day">Thursday</span><span class="load-bar"><i></i><b>2h 15m</b></span><span class="load-what">Piano, two more blocks of the lab report, and 35 more minutes of the writeup</span></li>
+      <li style="--m:135"><span class="load-day">Friday</span><span class="load-bar"><i></i><b>2h 15m</b></span><span class="load-what">The lab report finished a day early, then piano and 45 minutes of the writeup</span></li>
+      <li style="--m:190"><span class="load-day">Saturday</span><span class="load-bar"><i></i><b>3h 10m</b></span><span class="load-what">The writeup finished around the food bank shift, three blocks of the research paper, and piano at 5pm</span></li>
+      </ol>
+    </div>
+    </div>
+  </div>
+</div></section>
+
+<section id="data"><div class="wrap">
   <div class="section-head">
     <h2 id="what-goes-where">Where your information goes</h2>
-    <p class="lead">Cadence doesn&rsquo;t show ads<!--off <span data-needs="no-counts">, doesn&rsquo;t use analytics</span> off--><!--off <span data-needs="visits-only">, doesn&rsquo;t track you</span> off--><span data-needs="usage">, records only anonymous use</span> and never sells or rents anything about you. Here is everything it keeps, where it keeps it and who else gets it.</p>
+    <p class="lead">Cadence doesn&rsquo;t show ads<!--off <span data-needs="no-counts">, doesn&rsquo;t use analytics</span> off--><!--off <span data-needs="visits-only">, doesn&rsquo;t track you</span> off--><span data-needs="usage">, records only anonymous use</span> and never sells or rents anything about you. Here is what it keeps and who else gets it.</p>
   </div>
+  <ul class="principles">
+    <li><p class="principle">You can download your plan or delete it.</p>
+      <p>In Account, Download my data saves it as a file you can keep. Delete my data erases it<span data-needs="cloud">, or Delete account once you&rsquo;ve signed in with an email</span>.</p></li>
+    <li data-needs="cloud"><p class="principle">Your crew sees only what you share.</p>
+      <p>A partner or a club sees your name and your check-ins for the activities you choose: the activity, how long, how it went and any note. Nothing about your assignments or your calendar.</p></li>
+    <!--off <li data-needs="no-cloud"><p class="principle">Your plan is kept in this browser.</p>
+      <p>Cadence has no accounts here, so there is nowhere else to keep it.</p></li> off-->
+    <li><p class="principle">Your email stays on your computer.</p>
+      <p>Gmail is read in the Chrome extension, on your computer. Your email isn&rsquo;t sent to Cadence or to any AI company.</p></li>
+    <li><p class="principle">What you tell the assistant leaves your browser.</p>
+      <p>Your message goes to the AI company that answers it, with a summary of your week, so don&rsquo;t type anything private.</p></li>
+  </ul>
   <div class="where" tabindex="0" role="region" aria-label="What Cadence stores and where">
     <table role="table">
       <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">What</th><th scope="col" role="columnheader">Where it is kept</th><th scope="col" role="columnheader">Who else receives it</th></tr></thead>
       <tbody role="rowgroup">
-        <tr role="row"><th scope="row" role="rowheader">Your plan</th><td role="cell">In your browser.<span data-needs="cloud"> If you sign in with an email, a copy is saved to your account so your other devices can load it.</span></td><td role="cell">No one</td></tr>
-        <tr role="row"><th scope="row" role="rowheader">Canvas assignments</th><td role="cell">Read in your own browser, with your own Canvas login</td><td role="cell">No one</td></tr>
-        <tr role="row"><th scope="row" role="rowheader">Connected calendars</th><td role="cell">On the device where you connected them</td><td role="cell">No one. Cadence's server fetches your calendar links (Canvas on the website; Google, Outlook and iCloud everywhere) for you and keeps nothing</td></tr>
-        <tr role="row"><th scope="row" role="rowheader">Gmail, if you connect it</th><td role="cell">Read by your browser straight from Google, in the Chrome extension, to find events such as practices, games and deadlines. The events it finds are kept on your computer; your emails are not saved to your plan or account</td><td role="cell">No one. Your email is not sent to Cadence or to any AI company</td></tr>
-        <tr role="row"><th scope="row" role="rowheader">What you tell the assistant</th><td role="cell">Your chats stay in this browser until you delete them or sign out, never in your account. Lasting things you tell it, saved by you or by the assistant, are kept with your plan, where you can see and delete them</td><td role="cell"><!--off <span data-needs="groq">Groq, which may not train on it and does not store it, or Anthropic (Claude) with your own key</span> off--><span data-needs="gemini">Google (Gemini), which may use and read it, or Anthropic (Claude) with your own key</span><!--off <span data-needs="claude">Anthropic (Claude), which may not train on it</span> off-->: your message, earlier messages in the same chat, a summary of your week and what Cadence remembers about you; for an outline (/secret), the one assignment you pick, with its instructions</td></tr>
-        <tr role="row"><th scope="row" role="rowheader">A message you send us</th><td role="cell">With Netlify, the company that hosts this site</td><td role="cell">The person who runs Cadence, to answer you. Netlify checks it for spam with a service called Akismet</td></tr>
-        <!--off <tr data-needs="no-counts" role="row"><th scope="row" role="rowheader">Ads and analytics</th><td role="cell">There are none</td><td role="cell">No one</td></tr> off-->
-        <tr data-needs="usage" role="row"><th scope="row" role="rowheader">Ads and anonymous usage data</th><td role="cell">No ads. A random ID with the screens you use, for how long, and what you press, never your name, what you type, your plan or email. You can turn it off in Account</td><td role="cell">Supabase, which stores it for Cadence. No one else</td></tr>
-        <!--off <tr data-needs="visits-only" role="row"><th scope="row" role="rowheader">Ads and visit counts</th><td role="cell">No ads. A link shared with a label on it adds one to that label&rsquo;s count for the day</td><td role="cell">No one, and nothing about you is recorded</td></tr> off-->
+        <tr role="row"><th scope="row" role="rowheader">Your plan</th><td role="cell" data-label="Where it is kept">In your browser.<span data-needs="cloud"> If you sign in with an email, a copy is saved to your account so your other devices can load it.</span></td><td role="cell" data-label="Who else receives it">No one, except the summary of your week the assistant sends (below)</td></tr>
+        <tr role="row"><th scope="row" role="rowheader">Canvas assignments</th><td role="cell" data-label="Where it is kept">In your browser. On the website they come from your Canvas calendar feed link, which Cadence&rsquo;s server fetches for you and keeps nothing; the Chrome extension reads them with your own Canvas login</td><td role="cell" data-label="Who else receives it">No one, except the summary of your week the assistant sends (below)</td></tr>
+        <tr role="row"><th scope="row" role="rowheader">Connected calendars</th><td role="cell" data-label="Where it is kept">On the device where you connected them</td><td role="cell" data-label="Who else receives it">No one. Cadence&rsquo;s server fetches your calendar links (Canvas on the website; Google, Outlook and iCloud everywhere) for you and keeps nothing. The assistant&rsquo;s summary of your week includes the times of your events (below)</td></tr>
+        <tr role="row"><th scope="row" role="rowheader">Gmail, if you connect it</th><td role="cell" data-label="Where it is kept">Read by your browser straight from Google, in the Chrome extension, to find events such as practices, games and deadlines. The events it finds are kept on your computer; your emails are not saved to your plan or account</td><td role="cell" data-label="Who else receives it">No one. Your email is not sent to Cadence or to any AI company</td></tr>
+        <tr data-needs="cloud" role="row"><th scope="row" role="rowheader">Check-ins you share</th><td role="cell" data-label="Where it is kept">In your account, for the activities you choose to share</td><td role="cell" data-label="Who else receives it">Your accountability partner or club: your name, the activity, how long, how it went and any note</td></tr>
+        <tr role="row"><th scope="row" role="rowheader">What you tell the assistant</th><td role="cell" data-label="Where it is kept">Your chats stay in this browser until you delete them or sign out, never in your account. Lasting things you tell it, saved by you or by the assistant, are kept with your plan, where you can see and delete them</td><td role="cell" data-label="Who else receives it"><!--off <span data-needs="groq">Groq, which may not train on it and does not store it, or Anthropic (Claude) with your own key</span> off--><span data-needs="gemini">Google (Gemini), which may use and read it, or Anthropic (Claude) with your own key</span><!--off <span data-needs="claude">Anthropic (Claude), which may not train on it</span> off-->: your message, earlier messages in the same chat, a summary of your week and what Cadence remembers about you; for an outline (/secret), the one assignment you pick, with its instructions</td></tr>
+        <tr role="row"><th scope="row" role="rowheader">A message you send us</th><td role="cell" data-label="Where it is kept">With Netlify, the company that hosts this site</td><td role="cell" data-label="Who else receives it">The person who runs Cadence, to answer you. Netlify checks it for spam with a service called Akismet</td></tr>
+        <!--off <tr data-needs="no-counts" role="row"><th scope="row" role="rowheader">Ads and analytics</th><td role="cell" data-label="Where it is kept">There are none</td><td role="cell" data-label="Who else receives it">No one</td></tr> off-->
+        <tr data-needs="usage" role="row"><th scope="row" role="rowheader">Ads and anonymous usage data</th><td role="cell" data-label="Where it is kept">No ads. A random ID with the screens you use, for how long, and what you press, never your name, what you type, your plan or email. You can turn it off in Account</td><td role="cell" data-label="Who else receives it">Supabase, which stores it for Cadence. No one else</td></tr>
+        <!--off <tr data-needs="visits-only" role="row"><th scope="row" role="rowheader">Ads and visit counts</th><td role="cell" data-label="Where it is kept">No ads. A link shared with a label on it adds one to that label&rsquo;s count for the day</td><td role="cell" data-label="Who else receives it">No one, and nothing about you is recorded</td></tr> off-->
       </tbody>
     </table>
   </div>
   <p class="after-table">The <a href="/privacy.html">privacy policy</a> goes through each of these in full, including <a href="/privacy.html#deleting-your-data">how to delete your data</a>.</p>
 </div></section>
 
-<section id="questions"><div class="wrap faq">
+<section id="questions" class="band"><div class="wrap faq">
   <h2 id="questions-2">Common questions</h2>
   <div class="faq-list">
     <details><summary id="is-cadence-free">Is Cadence free?</summary>
       <p>Yes. There&rsquo;s no paid plan and there are no ads.</p></details>
     <details><summary id="does-my-school-have-to-set-anything-up">Does my school have to set anything up?</summary>
-      <p>No. The extension reads Canvas through the login you already have in your browser, so there&rsquo;s no API token to create and nothing for an administrator to install.</p></details>
+      <p>No. On the website you paste your Canvas calendar feed link, and the Chrome extension reads Canvas with the login you already have in your browser. Either way there&rsquo;s no API token to create and nothing for an administrator to install.</p></details>
     <details><summary id="can-i-use-it-without-canvas">Can I use it without Canvas?</summary>
-      <p>Yes. Type an assignment the way you&rsquo;d say it, like &ldquo;Spanish quiz Thursday, 30 min&rdquo;, and Cadence estimates and schedules it just like one from Canvas. Activities and events don&rsquo;t need Canvas at all. The <a href="/demo.html">sample week</a> doesn&rsquo;t use Canvas either, and it comes with a week already filled in.</p></details>
+      <p>Yes. Type an assignment the way you&rsquo;d say it, like &ldquo;Spanish quiz Thursday, 30 min&rdquo;, and Cadence plans it just like one from Canvas. Leave out the time and it estimates one. Activities and events don&rsquo;t need Canvas at all. The <a href="/demo.html">sample week</a> doesn&rsquo;t use Canvas either, and it comes with a week already filled in.</p></details>
     <details><summary id="how-does-it-know-how-long-something-takes">How does it know how long something takes?</summary>
-      <p>It starts from the assignment&rsquo;s title and instructions. When you finish something, it asks whether it took less time, about that long or longer, and uses your answer to adjust later estimates for the same kind of work. You can also set the time yourself on any assignment.</p></details>
+      <p>It starts from the assignment&rsquo;s title and instructions. When you finish, tap Quicker, About right or Longer, and later estimates for that kind of work in that class adjust. You can also set the time yourself on any assignment.</p></details>
     <details><summary id="what-is-in-the-app">What is in the app?</summary>
-      <p>There are five tabs. Today shows what to do next, how much is planned for the day, and a check-in for each activity once it&rsquo;s over. Calendar has everything with a time on it, from school and practice to due dates and the blocks planned for your work. Activities covers practice, teams, clubs or a job: set times that Cadence keeps clear, or a weekly goal like piano five times a week that it plans sessions for, with a weekly count of whether you showed up. Events from your calendars, and practices, games and meetings the Chrome extension finds in your Gmail, go on Calendar, and your activities and homework are planned around them. School lists every assignment with how long it should take and the steps to finish it, and each step is tied to the block it&rsquo;s planned for. Crew is for accountability partners and clubs, who only see check-ins for the activities you choose to share. The <a href="/demo.html">sample week</a> has all five.</p></details>
-    <details><summary id="can-i-just-tell-it-what-changed">Can I just tell it what changed?</summary>
-      <p>Yes. Type it the way you&rsquo;d say it. &ldquo;Practice is cancelled today&rdquo; frees up that time for other work, and &ldquo;I just got home and I&rsquo;m tired, an hour of work tonight&rdquo; keeps tonight to that hour and moves the rest. If you mention something with a time, like dinner at 6:30, it goes on your calendar too. Each reply lists what changed and what moved because of it, and one tap undoes the whole thing. If you only say you&rsquo;re tired without giving a number, it asks you one question and offers the answers as buttons.</p></details>
+      <p>Five tabs. Today shows what to do next. Calendar has everything with a time on it. School lists every assignment, broken into steps. Activities covers what you do outside class, with a check-in after each one. Crew is for accountability partners and clubs. The <a href="/demo.html">sample week</a> has all five.</p></details>
     <details><summary id="what-if-i-am-having-a-bad-day">What if I am having a bad day?</summary>
       <p>Tell the assistant how much you can do tonight, and the rest of tonight&rsquo;s work moves to other days. If those days are already full, Cadence either goes past your number or plans work after its due date, and it tells you which one it did so you can choose what happens.</p></details>
     <details><summary id="does-it-work-on-my-phone">Does it work on my phone?</summary>
       <p>Yes. The website works in your phone&rsquo;s browser, and your Canvas assignments come in through your Canvas calendar feed link. The Chrome extension, which can also read points and what you&rsquo;ve submitted, runs in Chrome on a computer or a Chromebook.</p></details>
     <details><summary id="who-can-see-my-plan">Who can see my plan?</summary>
-      <p>Nobody, unless you add an accountability partner or join a club. Even then, they only see your name and the check-ins for the activities you chose to share, and nothing about your assignments or your calendar. The privacy policy says <a href="/privacy.html#what-other-people-can-see">exactly what they can see</a>.</p></details>
+      <p>No other person, unless you add an accountability partner or join a club. Even then, they only see your name and your check-ins for the activities you chose to share, and nothing about your assignments or your calendar. When you use the assistant, a summary of your week goes with your message to the AI company that answers it. The privacy policy says <a href="/privacy.html#what-other-people-can-see">exactly what other people can see</a>.</p></details>
     <details><summary id="is-the-assistant-an-ai">Is the assistant an AI?</summary>
       <!--off <p data-needs="groq">On a copy of Cadence that offers it, yes. Your messages go to Groq, a company that runs AI models. Its agreement says it can&rsquo;t use them to train any model, and with the setting Cadence keeps on, it doesn&rsquo;t store them. Even so, don&rsquo;t type anything private. The assistant changes your plan through the same steps you could take yourself, and if you add your own Anthropic key, Claude does the same job. If neither can be reached, ordinary code on your own device reads simple sentences. The privacy policy lists <a href="/privacy.html#the-assistant-and-ai">exactly what is sent</a>.</p> off-->
       <p data-needs="gemini">On a copy of Cadence that offers it, yes. Your messages go to Gemini, an AI model made by Google, which may use them to improve its products and may have people read them, so don&rsquo;t type anything private. The assistant changes your plan through the same steps you could take yourself, and if you add your own Anthropic key, Claude does the same job. If neither can be reached, ordinary code on your own device reads simple sentences. The privacy policy lists <a href="/privacy.html#the-assistant-and-ai">exactly what is sent</a>.</p>
@@ -262,7 +365,7 @@
     <details><summary id="can-cadence-read-my-email">Can Cadence read my email?</summary>
       <p>Only if you connect Gmail in the Chrome extension. Then, while Cadence is open, it reads your recent email on your computer, with read-only access, finds practices, games, deadlines and changes, and adds them to your calendar labelled From email, with the sentence each came from. Practices, games and meetings with a time get planned around. A deadline shows up on its day, and Cadence plans time for it once you add it as an assignment. Your email isn&rsquo;t sent to Cadence or to any AI company, and the events stay on your device. Delete any that are wrong, switch it off or disconnect at any time. <a href="#data">Where your information goes</a> shows what is kept and who receives it, and the privacy policy explains <a href="/privacy.html#gmail">exactly what happens</a>.</p></details>
     <details><summary id="can-cadence-see-my-google-calendar">Can Cadence see my Google Calendar?</summary>
-      <p>Only if you connect it. Paste your calendar&rsquo;s secret link and Cadence plans around your events. Or, in the Chrome extension, sign in with Google and it reads the events on the calendars you pick, so it can plan around them. Only if you turn it on does it add its own work blocks to one calendar you choose, and it never changes an event it didn&rsquo;t make. Your events stay on your device.</p></details>
+      <p>Only if you connect it. Paste your calendar&rsquo;s secret link, and Cadence&rsquo;s server fetches it for you and keeps nothing. Or, in the Chrome extension, sign in with Google and it reads the calendars you pick. Only if you turn it on does it add its own work blocks to one calendar you choose, and it never changes an event it didn&rsquo;t make. Your events are kept on your device, and the assistant gets their times, without their titles, in its summary of your week.</p></details>
     <details><summary id="who-can-use-cadence">Who can use Cadence?</summary>
       <p>Students who are 13 or older. If you&rsquo;re under 18, check with a parent or guardian before you sign in with an email, and follow your school&rsquo;s rules about the tools you use for schoolwork.</p></details>
     <p class="ask">Have a question that isn&rsquo;t here? <a href="/contact.html">Ask it on the contact page</a>.<span data-needs="reply"> We reply within <span data-site="reply">a week</span>.</span></p>
@@ -270,8 +373,11 @@
 </div></section>
 
 <section class="closing"><div class="wrap">
-  <h2 id="try-it-with-your-own-week">Now try it with your own week</h2>
-  <p>It&rsquo;s free, and it works in Chrome on Canvas and here on the website.</p>
+  <div class="closing-text">
+    <h2 id="try-it-with-your-own-week">Now try it with your own week</h2>
+    <!--off <p data-needs="extension">It&rsquo;s free, and it works in Chrome on Canvas and here on the website.</p> off-->
+    <p data-needs="no-extension">It&rsquo;s free, and it works in your browser, on a phone or a computer.</p>
+  </div>
   <div class="cta">
     <a class="btn primary large" href="/app.html">Open Cadence</a>
   </div>
@@ -294,7 +400,7 @@
     <a href="/privacy.html">Privacy</a>
     <a href="/terms.html">Terms</a>
   </nav>
-  <span class="updated-on">Site updated <span data-site="updated"><time datetime="2026-11-15">November 15, 2026</time></span></span>
+  <span class="updated-on">Site updated <span data-site="updated"><time datetime="2026-11-16">November 16, 2026</time></span></span>
 </div></footer>
 
 <aside class="notice" data-notice aria-label="How Cadence stores things" hidden>

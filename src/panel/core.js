@@ -98,7 +98,8 @@ export function back() {
 export const activeTab = () => (app.stack.length ? app.stack[0].view : app.view);
 
 // A new screen starts at its top.
-const scrollTop = () => { const v = document.getElementById('view'); if (v) v.scrollTop = 0; };
+// Remembers how far down the old page was (the homepage's tour slides it away from there).
+const scrollTop = () => { const v = document.getElementById('view'); if (v) { app.leftScroll = v.scrollTop; v.scrollTop = 0; } };
 
 // ---------------------------------------------------------------- bridge
 

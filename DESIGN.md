@@ -14,20 +14,26 @@ says what they are for, so a change can be checked against them.
 | `--field` | `#948e87` | The outline of a text field (3:1 on white) |
 | `--text`, `--text-2`, `--muted` | `#1c1b19`, `#55514c`, `#736e68` | Text. `--muted` is 5:1 on white and is the lightest text allowed |
 | `--accent` | `#f0712b` | The one orange: primary buttons, the current tab, today |
-| `--accent-strong` | `#c2410c` | Orange that has to be read as text or found as a line: links, focus rings |
+| `--accent-strong` | `#c2410c` | Orange that has to be read as text or found as a line: the app's links, the calendar's now line |
+| `--blue`, `--blue-ink`, `--blue-soft` | `#1d3c9c`, `#1d3c9c`, `#eef2fc` (dark `#1c2d6e`, `#a9bcf5`, `#1b2340`) | Blue, the brand: the homepage's stage, links on the public pages, the focus ring everywhere (`--ring`), a pressed toggle, the step numbers of the homepage example |
 | `--on-accent` | `#1c1b19` | Text on an orange fill (5.8:1; white would be 3:1) |
 | `--green`, `--amber`, `--red` | | Done, careful, wrong. Never decoration |
 | `--k-school`, `--k-event`, `--k-activity`, `--k-work` | grey, blue, green, orange | What kind of thing is on a calendar |
 | `--a-practice` ... `--a-custom` | one per kind of activity | Which activity: its ring, its icon, its block on Today |
-| `--stage` | `#1d3c9c` (dark `#1c2d6e`) | The homepage only: the evening-blue field of the first screen and the closing call, where the live app sits. Never a button |
+| `--stage` | `var(--blue)` | The homepage only: the evening-blue field of the first screen and the closing call, where the live app sits. Never a button |
 | `--band` | `#f7f6f4` | The homepage only: every other section, so colour, not a rule, marks where one ends |
 
-Colour says one of four things: what you can do next (orange), what state
-something is in (green, amber, red), what kind of time it is (the four `--k`
-colours, on the calendar), or which activity it is (the `--a` colours, by
-kind of activity, chosen so none is the blue of an event, the orange of
-homework or the grey of school). A friend's avatar is tinted with their own
-colour. Courses are not given colours of their own.
+Colour says one of five things: what you can do next and what Cadence planned
+(orange), what state something is in (green, amber, red), what kind of time it
+is (the four `--k` colours, on the calendar), which activity it is (the `--a`
+colours, by kind of activity, chosen so none is the blue of an event, the
+orange of homework or the grey of school), or that it is Cadence itself or
+something you can follow or have chosen (the brand blue). A friend's avatar is
+tinted with their own colour. Courses are not given colours of their own.
+
+Blue and orange never fill large areas side by side: the stage is blue with
+one orange button on it, and inside a section blue is only ever a line, a
+link or a small tint.
 
 ### The loud part
 
@@ -65,9 +71,11 @@ the app uses), so it works offline. The serif stays on the website.
 
 - **Source Serif 4** sets the few headlines that speak for Cadence: the
   homepage's first line, its section titles, the closing call and a
-  document's title (`h1`, `h2` on the public pages, `--serif`). It is the
-  editorial voice, so it is used sparingly: never in the app, and never on a
-  button, a label, a field, a time or a list of data. Its optical sizes are in
+  document's title (`h1`, `h2` on the public pages, `--serif`), and the four
+  short statements about your data on the homepage (`.principle`,
+  `--t-statement`). It is the editorial voice, so it is used sparingly: never
+  in the app, and never on a button, a label, a field, a time or a list of
+  data. Its optical sizes are in
   the file, so large lines get the display cut by themselves.
 - **Inter** sets everything else: body text, navigation, buttons, fields,
   the planner, the calendar, every time and number (`--font`). Headings
@@ -128,9 +136,13 @@ figures so columns of them line up.
 
 ## Motion
 
-100, 150 or 200ms, on opacity and transform only, easing out on the way in.
-Nothing moves unless something was done or something is loading. With
-"reduce motion" set, everything is immediate.
+100, 150 or 200ms (`--m1` to `--m3`) for a control answering, 320ms (`--m4`)
+and up for something moving to a new place, on opacity and transform only,
+easing out on the way in (`--ease-out`) and speeding up on the way out
+(`--ease-in`). The spring, a little past and back (`--ease-spring`), belongs to
+the homepage's live app and its example. The same tokens are in both
+stylesheets. Nothing moves unless something was done or something is
+loading. With "reduce motion" set, everything is immediate.
 
 Loading has three forms and no others: the ring on a busy button, a line or
 two of placeholder that breathes slowly where text is about to arrive, and
@@ -145,7 +157,17 @@ behind their blocks. Inside the app itself tabs change instantly. The tour
 only looks, never changes the demo week, and does not play for anyone who
 asked for less motion. While it plays the frame does not scroll, so a wheel
 over it scrolls the homepage; the visitor's first click, tap or key press
-stops it for good.
+stops it for good. The tour waits while the frame is scrolled out of
+sight (checking only a few times a second), gives the page on show its full
+stay once the frame is back, never starts a change before the last one has
+finished, and only ever slides one old page away. On a phone the tint behind the current tab's icon
+pops in; at the desktop layout the line under the tab draws itself out. In
+the tour, Calendar opens at 2pm, so the afternoon and evening the planning is
+about are what shows, whatever the visitor's clock says.
+
+The homepage example moves only when it is clicked: blocks a change moved
+glide to their new place (460ms, easing out) and new ones arrive with the
+tour's spring (520ms), so where the work went can be followed by eye.
 
 Nothing animates because the page was scrolled. Three things on the public
 pages know where the scroll is, and `scripts/prelaunch_check.py` allows those
@@ -162,6 +184,7 @@ None of the three is an animation: each is either there or not.
 - Below 768px: one column, tabs along the bottom. This is the extension panel (440px) and the website on a phone.
 - From 768px: header, a row of tabs, the page, and up to two panes on the right.
 - The header and tab row span the window. What is inside them is kept to 1280px by a gutter measured from the window, so the header's left edge and the page's left edge are the same line.
+- The homepage's live app stands on the stage at every width. It is the phone layout (420px) under the words on a phone and beside them from 768px. From 1080px it runs the full width of the page under the words (1032 to 1072px wide, so always the desktop layout and never the side pane, which starts at 1180px).
 - The public header has three widths. On a phone: the name, the main button and a menu. From 768px: search, the theme and both buttons join it, and the links stay in the menu. From 1080px the links are written out and the menu goes. A header never wraps onto a second line; when something does not fit, it moves into the menu.
 - Every public page below the homepage starts with breadcrumbs (Home, then the page). The last one is where you are and is not a link.
 - A primary action is never on screen twice. On the homepage on a phone that is one of: the buttons at the top, the bar at the bottom, the buttons at the end.
@@ -175,7 +198,8 @@ None of the three is an animation: each is either there or not.
 - A list of links to go to (on the 404 page, the thank-you page, "Before you write") uses `class="ways"`, which makes each link a full 44px tall.
 - Something the owner has not decided yet is shown as a highlighted "to be added before launch", never left blank and never invented.
 - An example is labelled as one. There are no testimonials, counts of users or ratings, because there is nothing true to put in them yet.
-- The homepage's example ("Watch it plan Sam's Monday", `src/site/evening.js`) is one made-up student's week, worked out by the real planner in the visitor's browser with the clock set to that Monday at 3:15pm, then put back. Its two changes are made the way the app makes them (practice moved: that day's practice called off and the new time added as busy; an assignment added with its time), its weekly goal and its event from email are kept the way the app keeps them, and everything it says (the free hours, why each block is where it is, what moved) is read off the planner's result. The page holds the starting week already, copied from this same code, so it reads the same without scripts; if the planner changes, recopy it (the copy sits between `evening:week` and `evening:why` markers). A change marks what moved in words ("Moved", "New") and nothing slides. The longer worked week (Fiona) sits behind "See a busier week planned out" under the rules.
+- The homepage's example ("How Cadence plans a week", `src/site/evening.js`) is one made-up student's week, worked out by the real planner in the visitor's browser with the clock set to that Monday at 3:15pm, then put back. It is told in the three steps it really takes: what Sam has (read off the week), the week Cadence planned (the app's own week grid from 2:30pm to 10pm, labelled the way the app labels it, on a wide screen; a list of days on a phone; both from the same markup), and when something changes. On a wide screen the week holds still beside what Sam has and the changes (sticky, where the screen is tall enough), so a change and what it did are seen together. Its two changes are made the way the app makes them (practice moved: that day's practice called off and the new time added as busy; an assignment added with its time), its weekly goal and its event from email are kept the way the app keeps them, and everything it says (the free hours, why each block is where it is, what moved) is read off the planner's result. A change marks what moved in words ("Moved", "New") and with an orange ring on the grid, and the blocks glide (see Motion). The page holds what the example first shows already, copied from this same code, so it reads the same without scripts; `scripts/copy_example.py` copies it again and `--check` says whether it still matches. The longer worked week (Fiona, the sample week's student) is its own section, "A packed week, planned start to finish", with each day's planned work drawn as a bar against the weekday limit.
+- The pictures of the app beside the features (Activities, the assistant) are copies of its screens drawn in HTML with the app's own sizes and colours, labelled with where they come from: the sample week's activities partway through a week, and the reply Cadence's own reader gives Sam (checked by `scripts/copy_example.py --check`). They are pictures, never controls.
 - A promise (a reply time, deleting a message on request) is only on the page if the person who runs the site has made it.
 - A privacy promise is only on the page if code makes it true, and `scripts/claims_check.py` fails the launch check when the sentence or the code moves (`CLAIMS.md` is the table). A change to what is collected or who receives it changes the privacy page and its date in the same commit; the check enforces that through `claims.lock.json`. A failure says what did not happen ("Nothing was deleted"), and anything a script cannot check is listed as not checked rather than implied.
 

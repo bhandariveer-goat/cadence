@@ -3,20 +3,24 @@
    Same tokens as the app (src/panel/panel.css): one orange, hairlines before
    shadows, three weights for text. Two typefaces, each with one job. Source
    Serif 4 sets the few headlines that speak for Cadence (the homepage's first
-   line, its section titles, a document's title): an editorial voice, used
-   sparingly. Inter sets everything else, here and in the app: anything read
+   line, its section titles, its three statements about your data, a
+   document's title): an editorial voice, used sparingly. Inter sets everything else, here and in the app: anything read
    in passing, every control, every time and number. Both are served from this
    site (src/fonts), never fetched from anyone else. Nothing moves on scroll
    and nothing is here for decoration.
 
-   The homepage adds two surfaces of its own. The stage is evening blue, the
-   hour homework happens in: the first screen stands on it, with the app
-   lit up as a white screen and the orange button as the brightest thing
-   there, and so does the last invitation to try it. It is a place to stand,
-   never a control, and it is the only loud colour on the page. The band is
-   the app's own pale stone, taken by every other section so where one ends
-   is shown without a rule; anything framed sits on it on the page colour.
-   Privacy, terms and contact use neither. */
+   Two brand colours, each with its own job. Blue is Cadence itself: the
+   evening blue of the hour homework happens in. The first screen stands on
+   it, with the app lit up as a white screen, and so does the last invitation
+   to try it; in a lighter ink it is also everything you can follow or have
+   chosen (links, the focus ring, a pressed toggle). Orange is what to do and
+   what Cadence did: the main button, the mark, and the work Cadence plans,
+   exactly as on the app's calendar. Neither is ever a background for text
+   inside a section, and the two never fill large areas side by side.
+
+   The band is the app's own pale stone, taken by every other section so where
+   one ends is shown without a rule; anything framed sits on it on the page
+   colour. Privacy, terms and contact use neither stage nor band. */
 
 /* The two faces, as variable fonts: one file per face covers every weight.
    Latin first; the accented letters of Central European names are a second
@@ -53,17 +57,29 @@
   --accent-soft: #fdf1e9;
   --accent-ink: #9a3412;
   --on-accent: #1c1b19;
-  --stage: #1d3c9c;           /* evening blue */
-  --stage-hover: #2a4aa8;
-  --stage-edge: #142c78;
+  /* Blue, the brand: the stage is a place to stand, never a button; the ink is
+     the blue of things to follow or that are chosen. */
+  --blue: #1d3c9c;            /* evening blue */
+  --blue-hover: #2a4aa8;
+  --blue-deep: #142c78;
+  --blue-ink: #1d3c9c;        /* links and focus, 9.6:1 on white, 8.9:1 on the band */
+  --blue-soft: #eef2fc;       /* the tint of a chosen thing */
+  --blue-line: #9fb2ee;
+  --stage: var(--blue);
+  --stage-hover: var(--blue-hover);
+  --stage-edge: var(--blue-deep);
   --on-stage: #ffffff;        /* 9.6:1 on the stage */
   --on-stage-2: #d3ddfb;      /* 7.1:1 on the stage */
-  --stage-line: #9fb2ee;      /* an outline on the stage, 4.6:1 */
+  --stage-line: var(--blue-line);   /* an outline on the stage, 4.6:1 */
   --band: #f7f6f4;
   --k-school: #8a857f;
   --k-event: #2563eb;
   --k-activity: #16a34a;
   --k-work: #f0712b;
+  /* The app's colours for kinds of activity and the track of its rings, for
+     the copies of its screens on the homepage (src/panel/panel.css). */
+  --a-practice: #c026d3; --a-sport: #16a34a; --a-club: #0891b2; --a-service: #e11d48; --a-study: #7c3aed;
+  --ring-track: rgba(28, 27, 25, .09);
 
   /* Each face falls back to the closest one already on the device, so a page
      whose fonts have not arrived yet still looks like itself. */
@@ -79,16 +95,27 @@
   --t-lead: 1.125rem;
   --t-h3: 1.125rem;
   --t-h2: clamp(1.875rem, 1.35rem + 1.6vw, 2.5rem);
+  --t-h2-quiet: clamp(1.625rem, 1.3rem + 1vw, 2rem);
   --t-h1: 2.25rem;
-  --t-hero: clamp(2.5rem, 1.7rem + 2.7vw, 3.5rem);
+  --t-hero: clamp(2.5rem, 1.6rem + 2.8vw, 3.5rem);
+  /* A sentence that speaks for Cadence inside a section (the three things to
+     know about your data): the serif, a step above a sub-heading. */
+  --t-statement: clamp(1.25rem, 1.1rem + .5vw, 1.5rem);
   --serif-track: -.012em;
+  --hero-track: -.02em;
 
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px; --s12: 48px; --s16: 64px; --s24: 96px;
   --r-sm: 4px; --r: 6px; --r-lg: 8px; --r-xl: 12px;
-  --m2: 150ms;
+  /* Motion, the same scale as the app's: 100, 150 and 200ms for a control
+     answering, 320ms for something moving to a new place. Easing out on the
+     way in; the spring is the live app's own, a little past and back. */
+  --m1: 100ms; --m2: 150ms; --m3: 200ms; --m4: 320ms;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-spring: cubic-bezier(.34, 1.4, .64, 1);
   --wide: 1120px;
   --field: #948e87;
   --green: #15803d;
+  --amber: #b45309;
   --red: #b91c1c;
   --shadow-3: 0 8px 24px rgba(0, 0, 0, .07);
   --scrim: rgba(20, 19, 18, .5);
@@ -114,19 +141,24 @@
   --accent-soft: #33211a;
   --accent-ink: #ffb48a;
   --on-accent: #1c1b19;
-  --stage: #1c2d6e;
-  --stage-hover: #26397d;
-  --stage-edge: #33478f;
+  --blue: #1c2d6e;
+  --blue-hover: #26397d;
+  --blue-deep: #33478f;
+  --blue-ink: #a9bcf5;        /* 9.9:1 on the page, 9.1:1 on the band */
+  --blue-soft: #1b2340;
+  --blue-line: #7f95dd;
   --on-stage: #ffffff;
   --on-stage-2: #c9d4f7;
-  --stage-line: #7f95dd;
   --band: #1e1c1a;
   --k-school: #a8a29e;
   --k-event: #60a5fa;
   --k-activity: #4ade80;
   --k-work: #ff8a4c;
+  --a-practice: #e879f9; --a-sport: #4ade80; --a-club: #22d3ee; --a-service: #fb7185; --a-study: #a78bfa;
+  --ring-track: rgba(243, 241, 238, .12);
   --field: #7d7871;
   --green: #4ade80;
+  --amber: #fbbf24;
   --red: #f87171;
   --shadow-3: 0 0 0 1px rgba(255, 255, 255, .06);
   --scrim: rgba(0, 0, 0, .6);
@@ -146,8 +178,9 @@ h1, h2, h3 { text-wrap: balance; }
 h1, h2 { font-family: var(--serif); font-optical-sizing: auto; letter-spacing: var(--serif-track); }
 p { text-wrap: pretty; }
 b, strong, th { font-weight: 600; }
-a { color: var(--accent-strong); text-underline-offset: 2px; }
-:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+a { color: var(--blue-ink); text-underline-offset: 2px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: 2px; }
 ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
 .wrap { width: 100%; max-width: var(--wide); margin: 0 auto; padding: 0 var(--s6); }
 .skip { position: fixed; top: var(--s2); left: var(--s2); z-index: 30; padding: var(--s2) var(--s3); border-radius: var(--r); background: var(--text); color: var(--bg); font-size: var(--t-sm); font-weight: 500; text-decoration: none; transform: translateY(-200%); }
@@ -169,8 +202,8 @@ a.brand::after { content: ""; position: absolute; inset: -8px -4px; }
    under it on the header's lower edge (site.js initSections). It moves a link
    at a time, never by how far the page has scrolled, and does not animate. */
 .nav .links a[aria-current="location"] { color: var(--text); }
-.nav .links a[aria-current="location"]::before { content: ""; position: absolute; left: 0; right: 0; bottom: calc((100% - 64px) / 2 - 1px); height: 2px; background: var(--accent); pointer-events: none; }
-.nav .links a[aria-current="page"] { color: var(--text); text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+.nav .links a[aria-current="location"]::before { content: ""; position: absolute; left: 0; right: 0; bottom: calc((100% - 64px) / 2 - 1px); height: 2px; background: var(--blue-ink); pointer-events: none; }
+.nav .links a[aria-current="page"] { color: var(--text); text-decoration: underline; text-decoration-color: var(--blue-ink); text-decoration-thickness: 2px; text-underline-offset: 6px; }
 .nav .spacer, footer .spacer { flex: 1; }
 .nav .actions { display: flex; gap: var(--s2); }
 .nav .tools { display: flex; align-items: center; gap: var(--s2); }
@@ -189,7 +222,7 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 [data-tip]::before {
   content: attr(data-tip); position: absolute; top: calc(100% + var(--s2)); right: 0; z-index: 30; pointer-events: none;
   padding: var(--s1) var(--s2); border-radius: var(--r); background: var(--text); color: var(--bg);
-  font-size: var(--t-meta); font-weight: 500; line-height: 1.5; white-space: nowrap; opacity: 0; transition: opacity 100ms ease;
+  font-size: var(--t-meta); font-weight: 500; line-height: 1.5; white-space: nowrap; opacity: 0; transition: opacity var(--m1) ease;
 }
 [data-tip]:hover::before, [data-tip]:focus-visible::before { opacity: 1; }
 .float[data-tip]::before { top: auto; bottom: calc(100% + var(--s2)); }
@@ -200,7 +233,7 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 .menu summary:hover { background: var(--surface-2); }
 .menu nav a, .menu nav button { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 var(--s3); border: 0; border-radius: var(--r); background: none; color: var(--text); font: inherit; font-size: var(--t-sm); font-weight: 500; text-align: left; text-decoration: none; cursor: pointer; }
 .menu nav a:hover, .menu nav button:hover { background: var(--surface-2); }
-.menu nav a[aria-current="page"] { color: var(--accent-ink); }
+.menu nav a[aria-current="page"] { color: var(--blue-ink); }
 /* On a short screen (a phone on its side) the menu scrolls inside itself, and
    stops above the bar of actions when that is showing. */
 .menu nav { max-height: calc(100dvh - var(--s16) - var(--s4) - var(--cta-h, 0px)); overflow-y: auto; overscroll-behavior: contain; }
@@ -245,31 +278,44 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 .btn.large { min-height: 48px; padding: 0 var(--s6); font-size: var(--t-body); }
 
 /* ---------------------------------------------------------------- hero */
-/* What it is on the left; the thing itself, running, on the right. Both
-   stand on the stage, so the first screen is one field of evening blue with
-   the app lit up on it and the orange button as the brightest thing there. */
+/* What it is, then the thing itself, running, all of it standing on the
+   stage: a field of evening blue with the app lit up on it as a white
+   screen, and the orange button as the brightest thing there. Each sentence
+   of the headline starts its own line.
+
+   The app runs at its phone size under the words on a phone, and beside
+   them from 768px. From 1080px the frame is wide enough for the app's
+   desktop layout (it switches at 768px inside the frame, and gets its side
+   pane only from 1180px, which the frame never reaches), so it runs the full
+   width of the page under the words, with its week and its tab row. */
 .hero { padding: var(--s12) 0; background: var(--stage); color: var(--on-stage); }
-.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s12); align-items: center; }
-.hero h1 { max-width: 14ch; font-size: var(--t-hero); font-weight: 600; line-height: 1.06; }
-.hero .sub { max-width: 42ch; margin-top: var(--s6); color: var(--on-stage-2); font-size: var(--t-lead); line-height: 1.55; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s8); }
+.hero-head { display: grid; gap: var(--s6); align-content: start; }
+.hero h1 { font-size: var(--t-hero); font-weight: 600; line-height: 1.04; letter-spacing: var(--hero-track); }
+.hero h1 span { display: block; }
+.hero .sub { max-width: 44ch; color: var(--on-stage-2); font-size: var(--t-lead); line-height: 1.55; }
 .hero .facts { margin-top: var(--s4); color: var(--on-stage-2); font-size: var(--t-sm); }
 .cta { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s6); }
-.hero .cta { margin-top: var(--s8); }
+.hero-act { margin-top: var(--s6); }
+.hero .cta { margin-top: 0; }
+/* On a narrow phone the two buttons share one row, each half of it. */
+@media (max-width: 479.98px) {
+  .hero .cta .btn { flex: 1 1 0; padding: 0 var(--s3); }
+}
 /* On the stage, the second button is an outline in the stage's own light,
    and focus is drawn in white so it can be found against the colour. */
 .hero .btn.plain, .closing .btn.plain { border-color: var(--stage-line); background: transparent; color: var(--on-stage); }
 .hero .btn.plain:hover, .closing .btn.plain:hover { background: var(--stage-hover); }
 .hero :focus-visible, .closing :focus-visible { outline-color: var(--on-stage); }
 /* Under the words on a narrow screen, it keeps their left edge. */
-.live { width: 100%; max-width: 420px; margin: 0; }
-.live iframe { display: block; width: 100%; height: min(640px, calc(100dvh - 176px)); min-height: 480px; border: 1px solid var(--stage-edge); border-radius: var(--r-xl); background: var(--bg); }
-.live figcaption { margin-top: var(--s3); color: var(--on-stage-2); font-size: var(--t-sm); text-align: center; }
+.live { --live-h: min(640px, calc(100dvh - 176px)); position: relative; width: 100%; max-width: 420px; margin: 0; }
+.live iframe { position: relative; display: block; width: 100%; height: var(--live-h); min-height: 480px; border: 1px solid var(--stage-edge); border-radius: var(--r-xl); background: var(--bg); }
+.live figcaption { max-width: 64ch; margin-top: var(--s3); color: var(--on-stage-2); font-size: var(--t-sm); }
 /* Until the demo has loaded, its frame is already there, the same size and
    colour as the app, holding three quiet bars: a white screen waiting on the
    blue, not bars floating on it. */
-.live { position: relative; }
 .live-wait {
-  position: absolute; inset: 0 0 auto; height: min(640px, calc(100dvh - 176px)); min-height: 480px;
+  position: absolute; inset: 0 0 auto; height: var(--live-h); min-height: 480px;
   display: grid; align-content: start; gap: var(--s3); padding: var(--s6);
   border: 1px solid var(--stage-edge); border-radius: var(--r-xl); background: var(--bg); pointer-events: none;
 }
@@ -281,15 +327,29 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
    puts data-theme on <html> the moment any script runs. With scripts off the
    frame simply shows. And if this page's own script never arrives, the frame
    brings itself in after five seconds instead of staying blank. */
-.live iframe { position: relative; }
-:root[data-theme] .live iframe { opacity: 0; transition: opacity var(--m2) ease; animation: live-late var(--m2) ease 5s forwards; }
+:root[data-theme] .live iframe { opacity: 0; transition: opacity var(--m3) var(--ease-out); animation: live-late var(--m3) var(--ease-out) 5s forwards; }
 :root[data-theme] .live.ready iframe { opacity: 1; animation: none; }
-:root:not([data-theme]) .live-wait, .live.ready .live-wait { display: none; }
+:root:not([data-theme]) .live-wait { display: none; }
+/* The placeholder stays under the frame until the frame has faded all the
+   way in, and stops breathing once it is hidden. */
+.live.ready .live-wait { visibility: hidden; transition: visibility 0s linear var(--m3); }
+.live.ready .live-wait i { animation: none; }
 @keyframes live-late { to { opacity: 1; } }
 @keyframes wait { from { opacity: .45; } to { opacity: 1; } }
-@media (min-width: 960px) {
-  .hero { padding: var(--s16) 0; }
-  .hero .wrap { grid-template-columns: minmax(0, 1fr) 420px; gap: var(--s16); }
+/* A tablet: the words on the left, the app at its phone size on the right. */
+@media (min-width: 768px) and (max-width: 1079.98px) {
+  .hero .wrap { grid-template-columns: minmax(0, 1fr) 420px; gap: var(--s12); align-items: start; }
+}
+/* Wide: the words across the top, the headline on its own and the sentence
+   beside the buttons under it, then the app at its desktop size. */
+@media (min-width: 1080px) {
+  .hero { padding: var(--s12) 0 var(--s16); }
+  .hero .wrap { gap: var(--s12); }
+  .hero-head { gap: var(--s6); }
+  .hero-side { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--s6) var(--s12); }
+  .hero-act { margin-top: 0; }
+  .hero-act .facts { max-width: 40ch; }
+  .live { --live-h: 720px; max-width: none; }
 }
 
 /* ------------------------------------------------------------ sections */
@@ -298,124 +358,313 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 section { padding: var(--s16) 0; }
 section.band { background: var(--band); }
 @media (min-width: 960px) { section { padding: var(--s24) 0; } }
-h2 { max-width: 22ch; font-size: var(--t-h2); font-weight: 500; line-height: 1.12; }
+h2 { max-width: 30ch; font-size: var(--t-h2); font-weight: 500; line-height: 1.12; }
+/* The sections that hold reference rather than the story speak a step quieter. */
+#more h2, .faq h2 { font-size: var(--t-h2-quiet); }
 h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.3; letter-spacing: -.005em; }
 .lead { max-width: 60ch; margin-top: var(--s4); color: var(--text-2); font-size: var(--t-lead); line-height: 1.55; }
 /* A small print line under a lead: who the example is, where it comes from. */
 .note { max-width: 62ch; margin-top: var(--s4); color: var(--muted); font-size: var(--t-sm); line-height: 1.55; }
 .section-head { max-width: 62ch; }
 
-/* ------------------------------------------------------- one Monday
-   The homepage's example (src/site/evening.js): the story on top; then the
-   week as the planner laid it out, in one frame because it is a piece of
-   interface; and beside it why it looks that way. Fixed things carry a hollow
-   square and work Cadence planned a solid orange one, the only two kinds the
-   story needs. A change marks what it moved in words ("Moved", "New") on a
-   tint, and nothing slides: the demo in the first screen is the only thing on
-   this page that moves by itself. */
-.evening { display: grid; gap: var(--s8); align-items: start; }
-.evening-intro { max-width: 62ch; }
-/* Wide: the story and why it looks that way down the left, the week itself
-   on the right. Narrow: the story, the week, then why. */
+/* ------------------------------------------------- how it plans a week
+   The homepage's example (src/site/evening.js), told in the three steps it
+   really takes: what Sam has, the week Cadence planned, and what happens
+   when something changes. On a wide screen the week holds still on the
+   right while what Sam has and the changes run down the left beside it, so
+   a change and what it did are seen together; on a phone the steps follow
+   one another in order. Why the week looks that way runs under both. */
+.section-head.split { max-width: none; }
 @media (min-width: 960px) {
-  .evening { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); grid-template-rows: auto 1fr; grid-template-areas: "intro frame" "notes frame"; gap: var(--s8) var(--s16); }
-  .evening-intro { grid-area: intro; }
-  .ev-frame { grid-area: frame; }
-  .ev-notes { grid-area: notes; }
+  .section-head.split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--s4) var(--s16); align-items: end; }
+  .section-head.split .lead { margin-top: 0; }
 }
-.ev-frame { border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); overflow: hidden; }
+.evening { display: grid; gap: var(--s12); margin-top: var(--s12); align-items: start; }
+@media (min-width: 960px) {
+  .evening { grid-template-columns: minmax(0, 7fr) minmax(0, 17fr); grid-template-rows: auto 1fr auto; grid-template-areas: "have plan" "change plan" "notes notes"; gap: var(--s12); }
+  .ev-step-have { grid-area: have; }
+  .ev-step-plan { grid-area: plan; }
+  .ev-step-change { grid-area: change; }
+  .ev-notes { grid-area: notes; }
+  /* Why the week looks like this reads as text, in two columns. */
+  .ev-notes ul { columns: 2; column-gap: var(--s12); }
+  .ev-notes li { break-inside: avoid; }
+}
+/* Where the screen is tall enough for all of it, the week stays in view while
+   the changes beside it are read. */
+@media (min-width: 960px) and (min-height: 860px) {
+  .ev-step-plan { position: sticky; top: calc(64px + var(--s6)); }
+}
+/* A step: its number, then what it is. The numbers are there because the
+   three really happen in this order. */
+.step { display: flex; align-items: baseline; gap: var(--s2); font-size: var(--t-h3); }
+.step-n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.step-text { max-width: 52ch; margin-top: var(--s2); color: var(--text-2); font-size: var(--t-sm); line-height: 1.55; }
+.ev-step-plan .ev-frame { margin-top: var(--s4); }
+
+/* The four kinds of thing on a week, in the app's four colours. */
+.k-school { --c: var(--k-school); }
+.k-activity { --c: var(--k-activity); }
+.k-event { --c: var(--k-event); }
+.k-work { --c: var(--k-work); }
+
+/* 1. What Sam has: rows under small group names, each with its kind's square. */
+.ev-have { display: grid; gap: var(--s4); margin: var(--s4) 0 0; padding: 0; list-style: none; }
+.ev-have ol { margin: var(--s1) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
+.ev-group { color: var(--muted); font-size: var(--t-meta); font-weight: 500; }
+.ev-have-item { display: grid; gap: 2px; padding: var(--s2) 0; border-bottom: 1px solid var(--line); font-size: var(--t-sm); line-height: 1.45; }
+.ev-have-item .ev-what { font-weight: 500; }
+.ev-meta { padding-left: 16px; color: var(--text-2); }
+.ev-also { margin-top: var(--s3); color: var(--muted); font-size: var(--t-sm); }
+
+/* A title with its kind's square pinned to the left, so a long title wraps
+   like a sentence and a "Moved" or "New" label after it moves to the next
+   line only when there is no room. */
+.ev-what { position: relative; padding-left: 16px; }
+.ev-what::before { content: ""; position: absolute; left: 0; top: .5em; width: 8px; height: 8px; border-radius: 2px; background: var(--c, var(--muted)); }
+.ev-what small, .ev-tags small { margin-left: var(--s2); color: var(--accent-ink); font-size: var(--t-meta); font-weight: 600; white-space: nowrap; }
+/* Where a fixed thing came from, said quietly: it is not a change. */
+.ev-tags small.ev-from { color: var(--muted); font-weight: 500; }
+
+/* 2. The week. One frame, because it is a piece of interface. */
+.ev-frame { container: ev / inline-size; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); overflow: hidden; }
 .ev-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s2) var(--s6); padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); background: var(--surface-2); }
 .ev-head p { color: var(--text-2); font-size: var(--t-sm); }
 .ev-head b { color: var(--text); }
-.ev-key { display: flex; gap: var(--s4); margin: 0; padding: 0; list-style: none; color: var(--text-2); font-size: var(--t-meta); }
+.ev-key { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin: 0; padding: 0; list-style: none; color: var(--text-2); font-size: var(--t-meta); }
 .ev-key li { display: inline-flex; align-items: baseline; gap: var(--s2); }
-.ev-key li::before { content: ""; width: 8px; height: 8px; flex: none; border-radius: 2px; transform: translateY(-1px); }
-/* A block's title is ordinary text with its square pinned to the left, so a
-   long title wraps like a sentence and a "Moved" or "New" label after it
-   moves to the next line only when there is no room. */
-.ev-what { position: relative; padding-left: 16px; }
-.ev-what::before { content: ""; position: absolute; left: 0; top: .5em; width: 8px; height: 8px; border-radius: 2px; }
-.ev-what small { margin-left: var(--s2); white-space: nowrap; }
-.ev-key .fixed::before, .fixed .ev-what::before { border: 1.5px solid var(--text-2); }
-.ev-key .work::before, .work .ev-what::before { background: var(--k-work); }
-.ev-week { margin: 0; padding: 0; list-style: none; }
-.ev-week > li { display: grid; gap: var(--s1) var(--s4); padding: var(--s3) var(--s4); }
-.ev-week > li + li { border-top: 1px solid var(--line); }
+.ev-key li::before { content: ""; width: 8px; height: 8px; flex: none; border-radius: 2px; background: var(--c); transform: translateY(-1px); }
+/* The ring a change leaves on what it moved or added, named only while one is showing. */
+.ev-key .ev-ring::before { box-sizing: border-box; background: none; border: 2px solid var(--accent-strong); }
+.ev-key [hidden] { display: none; }
+
+/* On a phone: a list of days, each thing a row of time, title and length.
+   School is said once, beside the list, so it is not repeated every day,
+   and the key leaves it out. */
+.ev-hours, .ev-now, .ev-when, .ev-load, .ev-key .k-school { display: none; }
+.ev-week, .ev-items { margin: 0; padding: 0; list-style: none; }
+.ev-col { display: grid; gap: var(--s1) var(--s4); padding: var(--s3) var(--s4); }
+.ev-col + .ev-col { border-top: 1px solid var(--line); }
+.ev-dayhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s2); }
 .ev-day { font-size: var(--t-sm); font-weight: 600; }
-.ev-items { display: grid; gap: var(--s1); margin: 0; padding: 0; list-style: none; }
-.ev-item { display: grid; grid-template-columns: 4.25rem minmax(0, 1fr) auto; gap: var(--s3); padding: var(--s1) var(--s2); margin: 0 calc(-1 * var(--s2)); border-radius: var(--r-sm); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
-.ev-time, .ev-len { color: var(--muted); }
-.ev-item.fixed .ev-what { color: var(--text-2); }
+.ev-due { color: var(--muted); font-size: var(--t-meta); }
+.ev-items { display: grid; gap: var(--s1); }
+.ev-item { display: grid; grid-template-columns: 4.25rem minmax(0, 1fr) auto; grid-template-areas: "time what len" ". tags ."; gap: 0 var(--s3); padding: var(--s1) var(--s2); margin: 0 calc(-1 * var(--s2)); border-radius: var(--r-sm); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.ev-item .ev-what { grid-area: what; }
+.ev-item .ev-tags { grid-area: tags; padding-left: 16px; }
+.ev-item .ev-tags small { margin: 0 var(--s2) 0 0; }
+.ev-item .ev-time { grid-area: time; color: var(--muted); }
+.ev-item .ev-len { grid-area: len; color: var(--muted); }
+.ev-item.k-school { display: none; }
+.ev-item.k-activity .ev-what, .ev-item.k-event .ev-what { color: var(--text-2); }
 .ev-item.moved, .ev-item.new { background: var(--accent-soft); }
-.ev-what small { color: var(--accent-ink); font-size: var(--t-meta); font-weight: 600; }
-/* Where a fixed thing came from, said quietly: it is not a change. */
-.ev-what small.ev-from { color: var(--muted); font-weight: 500; }
 .ev-none { color: var(--muted); font-size: var(--t-sm); }
-@media (min-width: 560px) { .ev-week > li { grid-template-columns: 6.5rem minmax(0, 1fr); align-items: baseline; } }
-.ev-try { padding: var(--s4); border-top: 1px solid var(--line); }
-.ev-try > p:first-child { font-size: var(--t-sm); font-weight: 600; }
-.ev-buttons { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s2); }
-.ev-buttons [aria-pressed="true"] { border-color: var(--accent-strong); background: var(--accent-soft); color: var(--accent-ink); }
+@container ev (min-width: 520px) { .ev-col { grid-template-columns: 6.5rem minmax(0, 1fr); align-items: baseline; } }
+
+/* Wide enough for five columns: the app's own week grid (views/week.js),
+   a column a day from 2:30pm to 10pm at 1.2px a minute, each thing placed
+   by when it starts (--at) and how long it lasts (--len), in its kind's tint
+   with a solid left edge, and labelled the way the app labels it. Hour lines
+   run behind the columns. */
+@container ev (min-width: 600px) {
+  .ev-grid { --head: 44px; --gutter: 44px; --ppm: 1.2px; position: relative; }
+  .ev-key .k-school { display: inline-flex; }
+  .ev-hours { position: absolute; inset: var(--head) 0 0; display: block; margin: 0; padding: 0; list-style: none; pointer-events: none; }
+  .ev-hours li { position: absolute; left: 0; right: 0; top: calc(var(--at) * var(--ppm)); border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+  .ev-hours span { display: block; width: var(--gutter); padding-right: var(--s2); color: var(--muted); font-size: var(--t-meta); line-height: 1; text-align: right; transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+  .ev-hours li:last-child span { transform: translateY(-100%); }
+  .ev-week { position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-left: var(--gutter); }
+  .ev-col { display: block; padding: 0; border-left: 1px solid var(--line); }
+  .ev-col + .ev-col { border-top: 0; }
+  /* Each day's name over what is due that day, or else how much work is planned, as on the app's grid. */
+  .ev-dayhead { flex-direction: column; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 0; height: var(--head); padding-top: var(--s1); border-bottom: 1px solid var(--line); background: var(--bg); }
+  .ev-day { font-size: var(--t-meta); font-weight: 600; }
+  .ev-due { min-height: 16px; line-height: 16px; }
+  .ev-load { display: block; }
+  .ev-col.today .ev-day { color: var(--accent-ink); }
+  .ev-none { display: none; }
+  .ev-items { position: relative; display: block; height: calc(var(--span) * var(--ppm)); }
+  .ev-item {
+    position: absolute; top: calc(var(--at) * var(--ppm)); height: calc(var(--len) * var(--ppm) - 2px);
+    left: calc(var(--lane, 0) / var(--lanes, 1) * 100% + 2px); width: calc(100% / var(--lanes, 1) - 4px);
+    display: flex; flex-wrap: wrap; align-content: flex-start; column-gap: var(--s1); margin: 0; padding: 2px var(--s1) 2px 6px; overflow: hidden;
+    border-left: 2px solid var(--c); border-radius: var(--r-sm); background: color-mix(in srgb, var(--c) 14%, var(--bg));
+    font-size: var(--t-meta); line-height: 1.35;
+  }
+  .ev-item.k-school { display: flex; background: color-mix(in srgb, var(--c) 9%, var(--bg)); }
+  /* The title, then a line with a change's mark and when, in the app's own
+     words. A short block has room for one line: the mark, then the title. */
+  .ev-item .ev-tags { order: 1; display: block; padding: 0; }
+  .ev-item .ev-tags small { margin: 0; }
+  .ev-item .ev-tags .ev-from { display: none; }
+  .ev-item .ev-what { flex: 0 0 100%; min-width: 0; padding-left: 0; overflow: hidden; color: var(--text); font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+  .ev-item.short .ev-tags { order: -1; }
+  .ev-item.short .ev-what { flex: 1 1 0; }
+  .ev-item.tall .ev-what { white-space: normal; max-height: calc(2 * 1.35em); }
+  .ev-item.k-activity .ev-what, .ev-item.k-event .ev-what { color: var(--text); }
+  .ev-item .ev-what::before { display: none; }
+  .ev-item .ev-time, .ev-item .ev-len { display: none; }
+  .ev-item .ev-when { order: 2; display: block; flex: 1 1 0; min-width: 0; overflow: hidden; color: var(--text-2); white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .ev-item.short { padding-top: 0; padding-bottom: 0; }
+  .ev-item.short .ev-when { display: none; }
+  .ev-item.off-grid { display: none; }
+  /* What a change moved or added keeps its kind's colour and gains an orange ring. */
+  .ev-item.moved, .ev-item.new { background: color-mix(in srgb, var(--c) 14%, var(--bg)); box-shadow: inset 0 0 0 2px var(--accent-strong); }
+  .ev-now { position: absolute; left: 0; right: 0; top: calc(var(--at) * var(--ppm) - 1px); z-index: 2; display: block; height: 2px; background: var(--accent-strong); pointer-events: none; }
+  .ev-now::before { content: ""; position: absolute; top: -3px; left: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-strong); }
+}
+
+/* 3. Changing something. On a phone the buttons stack, each the full width. */
+.ev-try { margin-top: var(--s4); }
+.ev-buttons { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.ev-buttons [aria-pressed="true"] { border-color: var(--blue-ink); background: var(--blue-soft); color: var(--blue-ink); }
+@media (max-width: 479.98px) { .ev-buttons { flex-direction: column; } .ev-buttons .btn { white-space: normal; text-align: left; justify-content: flex-start; } }
 .ev-status { min-height: 1.55em; margin-top: var(--s2); color: var(--text-2); font-size: var(--t-sm); }
-.ev-notes h3 { font-size: var(--t-body); }
-.ev-notes ul { margin: var(--s3) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
-.ev-notes li { padding: var(--s3) 0; border-bottom: 1px solid var(--line); color: var(--text-2); font-size: var(--t-sm); line-height: 1.55; }
-.ev-notes li b { display: block; color: var(--text); font-weight: 600; }
-.ev-changed { margin-bottom: var(--s8); }
+.ev-changed { margin-top: var(--s6); }
+.ev-changed h4, .ev-notes h3 { font-size: var(--t-h3); font-weight: 600; }
+.ev-changed ul, .ev-notes ul { margin: var(--s3) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
+.ev-changed li, .ev-notes li { padding: var(--s3) 0; border-bottom: 1px solid var(--line); color: var(--text-2); font-size: var(--t-sm); line-height: 1.55; }
 .ev-changed li:first-child { color: var(--text); }
+.ev-notes li b { display: block; color: var(--text); font-weight: 600; }
+
+/* ------------------------------------------------------------- features
+   What Cadence does, each part beside a picture of the app doing it. The
+   pictures are copies of the app's own screens, drawn here with its sizes
+   and colours and the sample week's data, so they can be read without
+   scripts and in dark mode; they are pictures, not controls. */
+.feature { display: grid; gap: var(--s8); align-items: center; }
+.feature-text .lead + .lead { margin-top: var(--s3); }
+@media (min-width: 960px) {
+  .feature { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--s16); }
+  .feature.flip { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); }
+  .feature.flip .feature-text { order: 2; }
+}
+.rp-fig { width: 100%; max-width: 560px; margin: 0; }
+.rp-fig figcaption { margin-top: var(--s3); color: var(--muted); font-size: var(--t-sm); }
+
+/* What Cadence does with activities, under the words that set it up: a
+   short list, each line its own small heading. */
+.points { display: grid; gap: var(--s4); margin: var(--s8) 0 0; padding: 0; list-style: none; }
+.points h3 { margin: 0; }
+.points p { max-width: 52ch; margin-top: var(--s1); color: var(--text-2); font-size: var(--t-sm); line-height: 1.55; }
+
+/* Sentences to type, written the way they are typed. */
+.feature-text > h3 { margin-top: var(--s8); }
+.say { margin: var(--s3) 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line-strong); }
+.say li { padding: var(--s2) 0; border-bottom: 1px solid var(--line); }
+.say-after { max-width: 52ch; margin-top: var(--s4); color: var(--text-2); font-size: var(--t-sm); line-height: 1.55; }
+
+/* The copies of the app: the same 1px frames, 8px corners, 14px text, rows
+   with hairlines between them, rings, and the four calendar colours. */
+.rp { border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); padding: var(--s4); color: var(--text); font-size: var(--t-sm); line-height: 1.4; font-variant-numeric: tabular-nums; }
+.rp-label { font-size: var(--t-body); font-weight: 600; line-height: 1.25; }
+.rp-label + * { margin-top: var(--s2); }
+.rp-list + .rp-label { margin-top: var(--s6); }
+.rp-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.rp-row { display: flex; align-items: center; gap: var(--s3); min-height: 56px; padding: var(--s2) var(--s4); }
+.rp-row + .rp-row { border-top: 1px solid var(--line); }
+.rp-text { display: grid; flex: 1; min-width: 0; }
+.rp-text b { font-weight: 500; }
+.rp-text span { color: var(--text-2); }
+.rp-count { color: var(--muted); white-space: nowrap; }
+.rp-count.ok { color: var(--green); font-weight: 500; }
+.rp-ring { position: relative; display: grid; place-items: center; width: 40px; height: 40px; flex: none; color: var(--rc); }
+.rp-ring svg:first-child { position: absolute; inset: 0; width: 40px; height: 40px; transform: rotate(-90deg); }
+.rp-ring circle { fill: none; stroke-width: 4; }
+.rp-ring .track { stroke: var(--ring-track); }
+.rp-ring .fill { stroke: var(--rc); stroke-linecap: round; }
+.rp-ring .ic { width: 18px; height: 18px; }
+.rp-card { display: flex; align-items: center; gap: var(--s3); padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); }
+.rp-tile { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: var(--r); background: var(--accent-soft); color: var(--accent-ink); }
+.rp-tile svg { width: 20px; height: 20px; }
+
+/* The assistant's pane: what you said in a tinted block on the right, the
+   reply as plain text, and the change it made in a frame with Undo. */
+.rp-agent { padding: 0; overflow: hidden; }
+.rp-ag-head { display: grid; align-content: center; min-height: 56px; padding: var(--s2) var(--s4); border-bottom: 1px solid var(--line); }
+.rp-ag-head b { font-weight: 600; }
+.rp-ag-head small { color: var(--muted); font-size: var(--t-meta); }
+.rp-ag-thread { display: grid; gap: var(--s4); padding: var(--s4); }
+.rp-you { justify-self: end; max-width: 88%; padding: var(--s2) var(--s3); border-radius: var(--r-lg); background: var(--surface-3); line-height: 1.55; }
+.rp-reply { display: grid; gap: var(--s2); }
+.rp-reply > p { line-height: 1.55; }
+.rp-changes { border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.rp-change { display: flex; align-items: baseline; gap: var(--s3); padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); }
+.rp-change b { display: block; font-weight: 500; }
+.rp-change small { color: var(--muted); font-size: var(--t-meta); }
+.rp-dot { width: 8px; height: 8px; flex: none; border-radius: 2px; background: var(--muted); }
+.rp-actions { display: flex; flex-wrap: wrap; gap: var(--s2); padding: var(--s2); background: var(--surface-2); }
+.rp-btn { display: inline-flex; align-items: center; min-height: 32px; padding: 0 var(--s3); border: 1px solid transparent; border-radius: var(--r); color: var(--text-2); font-weight: 500; }
+.rp-btn.soft { border-color: var(--line-strong); background: var(--bg); color: var(--text); }
+.rp-compose { display: flex; gap: var(--s2); padding: var(--s3) var(--s4) var(--s4); border-top: 1px solid var(--line); }
+.rp-input { display: flex; flex: 1; align-items: center; min-width: 0; min-height: 44px; padding: 0 var(--s3); border: 1px solid var(--field); border-radius: var(--r); color: var(--muted); white-space: nowrap; overflow: hidden; }
+.rp-send { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: var(--r); background: var(--accent); color: var(--on-accent); }
+.rp-send svg { width: 18px; height: 18px; }
+
+/* The rest of the week: a short list of facts, each its name and a sentence
+   or two, read across a row on a wide screen. */
+.spec { margin: var(--s8) 0 0; border-top: 1px solid var(--line-strong); }
+.spec > div { display: grid; gap: var(--s1) var(--s12); padding: var(--s4) 0; border-bottom: 1px solid var(--line); }
+.spec dt { font-size: var(--t-h3); font-weight: 600; line-height: 1.3; }
+.spec dd { max-width: 64ch; margin: 0; color: var(--text-2); }
+.spec dd .btn { margin-top: var(--s3); }
+@media (min-width: 768px) { .spec > div { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); } }
+.also { max-width: 70ch; margin-top: var(--s8); color: var(--text-2); }
 
 /* ----------------------------------------------------- how it decides
-   Four rules, each under a rule of its own: no frame, no card. */
+   Four rules, each under a rule of its own: no frame, no card. This is the
+   one set of side-by-side text on the page. */
 .rules { display: grid; gap: var(--s8); margin: var(--s12) 0 0; padding: 0; list-style: none; }
 .rules > li { padding-top: var(--s4); border-top: 1px solid var(--line-strong); }
 .rules p { max-width: 48ch; margin-top: var(--s2); color: var(--text-2); }
 @media (min-width: 768px) { .rules { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s8) var(--s12); } }
 
-/* The longer worked week, behind its own heading: there for anyone who wants
-   it, out of the way for anyone who does not. */
-.more { margin-top: var(--s12); border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line); }
-.more summary { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s4); min-height: 56px; padding: var(--s3) 0; font-size: var(--t-h3); font-weight: 600; cursor: pointer; list-style: none; }
-.more summary::-webkit-details-marker { display: none; }
-.more summary::after { content: ""; width: 8px; height: 8px; flex: none; margin-right: var(--s1); border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translate(-2px, -2px); transition: transform var(--m2) ease; }
-.more[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
-.more summary:hover { color: var(--accent-ink); }
-.more-body { padding-bottom: var(--s8); }
-.more-body > .note:first-child { margin-top: 0; }
-
-/* The longer week: what went in on the left, the plan day by day on the
-   right, and what came out underneath. */
+/* --------------------------------------------------------- a packed week
+   What went in on the left, how much work each day got on the right, drawn
+   as bars against the weekday limit, and what came out underneath. */
+/* The proof of the rules: one real week, set apart under its own line. */
+.packed { margin-top: var(--s16); padding-top: var(--s8); border-top: 1px solid var(--line-strong); }
+.packed > .note { margin-top: var(--s2); }
 .example { display: grid; gap: var(--s8); margin-top: var(--s8); }
-.given h3:not(:first-child) { margin-top: var(--s8); }
-.given ul { display: grid; gap: var(--s2); margin-top: var(--s3); padding-left: var(--s6); color: var(--text-2); }
-/* The days are a list, not a table, so on a phone each one is its name and
-   its total on one line with what was planned underneath, and nothing has to
-   be scrolled sideways. */
-.week { margin: 0; border: 1px solid var(--line-strong); border-radius: var(--r-lg); }
-.week > div { display: grid; grid-template-columns: minmax(0, 1fr) 8rem; gap: var(--s1) var(--s4); padding: var(--s3) var(--s4); }
-.week > div + div { border-top: 1px solid var(--line); }
-.week dt { font-size: var(--t-sm); font-weight: 600; }
-.week dd { grid-column: 1 / -1; color: var(--text-2); font-size: var(--t-sm); }
-/* Planned work is homework time, so each total carries the calendar's mark
-   for homework: the same small square as in the app. */
-.week dd.time { display: flex; align-items: baseline; gap: var(--s2); grid-column: 2; grid-row: 1; color: var(--text); font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.week dd.time::before { content: ""; width: 8px; height: 8px; flex: none; border-radius: 2px; background: var(--k-work); }
-@media (min-width: 768px) {
-  .week > div { grid-template-columns: 144px minmax(0, 1fr) 8rem; }
-  .week dd { grid-column: 2; }
-  .week dd.time { grid-column: 3; }
-}
-/* What came out of the week: four findings, two by two on a wide screen. */
-.results { display: grid; gap: var(--s6); margin: var(--s8) 0 0; padding: 0; list-style: none; color: var(--text-2); }
-.results li { padding-top: var(--s4); border-top: 1px solid var(--line); }
-@media (min-width: 768px) { .results { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s6) var(--s12); } }
+.given h4 { font-size: var(--t-body); font-weight: 600; }
+.given h4:not(:first-child) { margin-top: var(--s6); }
+.given ul { display: grid; gap: var(--s2); margin-top: var(--s2); padding-left: var(--s6); color: var(--text-2); font-size: var(--t-sm); }
+/* What came out, each finding marked with the orange of planned work. */
+.given ul.results { padding-left: 0; list-style: none; color: var(--text-2); }
+.given .results li { position: relative; padding-left: var(--s4); }
+.given .results li::before { content: ""; position: absolute; left: 0; top: .55em; width: 8px; height: 8px; border-radius: 2px; background: var(--k-work); }
 @media (min-width: 960px) { .example { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s16); align-items: start; } }
+.load-frame { border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); overflow: hidden; }
+.load-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s1) var(--s4); padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); font-size: var(--t-meta); }
+.load-head b { color: var(--text); font-size: var(--t-sm); }
+.load { margin: 0; padding: 0; list-style: none; }
+/* A day: its name, a bar as long as the work planned (out of 200 minutes),
+   and what that work was. The dashed line through every bar is the weekday
+   limit, 2h 15m. */
+.load li { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s1) var(--s4); padding: var(--s3) var(--s4); }
+.load li + li { border-top: 1px solid var(--line); }
+.load-day { font-size: var(--t-sm); font-weight: 600; }
+.load-bar { display: grid; grid-template-columns: minmax(0, 1fr) 4.5rem; align-items: center; gap: var(--s3); }
+.load-bar i { position: relative; display: block; height: 8px; border-radius: 2px; background: var(--surface-3); }
+.load-bar i::before { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--m) / 200 * 100%); border-radius: 2px; background: var(--k-work); }
+.load-bar i::after { content: ""; position: absolute; top: -6px; bottom: -6px; left: calc(135 / 200 * 100%); border-left: 1px dashed var(--text-2); }
+.load-bar b { font-size: var(--t-sm); font-weight: 500; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.load-what { color: var(--text-2); font-size: var(--t-sm); line-height: 1.5; }
+@media (min-width: 600px) {
+  .load li { grid-template-columns: 8.5rem minmax(0, 1fr); align-items: center; }
+  .load-what { grid-column: 2; }
+}
 
-/* Where it runs: two places, side by side. */
-.places { display: grid; gap: var(--s8); margin-top: var(--s12); }
-.places > div { padding-top: var(--s4); border-top: 1px solid var(--line-strong); }
-.places p { max-width: 52ch; margin-top: var(--s2); color: var(--text-2); }
-.also { max-width: 70ch; margin-top: var(--s8); color: var(--text-2); }
-@media (min-width: 768px) { .places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s12); } }
+/* ------------------------------------------------------------ your data
+   Three things to know, said in the serif because they are Cadence speaking
+   for itself, each under a short rule of the brand blue; then the whole table. */
+.principles { display: grid; gap: var(--s8); margin: var(--s12) 0 0; padding: 0; list-style: none; }
+.principles > li { padding-top: var(--s4); border-top: 2px solid var(--blue-ink); }
+.principle { max-width: 22ch; font-family: var(--serif); font-optical-sizing: auto; font-size: var(--t-statement); font-weight: 500; line-height: 1.25; letter-spacing: var(--serif-track); text-wrap: balance; }
+.principles p + p { max-width: 44ch; margin-top: var(--s3); color: var(--text-2); font-size: var(--t-sm); line-height: 1.55; }
+@media (min-width: 640px) { .principles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s8) var(--s12); } }
+@media (min-width: 1080px) { .principles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s8); } }
+.principles + .where { margin-top: var(--s12); }
 
 /* What goes where: a table, because it is one. */
 .where { margin-top: var(--s8); overflow-x: auto; border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--bg); }
@@ -430,14 +679,12 @@ h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.3; letter-spacing:
    two answers sit side by side under the two headings; nothing scrolls
    sideways. "What" is still read out, just not drawn over a column of its own. */
 @media (max-width: 639.98px) {
-  .where { position: relative; }
   .where table { min-width: 0; }
-  .where tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .where thead tr { border-bottom: 1px solid var(--line-strong); background: var(--surface-2); }
-  .where thead th { border-bottom: 0; }
-  .where thead th:first-child { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .where tbody th { grid-column: 1 / -1; width: auto; padding-bottom: var(--s1); color: var(--text); font-weight: 600; }
-  .where tbody td { padding-top: 0; }
+  .where thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .where tr { display: grid; }
+  .where tbody th { width: auto; padding-bottom: var(--s1); color: var(--text); font-weight: 600; }
+  .where tbody td { padding-top: var(--s1); }
+  .where tbody td::before { content: attr(data-label); display: block; color: var(--muted); font-size: var(--t-meta); font-weight: 500; }
   .where tbody tr + tr > * { border-top: 0; }
   .where tbody tr + tr { border-top: 1px solid var(--line); }
 }
@@ -449,17 +696,21 @@ h3 { font-size: var(--t-h3); font-weight: 600; line-height: 1.3; letter-spacing:
 .faq-list details { border-bottom: 1px solid var(--line); }
 .faq-list summary { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s4); min-height: 56px; padding: var(--s3) 0; font-size: var(--t-h3); font-weight: 600; line-height: 1.3; cursor: pointer; list-style: none; scroll-margin-top: var(--s16); }
 .faq-list summary::-webkit-details-marker { display: none; }
-.faq-list summary::after { content: ""; width: 8px; height: 8px; flex: none; margin-right: var(--s1); border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translate(-2px, -2px); transition: transform var(--m2) ease; }
+.faq-list summary::after { content: ""; width: 8px; height: 8px; flex: none; margin-right: var(--s1); border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translate(-2px, -2px); transition: transform var(--m2) var(--ease-out); }
 .faq-list details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
-.faq-list summary:hover { color: var(--accent-ink); }
+.faq-list summary:hover { color: var(--blue-ink); }
 .faq-list details p { max-width: 64ch; padding: 0 var(--s8) var(--s6) 0; color: var(--text-2); }
 @media (min-width: 960px) { .faq { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: var(--s16); align-items: start; } }
 .faq-list .ask { padding-top: var(--s4); color: var(--text-2); }
 
-/* The last invitation stands on the same stage as the first screen. */
-.closing { background: var(--stage); color: var(--on-stage); }
+/* The last invitation stands on the same stage as the first screen: one
+   row, what to do on the left and the button to do it on the right. */
+.closing { padding: var(--s12) 0; background: var(--stage); color: var(--on-stage); }
+.closing .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s6) var(--s12); }
 .closing h2 { max-width: none; }
-.closing p { margin-top: var(--s3); color: var(--on-stage-2); font-size: var(--t-lead); }
+.closing p { margin-top: var(--s2); color: var(--on-stage-2); font-size: var(--t-lead); }
+.closing .cta { margin-top: 0; }
+@media (min-width: 960px) { .closing { padding: var(--s16) 0; } }
 
 footer { border-top: 1px solid var(--line); padding: var(--s8) 0 var(--s12); color: var(--muted); font-size: var(--t-sm); }
 footer .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s4) var(--s6); }
@@ -519,7 +770,7 @@ footer .updated-on { flex-basis: 100%; color: var(--muted); font-size: var(--t-m
 .enquiry input, .enquiry textarea { width: 100%; min-height: 44px; padding: var(--s2) var(--s3); border: 1px solid var(--field); border-radius: var(--r); background: var(--bg); color: var(--text); font: inherit; line-height: 1.4; transition: border-color var(--m2) ease; }
 .enquiry textarea { min-height: 144px; resize: vertical; }
 .enquiry input:hover, .enquiry textarea:hover { border-color: var(--text-2); }
-.enquiry input:focus-visible, .enquiry textarea:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: -1px; border-color: var(--accent-strong); }
+.enquiry input:focus-visible, .enquiry textarea:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: -1px; border-color: var(--blue-ink); }
 .enquiry [aria-invalid="true"] { border-color: var(--red) !important; }
 .enquiry .hint { color: var(--muted); font-size: var(--t-meta); }
 .enquiry .field-error, .enquiry .form-error { color: var(--red); font-size: var(--t-sm); }
@@ -532,7 +783,7 @@ footer .updated-on { flex-basis: 100%; color: var(--muted); font-size: var(--t-m
 
 /* -------------------------------------------------------------- search */
 dialog.search { width: min(640px, calc(100vw - var(--s8))); max-height: min(560px, calc(100dvh - var(--s16))); margin: 12vh auto auto; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-xl); background: var(--bg); color: var(--text); box-shadow: var(--shadow-3); overflow: hidden; }
-dialog.search[open] { display: flex; flex-direction: column; animation: pop-in var(--m2) cubic-bezier(.16, 1, .3, 1); }
+dialog.search[open] { display: flex; flex-direction: column; animation: pop-in var(--m2) var(--ease-out); }
 dialog.search::backdrop { background: var(--scrim); }
 @keyframes pop-in { from { opacity: 0; transform: scale(.98); } }
 .search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--s2) var(--s3); padding: var(--s4); border-bottom: 1px solid var(--line); }
@@ -540,10 +791,10 @@ dialog.search::backdrop { background: var(--scrim); }
 .search-field svg { color: var(--muted); }
 .search-form input { width: 100%; min-height: 44px; padding: 0 var(--s3); border: 1px solid var(--field); border-radius: var(--r); background: var(--bg); color: var(--text); font: inherit; }
 .search-form input::placeholder { color: var(--muted); opacity: 1; }
-.search-form input:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: -1px; border-color: var(--accent-strong); }
+.search-form input:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: -1px; border-color: var(--blue-ink); }
 .search-form .btn { min-height: 44px; }
 .search-status { margin: 0; padding: var(--s3) var(--s4) 0; color: var(--muted); font-size: var(--t-sm); }
-.search-status .link { position: relative; padding: 0; border: 0; background: none; color: var(--accent-strong); font: inherit; font-weight: 500; cursor: pointer; }
+.search-status .link { position: relative; padding: 0; border: 0; background: none; color: var(--blue-ink); font: inherit; font-weight: 500; cursor: pointer; }
 .search-status .link::after { content: ""; position: absolute; inset: -12px -4px; }
 .search-status .link:hover { text-decoration: underline; }
 .search-results { flex: 1; min-height: 0; margin: 0; padding: var(--s2); list-style: none; overflow-y: auto; overscroll-behavior: contain; }
@@ -597,8 +848,9 @@ mark { border-radius: var(--r-sm); background: color-mix(in srgb, var(--accent) 
    paper: no header, no buttons, black on white, and every link's address
    written out after it. */
 @media print {
-  :root { --bg: #fff; --surface-2: #fff; --surface-3: #eee; --line: #bbb; --line-strong: #888; --text: #000; --text-2: #222; --muted: #444; --accent-strong: #000; --accent-ink: #000; --stage: #fff; --on-stage: #000; --on-stage-2: #222; --band: #fff; }
-  .nav, .skip, .floaters, .notice, .cta, .cta-bar, .crumbs, .live, .closing, dialog, .copy, .enquiry, footer .spacer, footer a:not(.brand) { display: none !important; }
+  :root { --bg: #fff; --surface-2: #fff; --surface-3: #eee; --line: #bbb; --line-strong: #888; --text: #000; --text-2: #222; --muted: #444; --accent-strong: #000; --accent-ink: #000; --blue-ink: #000; --stage: #fff; --on-stage: #000; --on-stage-2: #222; --band: #fff; }
+  .nav, .skip, .floaters, .notice, .cta, .cta-bar, .crumbs, .live, .closing, .ev-try, dialog, .copy, .enquiry, footer .spacer, footer a:not(.brand) { display: none !important; }
+  .load-bar i, .load-bar i::before, .ev-item, .ev-what::before, .ev-key li::before, .rp-ring, .given .results li::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { font-size: 11pt; }
   section { padding: 16pt 0; break-inside: avoid; }
   h1, h2, h3 { break-after: avoid; }

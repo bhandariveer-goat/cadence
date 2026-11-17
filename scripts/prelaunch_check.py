@@ -29,6 +29,8 @@ Things that have to stay true as the site changes:
   * every page loads the theme script before its stylesheets
   * the "site updated" date is not older than the pages it describes
   * the privacy page and the visit counter agree with each other
+  * the assistant's reader on the device passes its tests
+    (scripts/reader_test.mjs, run in JavaScriptCore, which comes with macOS)
 
 Being found, and being shared (scripts/stamp_pages.py writes most of this):
   * every page has its own title and description, and a canonical address
@@ -616,6 +618,25 @@ check('Gemini runs only once its plan is chosen, and the privacy page says what 
 check('Groq runs only once its zero data retention setting is confirmed, and the privacy page says Groq keeps nothing',
       'process.env.GROQ_RETENTION' in agent_fn and "keys.groq && kept === 'zero' ? 'groq' : null" in providers_src
       and "Cadence keeps Groq's zero data retention setting on" in privacy_text)
+
+# The reader on the device answers whenever the AI cannot (src/lib/agent.js).
+# scripts/reader_test.mjs types sentences at it and checks what each one
+# changes: a meeting called off never removes an assignment, nothing is
+# marked done that the words do not fit, and the sentences the homepage
+# lists still work. It runs in JavaScriptCore, the JavaScript shell that
+# comes with macOS, so no Node is needed.
+JSC = '/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/Helpers/jsc'
+try:
+    reader = subprocess.run([JSC, '-m', str(ROOT / 'scripts' / 'reader_test.mjs')], cwd=ROOT, capture_output=True, text=True, timeout=120)
+    lines = (reader.stdout + reader.stderr).splitlines()
+    summary = next((line for line in lines if line.endswith(('pass.', 'failed.'))), '')
+    failures = [line.split('FAIL', 1)[1].strip() for line in lines if line.startswith('FAIL')]
+    reader_ok = reader.returncode == 0 and summary.endswith('reader cases pass.')
+    reader_why = (f'{summary} First: ' + '; '.join(failures[:3])) if failures else next(
+        (line for line in lines if line.startswith('Exception')), summary or 'it printed nothing')
+except (OSError, subprocess.SubprocessError) as e:
+    reader_ok, reader_why = False, f'JavaScriptCore (it comes with macOS) could not run them: {e}'
+check("The assistant's reader on the device passes its tests (scripts/reader_test.mjs)", reader_ok, reader_why)
 
 # ------------------------------------------------- what the pages promise
 # scripts/claims_check.py ties each sentence about privacy to the code that

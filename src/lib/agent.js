@@ -15,11 +15,12 @@
 
 import { addDays, startOfDay, atTime, dateKey, uid, MIN } from './util.js';
 import {
-  describe, findItems, simulate, answer, clock as sayClock, clockOf, joinDays, dayWord
+  describe, findItems, kindOf, simulate, answer, clock as sayClock, clockOf, joinDays, dayWord
 } from './agentops.js';
 import { workWindows, isSchoolDay } from './daymodel.js';
 import { allBusy } from './replanner.js';
 import { addNote } from './memory.js';
+import { isFixed } from './habits.js';
 
 const DOW = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const DOW_ABBR = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -418,20 +419,88 @@ function nameIn(text, drop) {
   s = s.replace(/\b(today|tonight|tomorrow|tmrw|this (?:afternoon|evening|morning|weekend)|the weekend|next week|instead|please|first|now|already|finally|just|all of|my|the|to|on|for|until|till)\b/gi, ' ');
   s = s.replace(new RegExp(`\\b(${DOW.join('|')}|${DOW_ABBR.join('|')})s?\\b`, 'gi'), ' ');
   s = s.replace(/\b(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?/gi, ' ');
+  // What is left of "Thursday's" or "tomorrow's".
+  s = s.replace(/(^|\s)['’]s\b/g, ' ');
   return showSat(s).replace(/\s+/g, ' ').trim();
+}
+
+/** Where `name` (lower case, from nameIn) is in `clause` as typed, or -1. */
+const spot = (clause, name) => clause.toLowerCase().replace(/[’]/g, "'").indexOf(name);
+
+/** `name` with the capitals it was typed with, when it is in `clause` whole. */
+function asTyped(clause, name) {
+  const i = spot(clause, name);
+  return i < 0 ? name : clause.slice(i, i + name.length);
+}
+
+/** How surely a found thing (from findItems) happens on date `k`: 2 when it
+    is set for that day (an activity that meets then, an event on it), 1 when
+    time is planned in it that day, 0 when neither. */
+function happensOn(state, hit, k) {
+  if (hit.type === 'activity') {
+    const c = (state.commitments || []).find((x) => x.id === hit.id);
+    if (c && isFixed(c)) return (c.schedule.days || []).includes(new Date(`${k}T12:00:00`).getDay()) && !c.skip?.[k] ? 2 : 0;
+  }
+  if (hit.type === 'event') {
+    return (state.busy || []).some((b) => dateKey(new Date(b.start)) === k
+      && (hit.rule ? b.rule === hit.rule : b.id === hit.id || (b.title === hit.title && b.source === hit.source))) ? 2 : 0;
+  }
+  return (state.plan?.sessions || []).some((s) => dateKey(new Date(s.start)) === k && (s.taskId === hit.id || s.commitmentId === hit.id)) ? 1 : 0;
+}
+
+/**
+ * The one thing a removal or "finished" is about, from findItems' list (best
+ * first). Between things that fit equally well, on date `on` the one that
+ * happens that day wins ("practice is cancelled Wednesday" is the practice
+ * that meets on Wednesdays). Otherwise they are not guessed between:
+ * `choices` lists them, each with a `label` that tells them apart.
+ */
+function pickOne(hits, state, on = null) {
+  if (!hits.length) return {};
+  const [first] = hits;
+  const same = (a, b) => a.type === b.type && (a.id === b.id || (a.type === 'event' && a.title === b.title));
+  let tied = hits.filter((h) => Math.abs(h.score - first.score) < 1e-9);
+  if (on && tied.some((h) => !same(h, first))) {
+    const how = tied.map((h) => happensOn(state, h, on));
+    const most = Math.max(...how);
+    if (most) tied = tied.filter((_, i) => how[i] === most);
+  }
+  const [top] = tied;
+  const rivals = tied.filter((h) => !same(h, top));
+  if (!rivals.length) return { hit: top };
+  // Two assignments with one title are told apart by their class.
+  const label = (h) => (rivals.concat(top).some((x) => x !== h && x.title === h.title) && h.course ? `${h.course} ${h.title}` : h.title);
+  const choices = [];
+  for (const h of [top, ...rivals]) if (!choices.some((c) => c.label === label(h))) choices.push({ ...h, label: label(h) });
+  return choices.length > 1 ? { choices } : { hit: top };
+}
+
+/** The question when a name fits two things equally: which one, each answer
+    a button that says the sentence again with that thing's name in it. */
+function whichOne(choices, clause, name) {
+  const labels = choices.slice(0, 3).map((c) => c.label);
+  const i = spot(clause, name);
+  return {
+    question: `Which one do you mean: ${labels.slice(0, -1).join(', ')} or ${labels.at(-1)}?`,
+    options: i < 0 ? [] : labels.map((l) => ({ label: l, text: `${clause.slice(0, i)}${l}${clause.slice(i + name.length)}` }))
+  };
 }
 
 // ------------------------------------------------------------ one clause
 
 /**
  * Read one clause.
- * @returns {{op?:object, query?:object, signal?:string, ask?:object}|null}
+ * @returns {{op?:object, query?:object, signal?:string, ask?:object, miss?:object}|null}
+ *   miss: a name that matched nothing ({name, side, did}), for the reply
  */
 function readClause(clause, state, now) {
   const t = clause.toLowerCase().replace(/[’]/g, "'");
   const when = readDays(clause, now);
   const today = dateKey(now);
   const nowMin = minuteOf(now);
+  // A name that matched nothing ("cancel the robotics meeting" with none in
+  // the plan), said in the reply when nothing else in the clause is read.
+  let miss = null;
   // The dates a one-day change applies to. "Monday and Tuesday", or
   // "Tuesdays", with nothing that repeats to attach to, mean the next of each.
   const dates = when.dates.length ? when.dates.map((d) => dateKey(d))
@@ -479,9 +548,19 @@ function readClause(clause, state, now) {
   const fin = t.match(/\b(?:i(?:'ve| have)?\s+)?(?:just\s+)?(?:finished|completed|turned in|submitted|handed in|am done with|i'?m done with|done with|did)\s+(.+)/);
   // "I'm not done with the essay" and "I did not do the lab" say the opposite.
   const notDone = /\b(?:not|never|almost|nearly|barely|half|halfway|kind of|kinda|sort of|still|yet|need to|have to|haven'?t|hasn'?t|didn'?t|couldn'?t|can'?t|cannot|won'?t|wasn'?t|isn'?t)\b|n't\b/.test(t);
-  if (fin && !notDone && !/\b(for (?:today|tonight)|practice|rehearsal)\b/.test(fin[1])) {
-    const hit = findItems(state, nameIn(fin[1], []), { types: ['task'], now })[0];
+  // "I'm done with robotics at 5" says when the evening starts (FREE_FROM,
+  // below), not that an assignment is finished. "I got done with the essay
+  // at 9" is finished. And "done with practice" is no assignment at all:
+  // findItems rules out an assignment for a practice, game or meeting.
+  const later = FREE_FROM.test(t) && !/\bgot\s+(?:done|finished)\s+with\b/.test(t);
+  if (fin && !notDone && !later && !/\bfor (?:today|tonight)\b/.test(fin[1])) {
+    const name = nameIn(fin[1], []);
+    // Every word has to fit: "the spanish worksheet" is not the Spanish quiz.
+    const { hit, choices } = pickOne(findItems(state, name, { types: ['task'], now, strict: true }), state);
+    if (choices) return { ask: whichOne(choices, clause, name) };
     if (hit) return { op: { kind: 'done', taskId: hit.id, title: hit.title } };
+    // Said of an assignment, or close to one: the reply says nothing matched.
+    if (kindOf(name) === 'work' || findItems(state, name, { types: ['task'], now }).length) miss = { name: asTyped(clause, name), side: 'work', did: 'marked done' };
   }
 
   // ---- school
@@ -597,18 +676,33 @@ function readClause(clause, state, now) {
   const cancel = t.match(/\b(?:cancel|delete|remove|skip|skipping|drop|not doing|not going to|no)\s+(.+)/) || t.match(/(.+?)\s+(?:is|was|got|has been|'s)\s+cancell?ed\b/);
   if (cancel && !/^no (?:more )?(?:work|homework)/.test(t)) {
     const name = nameIn(cancel[1], [/\b(is|was|got|cancell?ed|it)\b/gi]);
-    const hit = findItems(state, name, { now })[0];
+    const dated = when.dates.length || /\b(today|tonight)\b/.test(t);
+    // An activity skipped or called off is off for one day.
+    const oneDay = dated || /\b(skip|skipping|cancell?ed|no)\b/.test(t);
+    // Something called off is on the calendar unless a word says it is an
+    // assignment ("the quiz is cancelled"), so "robotics is cancelled" is
+    // never the robotics build log. And every word has to fit.
+    const side = /\b(?:cancel|cancell?ed|not going to)\b/.test(t) ? 'calendar' : null;
+    const { hit, choices } = pickOne(findItems(state, name, { now, side, strict: true }), state, oneDay ? dates[0] : null);
+    if (choices) return { ask: whichOne(choices, clause, name) };
     if (hit) {
-      const dated = when.dates.length || /\b(today|tonight)\b/.test(t);
       // "Cancel" and "delete" mean for good. "Skipping it tonight" means not now.
       const forGood = /\b(cancel|delete|remove|drop)\b|\bcancell?ed\b/.test(t);
-      if (hit.type === 'activity') return { op: { kind: 'remove', target: 'activity', id: hit.id, title: hit.title, date: dated || /\b(skip|skipping|cancell?ed|no)\b/.test(t) ? dates[0] : null } };
+      if (hit.type === 'activity') return { op: { kind: 'remove', target: 'activity', id: hit.id, title: hit.title, date: oneDay ? dates[0] : null } };
       if (hit.type === 'event') return { op: { kind: 'remove', target: 'event', id: hit.id, title: hit.title, date: dated ? dates[0] : null } };
       if (hit.type === 'task') {
         if (forGood && !dated) return { op: { kind: 'remove', target: 'task', id: hit.id, title: hit.title } };
         // Homework does not go away by skipping it: it moves to the next day.
         return { op: { kind: 'move', taskId: hit.id, title: hit.title, date: dateKey(addDays(new Date(`${dates[0]}T12:00:00`), 1)) } };
       }
+    }
+    // Nothing of that kind, so the reply says so. Called off or removed in so
+    // many words, the clause is not read as anything else either: "cancel
+    // dinner at 6" never adds a dinner.
+    if (/[a-z0-9]/.test(name)) {
+      const missed = { name: asTyped(clause, name), side: kindOf(name) || side, did: 'removed' };
+      if (/\b(?:cancel|cancell?ed|delete|remove|drop)\b/.test(t)) return { miss: missed };
+      if (kindOf(name) === 'calendar') miss = missed;
     }
   }
 
@@ -662,7 +756,7 @@ function readClause(clause, state, now) {
   // ---- anything else with a time on it is an event
   const ev = eventFrom(clause, t, when, now, { hint });
   if (ev) return { op: ev };
-  return null;
+  return miss ? { miss } : null;
 }
 
 // The words around "practice runs late" or "I'm busy" that are not its name.
@@ -725,13 +819,16 @@ function eventFrom(clause, t, when, now, { assume = false, hint = 'day' } = {}) 
 
 /**
  * Read a whole message.
- * @returns {{ops:object[], queries:object[], ask:object|null}}
+ * @returns {{ops:object[], queries:object[], ask:object|null, misses:object[]}}
+ *   misses: names that matched nothing that could be changed
  */
 export function read(text, state, now = new Date()) {
   const ops = [];
   const queries = [];
   const signals = [];
+  const misses = [];
   let care = null;
+  let which = null;
 
   for (const c of clauses(text)) {
     const r = readClause(c, state, now);
@@ -742,6 +839,8 @@ export function read(text, state, now = new Date()) {
       if (mins && last?.kind === 'task' && !last.minutes) last.minutes = mins;
       continue;
     }
+    if (r.miss) misses.push(r.miss);
+    if (r.ask) which ||= r.ask;
     if (r.op) {
       // "half day tomorrow, we get out at 12": the second clause is the time for the first.
       const prev0 = ops.at(-1);
@@ -807,10 +906,12 @@ export function read(text, state, now = new Date()) {
       ]
     };
   }
+  // A name that fits two things equally: which one.
+  ask ||= which;
 
   // opId names the operation itself. `id` is left alone: on a removal it is
   // the thing being removed.
-  return { ops: ops.map((o) => ({ ...o, opId: uid('op') })), queries, ask };
+  return { ops: ops.map((o) => ({ ...o, opId: uid('op') })), queries, ask, misses };
 }
 
 /**
@@ -859,6 +960,9 @@ export { applyOps } from './agentops.js';
 // "1h 30m" or "2 hours".
 const list = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
 const mins = (m) => { const r = Math.round(m); if (r < 60) return `${r} minutes`; const h = Math.floor(r / 60), x = r % 60; return x ? `${h}h ${x}m` : `${h} hour${h === 1 ? '' : 's'}`; };
+// A name that matched nothing, said as it is, by where it was looked for.
+const LOOKED = { calendar: 'No activity or event you added', work: 'No assignment' };
+const sayMissed = (m) => `${LOOKED[m.side] || 'No assignment, activity or event you added'} matches “${m.name}”, so nothing was ${m.did}.`;
 
 /**
  * Carry out a message offline and say what happened.
@@ -870,7 +974,10 @@ const mins = (m) => { const r = Math.round(m); if (r < 60) return `${r} minutes`
 export function respond(text, state, now = new Date()) {
   const out = { text: '', ops: [], moved: [], list: [], chips: [], next: null, changed: false };
 
-  const { ops, queries, ask } = read(text, state, now);
+  const { ops, queries, ask, misses } = read(text, state, now);
+  // Names that matched nothing are said plainly, so nothing else is changed
+  // in their place without the reply showing it.
+  const missed = misses.map(sayMissed).join(' ');
 
   // "Remember that practice runs late on Tuesdays": kept in Cadence's memory
   // (lib/memory.js), where the assistant and the memory screen both see it.
@@ -891,7 +998,7 @@ export function respond(text, state, now = new Date()) {
   }
 
   if (ask && !ops.length) {
-    out.text = ask.question;
+    out.text = [missed, ask.question].filter(Boolean).join(' ');
     out.chips = ask.options;
     return out;
   }
@@ -923,6 +1030,7 @@ export function respond(text, state, now = new Date()) {
     if (a.list) out.list.push(...a.list);
   }
 
+  if (missed) out.text = [out.text, missed].filter(Boolean).join(' ');
   if (ask && ops.length) { out.text = `${out.text} ${ask.question}`.trim(); out.chips.push(...ask.options); }
 
   if (!out.text) {

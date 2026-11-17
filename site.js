@@ -36,7 +36,7 @@ const store = {
 
 // The date the public pages last changed. scripts/prelaunch_check.py fails if
 // this is older than the newest commit that touched them, so it cannot rot.
-const SITE_UPDATED = '2026-11-15';
+const SITE_UPDATED = '2026-11-16';
 
 const ICON = {
   search: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
@@ -625,9 +625,12 @@ addEventListener('hashchange', openTarget);
 addEventListener('beforeprint', () => { for (const d of $$('main details')) { d.dataset.was = String(d.open); d.open = true; } });
 addEventListener('afterprint', () => { for (const d of $$('main details')) { if (d.dataset.was === 'false') d.open = false; delete d.dataset.was; } });
 // The live demo takes a moment; until it has loaded its frame shows a quiet
-// placeholder instead of an empty box.
+// placeholder instead of an empty box. It is shown the moment the app inside
+// starts coming in (it says so, src/panel/autoplay.js), so none of that is
+// missed, or else once it has loaded.
 for (const frame of $$('.live iframe')) {
   const done = () => frame.closest('.live')?.classList.add('ready');
   frame.addEventListener('load', done);
+  addEventListener('message', (e) => { if (e.source === frame.contentWindow && e.origin === location.origin && e.data?.type === 'cadence:arrive') done(); });
   if (frame.contentDocument?.readyState === 'complete' && frame.contentDocument.body?.childElementCount) done();
 }

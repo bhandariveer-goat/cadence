@@ -60,42 +60,137 @@ const dur = (min) => fmtMinutes(Math.max(0, Math.round(min)));
 // --------------------------------------------------------------- finding
 
 const STOP = new Set(['the', 'a', 'an', 'my', 'of', 'for', 'to', 'and', 'on', 'in', 'at', 'hw', 'homework', 'assignment', 'thing', 'stuff', 'work']);
+// Short forms used in titles, written out, so "chapter 6" finds "Ch 6 notes".
+const SHORT = { ch: 'chapter', chap: 'chapter', pg: 'page', pgs: 'pages', ws: 'worksheet' };
+// A phrase as lower-case words, without "'s" or single letters.
+const tokens = (s) => String(s || '').toLowerCase().replace(/['’]s\b/g, '').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+  .map((w) => SHORT[w] || w).filter((w) => w && !/^[a-z]$/.test(w));
 // The words in a phrase that say which thing is meant (STOP words dropped).
-const words = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w && !STOP.has(w));
+const words = (s) => tokens(s).filter((w) => !STOP.has(w));
+
+// Words that say what kind of thing is meant. Practices, games and meetings
+// are on the calendar; quizzes and essays are assignments. Words between two
+// bars are one kind of thing ("training" is a practice, "exam" a test); a
+// group starting with * goes with anything on its side: an event can be a
+// game or a meeting, and homework can be a quiz or an essay.
+const KIND_GROUPS = {
+  calendar: `practice practices practise training | rehearsal rehearsals | game games match matches scrimmage | meet meets
+    | tournament | race | tryout tryouts | meeting meetings meetup | call | class classes lecture | lesson lessons | tutoring
+    | appointment appointments appt | checkup | concert | recital | performance | show | workout workouts | shift shifts
+    | dinner | lunch | breakfast | party | * event events session sessions`,
+  work: `quiz quizzes | test tests exam exams midterm final | essay essays paper papers | draft | report writeup | outline
+    | problem problems pset | worksheet worksheets packet | exercises | read reading readings | project | log journal | notes
+    | presentation slides | * homework hw assignment assignments`
+};
+const KIND = new Map();
+for (const [side, groups] of Object.entries(KIND_GROUPS)) {
+  groups.split('|').forEach((g, i) => {
+    for (const word of g.replace('*', '').trim().split(/\s+/)) KIND.set(word, { word, side, group: `${side} ${i}`, any: g.includes('*') });
+  });
+}
+// The kind words in a phrase, in order.
+const kindsIn = (s) => tokens(s).map((w) => KIND.get(w)).filter(Boolean);
+
+/** What a phrase says it is: 'calendar' ("the robotics meeting"), 'work'
+    ("the spanish quiz"), or null when no word says. The last such word
+    decides: "practice problems" are problems. */
+export const kindOf = (phrase) => kindsIn(phrase).at(-1)?.side || null;
 
 /**
  * Find what someone means by "the lab report" or "chem" or "piano".
- * @returns {{type:'task'|'activity'|'event', id, title, score}[]} best first
+ *
+ * A word said counts when the title has it (or, for an assignment, its class
+ * does), whole or as the start of a longer word: "chem" finds Chemistry.
+ * Whole words rank a little higher, so "the log" is the build log, not the
+ * Logarithms worksheet. Words of one or two letters ("AP", "US") count only
+ * whole, so "apush" is not every AP class.
+ *
+ * Kind words rule things out. An assignment is always work, whatever its
+ * title says ("SAT practice" is not a practice that can be called off). An
+ * activity or event is on the calendar unless the last kind word in its
+ * title is a kind of work (the goal "College essay"). And a title says which kind it is:
+ * "Robotics meeting" is never the assignment "Robotics build log", and
+ * "basketball game" is never "Basketball practice". A kind word the title
+ * leaves out does not rule a thing out ("robotics meeting" can be the
+ * activity "Robotics"), but ranks it a little lower.
+ *
+ * @param {object}  [o]
+ * @param {string}  [o.side]   what is meant when no word in the phrase says:
+ *   'calendar' (something called off) or 'work'
+ * @param {boolean} [o.strict] only things that fit every word said, for removing
+ *   something or marking it done; otherwise half the words are enough
+ * @returns {{type:'task'|'activity'|'event', id, title, score, full}[]} best first
  */
-export function findItems(state, phrase, { types = ['task', 'activity', 'event'], now = new Date() } = {}) {
+export function findItems(state, phrase, { types = ['task', 'activity', 'event'], now = new Date(), side = null, strict = false } = {}) {
   const want = words(phrase);
   if (!want.length) return [];
-  const score = (hay) => {
-    const have = words(hay);
-    if (!have.length) return 0;
-    let hit = 0;
-    for (const w of want) if (have.some((h) => h === w || (w.length >= 3 && (h.startsWith(w) || w.startsWith(h))))) hit++;
-    return hit / want.length;
+  const said = kindsIn(phrase);
+  const meant = said.at(-1)?.side || side;
+
+  // What the kind words said make of a thing with this title: null when they
+  // rule it out, else the ones its title says in other words ("exam" for a
+  // test) and the ones it leaves out.
+  const sizeUp = (title, type) => {
+    const has = kindsIn(title);
+    const own = type === 'task' ? 'work' : has.at(-1)?.side || 'calendar';
+    if (meant && own !== meant) return null;
+    const near = new Set(), leftOut = new Set();
+    for (const k of said) {
+      if (has.some((h) => h.word === k.word)) continue;                              // in the title as said
+      if (has.some((h) => h.group === k.group)) near.add(k.word);
+      else if (!k.any && has.some((h) => h.side === k.side && !h.any)) return null;   // it says another kind
+      else leftOut.add(k.word);
+    }
+    return { near, leftOut };
   };
+  // How the words said fit `hay`: the share found (`fit`), the same with a
+  // shared beginning or another word for the kind counting 0.9 and each kind
+  // word left out costing a little (`rank`), and whether all were (`full`).
+  // Null when nothing but kind words the title leaves out was said.
+  const measure = (hay, kinds) => {
+    const have = words(hay);
+    let found = 0, rank = 0, count = 0, skipped = 0;
+    for (const w of want) {
+      if (kinds.leftOut.has(w)) { skipped++; continue; }
+      count++;
+      if (have.includes(w)) { found++; rank += 1; }
+      else if (kinds.near.has(w) || have.some((h) => Math.min(h.length, w.length) >= 3 && (h.startsWith(w) || w.startsWith(h)))) { found++; rank += 0.9; }
+    }
+    return count ? { fit: found / count, rank: rank / (count + 0.1 * skipped), full: found === count } : null;
+  };
+  // The best of several ways to match, each [result, what it is worth].
+  const best = (tries) => {
+    const ok = tries.filter(([r]) => r);
+    return ok.length ? { fit: Math.max(...ok.map(([r, x]) => r.fit * x)), rank: Math.max(...ok.map(([r, x]) => r.rank * x)), full: ok.some(([r]) => r.full) } : null;
+  };
+  const keep = (r) => !!r && (strict ? r.full : r.fit >= 0.5);
+
+  // Something on the calendar gets a small head start over an assignment
+  // that fits as well: "skip robotics today" is the activity.
   const out = [];
   if (types.includes('task')) {
     for (const t of Object.values(state.tasks || {})) {
       if (t.status === 'done' || state.dismissed?.[t.id]) continue;
-      const s = Math.max(score(t.title), score(`${t.courseName || ''} ${t.title}`) * 0.95, score(t.courseName || '') * 0.6);
-      if (s >= 0.5) out.push({ type: 'task', id: t.id, title: t.title, score: s });
+      const kinds = sizeUp(t.title, 'task');
+      if (!kinds) continue;
+      const course = t.courseName || '';
+      const r = best([[measure(t.title, kinds), 1], [measure(`${course} ${t.title}`, kinds), 0.95], [measure(course, kinds), 0.6]]);
+      if (keep(r)) out.push({ type: 'task', id: t.id, title: t.title, course, score: r.rank, full: r.full });
     }
   }
   if (types.includes('activity')) {
     for (const c of (state.commitments || []).filter((x) => !x.archived)) {
-      const s = score(c.title);
-      if (s >= 0.5) out.push({ type: 'activity', id: c.id, title: c.title, score: s + 0.01 });
+      const kinds = sizeUp(c.title, 'activity');
+      const r = kinds && measure(c.title, kinds);
+      if (keep(r)) out.push({ type: 'activity', id: c.id, title: c.title, score: r.rank + 0.01, full: r.full });
     }
   }
   if (types.includes('event')) {
     for (const b of (state.busy || [])) {
       if (b.source === 'skip' || +new Date(b.end) < +now) continue;
-      const s = score(b.title);
-      if (s >= 0.5) out.push({ type: 'event', id: b.id, title: b.title, score: s, at: b.start });
+      const kinds = sizeUp(b.title, 'event');
+      const r = kinds && measure(b.title, kinds);
+      if (keep(r)) out.push({ type: 'event', id: b.id, title: b.title, score: r.rank + 0.01, full: r.full, at: b.start, rule: b.rule || null, source: b.source });
     }
   }
   return out.sort((a, b) => b.score - a.score || String(a.at || '').localeCompare(String(b.at || '')));

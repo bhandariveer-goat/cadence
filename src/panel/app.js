@@ -139,12 +139,14 @@ function renderApp() {
     const moved = showcase.on() && shownTab && shownTab !== active && tabs.some(([id]) => id === shownTab);
     const from = moved ? showcase.markBox($('#tabs .tab[aria-current]')) : null;
     const leaving = moved ? [...$('#view').childNodes] : null;
+    // Taken out of the page and put back, a scrolling part forgets where it was; note it first.
+    const scrolls = moved ? [...$('#view').querySelectorAll('.wg-body')].map((el) => [el, el.scrollTop]) : [];
     $('#tabs').innerHTML = tabs.map(([id, label, ic]) => `<button class="tab" data-act="tab" data-tab="${id}" ${active === id ? 'aria-current="page"' : ''}>
       ${svg(ic)}<span>${label}</span>${id === 'crew' && unseen ? '<i class="dot-badge" role="img" aria-label="New"></i>' : ''}</button>`).join('');
 
     $('#view').innerHTML = VIEWS[app.view]();
     shownScreen = app.agent?.open ? 'assistant' : app.view;
-    if (moved) showcase.tabChange(from, leaving, tabs.findIndex(([id]) => id === active) - tabs.findIndex(([id]) => id === shownTab));
+    if (moved) showcase.tabChange(from, leaving, tabs.findIndex(([id]) => id === active) - tabs.findIndex(([id]) => id === shownTab), scrolls);
     else if (showcase.on()) showcase.redrawn();
     shownTab = active;
     // An invite link opened before signing in is offered once the app is up.
@@ -152,12 +154,17 @@ function renderApp() {
     // The short tour of the tabs, once, the first time the app is up after setup.
     maybeStartTour();
     // The week grid covers the whole day; open it where the day actually starts.
-    const grid = $('.wg-body');
+    // On the homepage's tour it opens at 2pm instead, whatever the visitor's
+    // clock says, so the afternoon and evening the planning is about show.
+    // The new page's grid, not the old one sliding away in the homepage's tour.
+    const grid = [...document.querySelectorAll('#view .wg-body')].find((g) => !g.closest('.view-leaving'));
     if (grid) {
       const first = grid.querySelector('.wg-block');
       const now = grid.querySelector('.wg-now');
+      const two = showcase.on() && [...grid.querySelectorAll('.wg-gutter .hr')].find((h) => h.textContent.trim() === '2pm');
       const anchor = now || first;
-      if (anchor) grid.scrollTop = Math.max(0, parseFloat(anchor.style.top || 0) - 70);
+      if (two) grid.scrollTop = Math.max(0, two.offsetTop - 12);
+      else if (anchor) grid.scrollTop = Math.max(0, parseFloat(anchor.style.top || 0) - 70);
     }
     renderSide();
     agent.render();

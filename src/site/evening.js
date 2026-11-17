@@ -65,7 +65,7 @@ export function startingWeek() {
     });
     st.tasks = {
       calc: task('calc', 'Calculus problem set 4.2', 'AP Calculus', at(1, 8), 60, 'problemset'),
-      spanish: task('spanish', 'Study for the Spanish quiz', 'Spanish 3', at(3, 9), 45, 'quiz'),
+      spanish: task('spanish', 'Spanish quiz', 'Spanish 3', at(3, 9), 45, 'quiz'),
       // What School's "Add an assignment" box makes of the sentence "Robotics
       // build log due Friday, about an hour" (lib/parse.js): due at 11:59pm.
       log: task('log', 'Robotics build log', '', at(4, 23, 59), 60, 'project')
@@ -96,8 +96,8 @@ function roboticsEmail() {
  */
 export const CHANGES = {
   moved: {
-    label: "Coach moves Wednesday's practice to 6pm",
-    did: "Wednesday's practice now runs from 6pm to 8pm, so the afternoon opens up and the evening fills.",
+    label: "Coach moves Wednesday’s practice to 6pm",
+    did: "Wednesday’s practice now runs from 6pm to 8pm. It goes on the calendar as an event, so the afternoon opens up and the evening fills.",
     apply: (st) => {
       const practice = st.commitments.find((c) => c.id === 'practice');
       (practice.skip ||= {})[dateKey(at(2, 12))] = true;
@@ -108,7 +108,7 @@ export const CHANGES = {
     label: 'A lab report comes in',
     did: 'A chemistry lab report comes in that is due Wednesday at 8am and should take about 1h 30m.',
     apply: (st) => {
-      st.tasks.lab = { id: 'lab', source: 'manual', title: 'Chemistry lab report', courseName: 'Chemistry', due: at(2, 8).toISOString(), userEstimateMin: 90, category: 'lab', status: 'todo', description: '' };
+      st.tasks.lab = { id: 'lab', source: 'manual', title: 'Lab report', courseName: 'Chemistry', due: at(2, 8).toISOString(), userEstimateMin: 90, category: 'lab', status: 'todo', description: '' };
     }
   }
 };
@@ -144,6 +144,9 @@ function dayWord(d, { evening = false } = {}) {
   return WEEKDAYS[((o % 7) + 7) % 7];
 }
 const list = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}` : xs[0] || '');
+
+/** A due time as a student reads it: 11:59pm, not "midnight", which reads as the start of the day. */
+const dueAt = (d) => { const x = new Date(d); return x.getHours() === 23 && x.getMinutes() === 59 ? '11:59pm' : fmtTime(x); };
 
 /** The blocks planned for one assignment, earliest first. */
 const blocksFor = (st, id) => (st.plan?.sessions || []).filter((s) => s.taskId === id).sort((a, b) => new Date(a.start) - new Date(b.start));
@@ -195,19 +198,19 @@ function whyLines(st) {
   const taken = fixed.map((b) => `${b.title.toLowerCase()} from ${fmtTime(b.start)} to ${fmtTime(b.end)}`);
   const lines = [{
     title: `Free tonight: ${list(free.map(([a, b]) => `${fmtTime(a)} to ${fmtTime(b)}`)) || 'none'}`,
-    text: `School ends at ${fmtClock(st.school.end)}${taken.length ? `, followed by ${list(taken)}` : ''}. Cadence stops planning work ${DAY.windDown} minutes before Sam's ${fmtClock(st.sleep.bed)} bedtime.`
+    text: `School ends at ${fmtClock(st.school.end)}${taken.length ? `, followed by ${list(taken)}` : ''}. Cadence stops planning work ${DAY.windDown} minutes before Sam’s ${fmtClock(st.sleep.bed)} bedtime.`
   }];
   for (const c of goals(st)) {
     const blocks = sessionsOf(st, c.id);
     lines.push({
       title: c.title,
-      text: `Sam's goal is ${c.target.sessions} sessions of ${fmtMinutes(c.target.minutes)} a week, at no set time. ${blocks.length ? `Cadence planned ${blocks.length === 1 ? 'one' : 'them'} ${eachBlock(blocks)}.` : 'None of them fit this week.'}`
+      text: `Sam’s goal is ${c.target.sessions} sessions of ${fmtMinutes(c.target.minutes)} a week, at no set time. ${blocks.length ? `Cadence planned ${blocks.length === 1 ? 'one' : 'them'} ${eachBlock(blocks)}.` : 'None of them fit this week.'}`
     });
   }
   for (const e of (st.sources?.mail?.enabled && st.sources.mail.events) || []) {
     lines.push({
       title: e.title,
-      text: `It came in an email from the ${e.mail.from.toLowerCase()}, so it's on the calendar ${dayWord(e.start)} from ${fmtTime(e.start)} to ${fmtTime(e.end)} and no work goes there.`
+      text: `It came in an email from the ${e.mail.from.toLowerCase()}, so it’s on the calendar ${dayWord(e.start)} from ${fmtTime(e.start)} to ${fmtTime(e.end)} and no work goes there.`
     });
   }
   const tasks = Object.values(st.tasks).filter((t) => t.status !== 'done').sort((a, b) => new Date(a.due) - new Date(b.due));
@@ -216,7 +219,7 @@ function whyLines(st) {
     const total = blocks.reduce((n, b) => n + b.minutes, 0);
     lines.push({
       title: t.title,
-      text: `It's due ${dayWord(t.due)} at ${fmtTime(t.due)}, ${planned(blocks, total)}.`
+      text: `It’s due ${dayWord(t.due)} at ${dueAt(t.due)}, ${planned(blocks, total)}.`
     });
   }
   return lines;
@@ -247,7 +250,7 @@ function changeLines(before, after, key) {
   }
   for (const t of Object.values(after.tasks).sort((a, b) => new Date(a.due) - new Date(b.due))) {
     const was = blocksFor(before, t.id), now = blocksFor(after, t.id);
-    if (!before.tasks[t.id]) out.push(`${t.title} goes in ${placement(now)}, before it's due ${dayWord(t.due)} at ${fmtTime(t.due)}.`);
+    if (!before.tasks[t.id]) out.push(`${t.title} goes in ${placement(now)}, before it’s due ${dayWord(t.due)} at ${dueAt(t.due)}.`);
     else if (sig(was) !== sig(now)) {
       // Day names alone can read the same before and after; then say the times.
       const same = placement(was) === placement(now);
@@ -255,51 +258,256 @@ function changeLines(before, after, key) {
     }
   }
   const late = [...(after.plan?.late || []), ...(after.plan?.unplaced || [])];
-  out.push(late.length ? `Some work no longer fits before it's due (${list(late.map((x) => x.title || x))}). In the app, Cadence tells you and you decide what to do.` : "Everything still gets done before it's due.");
+  out.push(late.length ? `Some work no longer fits before it’s due (${list(late.map((x) => x.title || x))}). In the app, Cadence tells you and you decide what to do.` : "Everything still gets done before it’s due.");
   return out;
 }
 
 // ------------------------------------------------------------------ the page
+// The week is drawn once and laid out two ways by site.css: on a wide screen
+// as the app's own week grid (a column a day, the afternoon and evening from
+// 2:30pm to 10pm), and on a phone as a list of days. Each thing carries where
+// it starts and how long it lasts, in minutes into the grid, as two CSS
+// variables; the list simply ignores them. Each also carries what it is and
+// when it starts in the week (data-who, data-at), which is how a change
+// knows which block went where.
 
-/** The week, Monday to Friday: what is fixed and what Cadence planned. `marks` flags blocks a change moved or added. */
-function weekHtml(st, marks = {}) {
-  const rows = [];
-  for (let o = 0; o < SHOWN_DAYS; o++) {
-    const items = [
-      ...fixedOn(st, o).map((b) => ({ kind: 'fixed', start: b.start, end: b.end, title: b.title, email: b.source === 'mail' })),
-      ...(st.plan?.sessions || []).filter((s) => s.taskId && offsetOf(s.start) === o)
-        .map((s) => ({ kind: 'work', start: s.start, end: s.end, title: s.title, minutes: s.minutes, mark: marks[`${s.taskId}|${s.start}`] }))
-    ].sort((a, b) => new Date(a.start) - new Date(b.start));
-    rows.push(`<li><span class="ev-day">${WEEKDAYS[o]}</span>${items.length ? `<ol class="ev-items">${items.map((it) => `
-      <li class="ev-item ${it.kind}${it.mark ? ` ${it.mark}` : ''}"><span class="ev-time">${fmtTime(it.start)}</span><span class="ev-what">${esc(it.title)}${it.mark ? `<small>${it.mark === 'new' ? 'New' : 'Moved'}</small>` : ''}${it.email ? '<small class="ev-from">From email</small>' : ''}</span><span class="ev-len">${fmtMinutes(it.minutes ?? (new Date(it.end) - new Date(it.start)) / 60000)}</span></li>`).join('')}</ol>` : '<p class="ev-none">Nothing planned</p>'}</li>`);
+const GRID_FROM = 14 * 60 + 30;                // 2:30pm: the end of school is on the grid
+const GRID_TO = 22 * 60;                       // 10pm: Cadence stops planning 30 minutes before bed
+const SHORT = 32;                              // a block shorter than this (in minutes) shows its title only
+const TALL = 50;                               // from this long, a title may take two lines
+
+/** Minutes after midnight, on the thing's own day. */
+const minsOf = (d) => { const x = new Date(d); return x.getHours() * 60 + x.getMinutes(); };
+
+/** Which of the app's four kinds something fixed is: school, an activity, or an event (views/week.js kindOf). */
+const kindOf = (b) => (b.source === 'school' ? 'school' : b.source === 'activity' ? 'activity' : 'event');
+
+/** Side by side where two things overlap, as the app's grid does: each gets a lane, and the lanes in its cluster. */
+function lanes(items) {
+  let cluster = [], end = -Infinity;
+  const flush = () => {
+    const ends = [];
+    for (const it of cluster) {
+      let lane = ends.findIndex((e) => e <= it.from);
+      if (lane < 0) { ends.push(it.to); lane = ends.length - 1; } else ends[lane] = it.to;
+      it.lane = lane;
+    }
+    for (const it of cluster) it.lanes = ends.length;
+    cluster = [];
+  };
+  for (const it of items) {
+    if (it.from >= end && cluster.length) flush();
+    cluster.push(it);
+    end = Math.max(end, it.to);
   }
-  return `<ol class="ev-week">${rows.join('')}</ol>`;
+  flush();
+  return items;
 }
 
-/** Blocks that a change moved or added, keyed by assignment and start. */
+/** Everything on one day of the story, in time order: school, what else is fixed, and the blocks Cadence planned. */
+function dayItems(st, o, marks = {}) {
+  const fixed = atMoment(NOW, () => allBusy(st))
+    .filter((b) => offsetOf(b.start) === o)
+    .map((b) => ({ kind: kindOf(b), source: b.source, start: b.start, end: b.end, title: b.title, email: b.source === 'mail',
+      who: b.source === 'school' ? 'school' : `fixed:${b.title}` }));
+  const planned = (st.plan?.sessions || []).filter((s) => s.taskId && offsetOf(s.start) === o)
+    .map((s) => ({ kind: s.commitmentId ? 'activity' : 'work', planned: true, start: s.start, end: s.end, title: s.title, minutes: s.minutes,
+      who: s.commitmentId ? `goal:${s.commitmentId}` : `work:${s.taskId}`, mark: marks[`${s.taskId}|${s.start}`] }));
+  const items = [...fixed, ...planned].sort((a, b) => new Date(a.start) - new Date(b.start));
+  for (const it of items) {
+    it.from = minsOf(it.start);
+    it.to = it.from + (new Date(it.end) - new Date(it.start)) / 60000;
+    it.at = o * 1440 + it.from;
+  }
+  return lanes(items);
+}
+
+/** The second line of a block on the grid, in the app's own words (views/week.js block). */
+function whenOf(it) {
+  if (it.kind === 'school') return `until ${fmtTime(it.end)}`;
+  if (it.planned) return `${fmtTime(it.start)} · ${fmtMinutes(it.minutes)}`;
+  if (it.source === 'activity') return `${fmtTime(it.start)} to ${fmtTime(it.end)}`;
+  return it.email ? `${fmtTime(it.start)} · From email` : fmtTime(it.start);
+}
+
+/** One thing on the week. On the grid it is placed by --at and --len (minutes into the grid). */
+function itemHtml(it) {
+  const from = Math.max(GRID_FROM, it.from), to = Math.min(GRID_TO, it.to);
+  const place = `--at:${from - GRID_FROM};--len:${Math.max(20, to - from)}${it.lanes > 1 ? `;--lane:${it.lane};--lanes:${it.lanes}` : ''}`;
+  const off = to <= from ? ' off-grid' : '';
+  const size = to - from < SHORT ? ' short' : to - from >= TALL ? ' tall' : '';
+  const time = it.kind === 'school' ? `until ${fmtTime(it.end)}` : fmtTime(it.start);
+  const tags = `${it.mark ? `<small>${it.mark === 'new' ? 'New' : 'Moved'}</small>` : ''}${it.email ? '<small class="ev-from">From email</small>' : ''}`;
+  return `
+      <li class="ev-item k-${it.kind}${it.mark ? ` ${it.mark}` : ''}${size}${off}" data-who="${esc(it.who)}" data-at="${it.at}" style="${place}">${tags ? `<span class="ev-tags">${tags}</span>` : ''}<span class="ev-what">${esc(it.title)}</span><span class="ev-time">${time}</span><span class="ev-len">${fmtMinutes(it.minutes ?? (it.to - it.from))}</span><span class="ev-when">${whenOf(it)}</span></li>`;
+}
+
+/** The fixed things of a week (not school), by day, title and start, and by day and title: to tell, after a change, which are new and which moved. */
+function fixedSeen(st) {
+  const at = new Set(), titles = new Set();
+  for (let o = 0; o < SHOWN_DAYS; o++) {
+    for (const it of dayItems(st, o)) {
+      if (!it.who.startsWith('fixed:')) continue;
+      at.add(`${it.who}|${it.at}`);
+      titles.add(`${o}|${it.who}`);
+    }
+  }
+  return { at, titles };
+}
+
+/** The week, Monday to Friday: school, what else is fixed, and what Cadence planned. With `before`, the week as it was
+    before a change, the blocks and fixed things that change moved or added are marked. */
+function weekHtml(st, before = null) {
+  const marks = before ? marksFor(before, st) : {};
+  const seen = before ? fixedSeen(before) : null;
+  const daysPlanned = Object.fromEntries((st.plan?.days || []).map((d) => [d.date, d.minutes]));
+  const hours = [];
+  for (let m = Math.ceil(GRID_FROM / 60) * 60; m <= GRID_TO; m += 60) hours.push(`<li style="--at:${m - GRID_FROM}"><span>${fmtClock(`${m / 60}:00`)}</span></li>`);
+  const cols = [];
+  for (let o = 0; o < SHOWN_DAYS; o++) {
+    const items = dayItems(st, o, marks);
+    // Something fixed that was not there before is new, or, if a thing of the same name was on that day, moved.
+    if (seen) for (const it of items) if (it.who.startsWith('fixed:') && !seen.at.has(`${it.who}|${it.at}`)) it.mark = seen.titles.has(`${o}|${it.who}`) ? 'moved' : 'new';
+    const due = Object.values(st.tasks).filter((t) => t.status !== 'done' && offsetOf(t.due) === o).length;
+    // Under the day's name, as on the app's grid: what is due, or else how much work is planned.
+    const load = daysPlanned[dateKey(storyDay(o))];
+    const head = due ? `<span class="ev-due">${due} due</span>` : load ? `<span class="ev-due ev-load">${fmtMinutes(load)}</span>` : '<span class="ev-due ev-load"></span>';
+    const now = o === 0 ? `<li class="ev-now" style="--at:${minsOf(NOW) - GRID_FROM}" aria-hidden="true"></li>` : '';
+    const empty = items.every((it) => it.kind === 'school') ? '<p class="ev-none">Nothing planned</p>' : '';
+    cols.push(`<li class="ev-col${o === 0 ? ' today' : ''}"><p class="ev-dayhead"><span class="ev-day">${WEEKDAYS[o]}</span>${head}</p>${empty}<ol class="ev-items">${now}${items.map(itemHtml).join('')}</ol></li>`);
+  }
+  return `<div class="ev-grid" style="--span:${GRID_TO - GRID_FROM}"><ol class="ev-hours" aria-hidden="true">${hours.join('')}</ol><ol class="ev-week">${cols.join('')}</ol></div>`;
+}
+
+/** Blocks that a change moved or added, keyed by assignment and start: new for a new assignment, moved for
+    work that now starts somewhere it did not, or starts where it did but runs longer or shorter. */
 function marksFor(before, after) {
   const marks = {};
-  const had = new Set((before.plan?.sessions || []).map((s) => `${s.taskId}|${s.start}`));
+  const had = new Map((before.plan?.sessions || []).map((s) => [`${s.taskId}|${s.start}`, s.minutes]));
   for (const s of after.plan?.sessions || []) {
     if (!s.taskId) continue;
     const key = `${s.taskId}|${s.start}`;
     // A weekly goal's session is never new: the goal was there before.
     if (!s.commitmentId && !before.tasks[s.taskId]) marks[key] = 'new';
-    else if (!had.has(key)) marks[key] = 'moved';
+    else if (!had.has(key) || had.get(key) !== s.minutes) marks[key] = 'moved';
   }
   return marks;
 }
 
+const PLURAL_DAYS = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+
+/** What Sam has told Cadence, read off the week as it stands: what is due,
+    the activities, anything added to the calendar and what came in by email.
+    `before` is the week before a change, to say what is new. */
+function haveHtml(st, before = null) {
+  const fresh = (yes) => (before && yes ? '<small>New</small>' : '');
+  const row = (kind, key, title, meta, tag = '') => `
+      <li class="ev-have-item k-${kind}" data-who="have:${esc(key)}" data-at="0"><span class="ev-what">${esc(title)}${tag}</span><span class="ev-meta">${esc(meta)}</span></li>`;
+  const group = (label, rows) => (rows.length ? `<li><p class="ev-group">${label}</p><ol>${rows.join('')}</ol></li>` : '');
+
+  const tasks = Object.values(st.tasks).filter((t) => t.status !== 'done').sort((a, b) => new Date(a.due) - new Date(b.due));
+  const due = tasks.map((t) => row('work', t.id, t.title, `Due ${dayWord(t.due)} at ${dueAt(t.due)}, about ${fmtMinutes(t.userEstimateMin)} of work`, fresh(!before?.tasks[t.id])));
+
+  const weekKeys = new Set([...Array(7)].map((_, i) => dateKey(storyDay(i))));
+  const activities = (st.commitments || []).filter((c) => !c.archived).map((c) => {
+    if (!isFixed(c)) return row('activity', c.id, c.title, `${c.target.sessions} sessions of ${fmtMinutes(c.target.minutes)} a week, at no set time`);
+    const off = Object.keys(c.skip || {}).filter((k) => c.skip[k] && weekKeys.has(k)).map((k) => WEEKDAYS[offsetOf(new Date(`${k}T12:00`))]);
+    return row('activity', c.id, c.title, `${list(c.schedule.days.map((d) => PLURAL_DAYS[d]))}, ${fmtClock(c.schedule.start)} to ${fmtClock(c.schedule.end)}${off.length ? `, but not ${list(off)} this week` : ''}`);
+  });
+
+  const had = new Set((before?.busy || []).map((b) => b.id));
+  const added = (st.busy || []).map((b) => row('event', b.id, b.title, `${dayWord(b.start)}, ${fmtTime(b.start)} to ${fmtTime(b.end)}`, fresh(!had.has(b.id))));
+
+  const mail = ((st.sources?.mail?.enabled && st.sources.mail.events) || []).map((e) => row('event', e.id, e.title, `${dayWord(e.start)}, ${fmtTime(e.start)} to ${fmtTime(e.end)}, in an email from the ${e.mail.from.toLowerCase()}`));
+
+  return `<ol class="ev-have">${group('Due this week', due)}${group('Activities', activities)}${group('Added to the calendar', added)}${group('Found in email', mail)}</ol>`;
+}
+
 const linesHtml = (lines) => lines.map((l) => (typeof l === 'string' ? `<li>${esc(l)}</li>` : `<li><b>${esc(l.title)}</b> ${esc(l.text)}</li>`)).join('');
 
-/** Puts the week, its reasons and (after a change) what changed into the page. */
-function paint(host, st, { before = null, key = null } = {}) {
-  host.querySelector('[data-ev-week]').innerHTML = weekHtml(st, before ? marksFor(before, st) : {});
+// ----------------------------------------------------------------- motion
+// When a change re-plans the week, the blocks that moved glide from where
+// they were to where they are now and the new ones arrive, with the same
+// spring as the live app at the top of the page. Only ever in answer to a
+// click, transform and opacity only, and not at all for someone who has asked
+// their device for less motion.
+//
+// A block is matched to its place before the change by what it is (data-who):
+// the same thing at the same time is the same block; whatever is left of each
+// thing is paired up in time order, and those glide. Places are measured
+// within the part of the page being redrawn, so the page moving around it
+// does not count as a move.
+
+const SPRING = 'cubic-bezier(.34, 1.4, .64, 1)';
+const EASE_OUT = 'cubic-bezier(.16, 1, .3, 1)';
+const calm = () => typeof matchMedia !== 'function' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Where each thing in `root` is now, within `root`. Things still arriving are left out, so they arrive again. */
+function places(root) {
+  if (!root?.querySelectorAll) return [];
+  const base = root.getBoundingClientRect();
+  const out = [];
+  for (const el of root.querySelectorAll('[data-who]')) {
+    if (el.dataset.arriving) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width) out.push({ who: el.dataset.who, at: Number(el.dataset.at), x: r.left - base.left, y: r.top - base.top });
+  }
+  return out;
+}
+
+/** Moves each thing in `root` from where it was (`was`, from places()) to where it is now. */
+function glide(was, root) {
+  if (!was || !root?.querySelectorAll || calm()) return;
+  const base = root.getBoundingClientRect();
+  const now = [...root.querySelectorAll('[data-who]')].filter((el) => el.getBoundingClientRect().width);
+  const pool = new Map();
+  for (const p of was) pool.set(p.who, [...(pool.get(p.who) || []), p]);
+  const from = new Map();
+  for (const el of now) {
+    const left = pool.get(el.dataset.who) || [];
+    const i = left.findIndex((p) => p.at === Number(el.dataset.at));
+    if (i >= 0) from.set(el, left.splice(i, 1)[0]);
+  }
+  for (const el of now.filter((e) => !from.has(e)).sort((a, b) => a.dataset.at - b.dataset.at)) {
+    const left = (pool.get(el.dataset.who) || []).sort((a, b) => a.at - b.at);
+    if (left.length) from.set(el, left.shift());
+  }
+  let arriving = 0;
+  for (const el of now) {
+    if (typeof el.animate !== 'function') return;
+    const then = from.get(el);
+    if (then) {
+      const r = el.getBoundingClientRect();
+      const dx = then.x - (r.left - base.left), dy = then.y - (r.top - base.top);
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 460, easing: EASE_OUT });
+    } else {
+      el.dataset.arriving = '1';
+      const done = () => { delete el.dataset.arriving; };
+      el.animate([{ opacity: 0, transform: 'translateY(8px) scale(.96)' }, { opacity: 1, transform: 'none' }],
+        { duration: 520, delay: 140 + 60 * arriving++, easing: SPRING, fill: 'backwards' }).finished.then(done, done);
+    }
+  }
+}
+
+/** Puts the week, what Sam has, its reasons and (after a change) what changed into the page. */
+function paint(host, st, { before = null, key = null, animate = false } = {}) {
+  const week = host.querySelector('[data-ev-week]');
+  const have = host.querySelector('[data-ev-have]');
+  const wasWeek = animate ? places(week) : null;
+  const wasHave = animate ? places(have) : null;
+  week.innerHTML = weekHtml(st, before);
+  if (have) have.innerHTML = haveHtml(st, before);
   host.querySelector('[data-ev-why]').innerHTML = linesHtml(whyLines(st));
   const changed = host.querySelector('[data-ev-changed]');
   const lines = before ? changeLines(before, st, key) : [];
   changed.hidden = !lines.length;
   changed.querySelector('ul').innerHTML = linesHtml(lines);
+  // The key names the orange ring only while something is marked with it.
+  const ring = host.querySelector('[data-ev-ring]');
+  if (ring) ring.hidden = !before;
+  glide(wasWeek, week);
+  glide(wasHave, have);
 }
 
 /**
@@ -308,6 +516,7 @@ function paint(host, st, { before = null, key = null } = {}) {
  * without scripts); this works it out again, shows the buttons, and answers
  * them. The two changes stack: each button adds its change to the week as it
  * stands, or takes it back out, and the week is worked out again from Monday.
+ * Start over is offered only once there is something to undo.
  */
 export function mount(host) {
   const start = startingWeek();
@@ -316,6 +525,7 @@ export function mount(host) {
   paint(host, start);
   const status = host.querySelector('[data-ev-status]');
   const buttons = [...host.querySelectorAll('[data-ev-change]')];
+  const reset = host.querySelector('[data-ev-reset]');
   host.querySelector('[data-ev-try]').hidden = false;
 
   const weekWith = (keys) => keys.reduce((st, k) => change(st, k).after, start);
@@ -325,21 +535,25 @@ export function mount(host) {
     applied = taking ? applied.filter((k) => k !== key) : [...applied, key];
     shown = weekWith(applied);
     for (const b of buttons) b.setAttribute('aria-pressed', String(applied.includes(b.dataset.evChange)));
+    if (reset) reset.hidden = !applied.length;
     if (taking) {
-      paint(host, shown);
+      paint(host, shown, { animate: true });
       status.textContent = `Took back "${CHANGES[key].label[0].toLowerCase()}${CHANGES[key].label.slice(1)}" and planned the week again without it.`;
     } else {
-      paint(host, shown, { before, key });
+      paint(host, shown, { before, key, animate: true });
       status.textContent = `${CHANGES[key].label}, so Cadence planned the week again.`;
     }
   };
   for (const b of buttons) b.addEventListener('click', () => press(b.dataset.evChange));
-  host.querySelector('[data-ev-reset]')?.addEventListener('click', () => {
+  reset?.addEventListener('click', () => {
     applied = [];
     shown = start;
     for (const b of buttons) b.setAttribute('aria-pressed', 'false');
-    paint(host, start);
-    status.textContent = "Sam's week is back to how it started.";
+    reset.hidden = true;
+    paint(host, start, { animate: true });
+    status.textContent = "Sam’s week is back to how it started.";
+    // The button just pressed is gone; carry on from the first change.
+    buttons[0]?.focus();
   });
 }
 

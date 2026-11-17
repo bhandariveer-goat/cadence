@@ -53,7 +53,12 @@
   --accent-soft: #fdf1e9;
   --accent-ink: #9a3412;
   --on-accent: #1c1b19;       /* ink on orange is 5.8:1; white on it is 3:1 */
-  --ring: #c2410c;
+  /* Blue, the brand colour the website stands on, and here the colour of the
+     keyboard focus ring: the one interactive state drawn in blue (site.css). */
+  --blue: #1d3c9c;
+  --blue-ink: #1d3c9c;        /* 9.6:1 on white */
+  --blue-soft: #eef2fc;
+  --ring: var(--blue-ink);
 
   --green: #15803d;
   --green-soft: #eaf5ee;
@@ -69,6 +74,7 @@
   --k-activity: #16a34a;
   --k-work: #f0712b;
   --ring-track: rgba(28, 27, 25, .09);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23736e68' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
 
   /* Which activity. Each kind of activity has its own colour, so piano and
      cross-country are told apart at a glance in rings and icons. None of them
@@ -126,8 +132,10 @@
   --m1: 100ms;
   --m2: 150ms;
   --m3: 200ms;
+  --m4: 320ms;                 /* something moving to a new place */
   --ease-out: cubic-bezier(.16, 1, .3, 1);
-  --ease-in: cubic-bezier(.7, 0, .84, 0);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);          /* speeding up as it leaves (the homepage tour's exit) */
+  --ease-spring: cubic-bezier(.34, 1.4, .64, 1); /* a little past and back: the homepage tour only */
 
   --hit: 44px;                 /* the smallest thing a finger is asked to hit */
   --vp-wide: 1280px;
@@ -164,7 +172,9 @@
   --accent-soft: #33211a;
   --accent-ink: #ffb48a;
   --on-accent: #1c1b19;
-  --ring: #ff8a4c;
+  --blue: #1c2d6e;
+  --blue-ink: #a9bcf5;        /* 9.9:1 on the page */
+  --blue-soft: #1b2340;
   --green: #4ade80;
   --green-soft: #16291d;
   --amber: #e5b455;
@@ -176,6 +186,7 @@
   --k-activity: #4ade80;
   --k-work: #ff8a4c;
   --ring-track: rgba(243, 241, 238, .12);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%239c9790' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   --a-practice: #e879f9;
   --a-sport: #4ade80;
   --a-club: #22d3ee;
@@ -422,6 +433,7 @@ kbd {
 button.card.tap:hover, .card.tap[role="button"]:hover { border-color: var(--line-strong); background: var(--surface-2); }
 .card-title { font-size: var(--t-body); font-weight: 600; line-height: 1.4; }
 .card-sub { margin-top: var(--s1); color: var(--text-2); font-size: var(--t-sm); }
+.card-sub.mt0 { margin-top: 0; }
 
 /* ---------------------------------------------------------- today hero */
 /* The top of Today: the date, the greeting, one sentence about the day, and
@@ -537,7 +549,10 @@ button.tl-card:hover { background: var(--surface-2); border-color: var(--line-st
 .item .t { font-size: var(--t-sm); font-weight: 500; line-height: 1.4; }
 .item .m { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s2); color: var(--text-2); font-size: var(--t-sm); line-height: 1.4; }
 .item .side { flex: none; color: var(--text-2); font-size: var(--t-sm); text-align: right; font-variant-numeric: tabular-nums; }
-.item.done .t { color: var(--muted); text-decoration: line-through; }
+/* Buttons inside a frame that clips (a row of rings or day chips, the week grid's
+   day headings) draw their focus ring inside themselves, where it is not cut off. */
+.ring-tile:focus-visible, .daychip:focus-visible, .wg-head .wg-day:focus-visible { outline-offset: -2px; }
+.item.done .t, .task.done > .item .t { color: var(--muted); text-decoration: line-through; }
 .item > svg:last-child { color: var(--muted); }
 .bar { display: none; }
 .dot { display: inline-block; width: 8px; height: 8px; flex: none; border-radius: 2px; background: var(--c, var(--muted)); }
@@ -684,7 +699,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 input:hover, select:hover, textarea:hover { border-color: var(--text-2); }
 select {
   appearance: none; padding-right: var(--s8);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23736e68' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-image: var(--chevron);
   background-repeat: no-repeat; background-position: right var(--s2) center; background-size: 16px;
 }
 textarea { min-height: 88px; resize: vertical; }
@@ -816,7 +831,7 @@ dialog.sheet.confirm .grab { display: none; }
 
 .ob { display: flex; flex-direction: column; min-height: 100%; max-width: 640px; margin: 0 auto; }
 .ob .art { margin: var(--s2) 0 var(--s4); }
-.ob h1 { font-size: var(--t-h1); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
+.ob h1 { font-size: var(--t-h1); font-weight: var(--display-weight); line-height: 1.2; letter-spacing: var(--display-track); }
 .ob .lead { margin: var(--s2) 0 var(--s6); color: var(--text-2); font-size: var(--t-body); max-width: 60ch; }
 /* A sticky bar stops at its page's bottom padding, which left a strip under
    it where the page showed through. Onboarding's page has none: the bar is
@@ -891,7 +906,7 @@ main:has(> .ob) { padding-bottom: 0; }
 /* Scripts off: the planner cannot draw anything, so it says so and points at
    the pages that are plain text. It covers the loading mark. */
 .no-script { position: fixed; inset: 0; z-index: 1; display: grid; align-content: center; justify-items: start; gap: var(--s3); max-width: 560px; margin: 0 auto; padding: var(--s6); background: var(--bg); }
-.no-script h1 { font-size: var(--t-h1); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
+.no-script h1 { font-size: var(--t-h1); font-weight: var(--display-weight); line-height: 1.2; letter-spacing: var(--display-track); }
 .no-script p { color: var(--text-2); }
 .no-script .ways { display: flex; flex-wrap: wrap; gap: 0 var(--s6); }
 .no-script .ways a { display: inline-flex; align-items: center; min-height: var(--hit); }
@@ -909,7 +924,7 @@ body.embedded .demo-bar { display: none; }
 .back:hover { background: var(--surface-2); color: var(--text); }
 .guide-head { padding: 0 0 var(--s4); }
 .guide-head .kicker { display: flex; align-items: center; gap: var(--s2); color: var(--text-2); font-size: var(--t-sm); }
-.guide-head h1 { margin: var(--s1) 0 var(--s2); font-size: var(--t-h1); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
+.guide-head h1 { margin: var(--s1) 0 var(--s2); font-size: var(--t-h1); font-weight: var(--display-weight); line-height: 1.2; letter-spacing: var(--display-track); }
 .guide-meta { display: flex; flex-wrap: wrap; gap: 0 var(--s4); color: var(--text-2); font-size: var(--t-sm); }
 .explain .label { display: flex; align-items: center; gap: var(--s2); color: var(--text-2); font-size: var(--t-sm); font-weight: 500; }
 .explain .headline { margin-top: var(--s2); font-size: var(--t-body); font-weight: 500; line-height: 1.55; }
@@ -1040,7 +1055,7 @@ dialog.palette[open] { animation: pop-in var(--m2) var(--ease-out); }
 
 .signin { max-width: 400px; margin: 0 auto; padding: var(--s8) 0 var(--s12); }
 .signin .art { margin-bottom: var(--s6); }
-.signin h1 { font-size: var(--t-h1); font-weight: 600; line-height: 1.2; letter-spacing: -.01em; }
+.signin h1 { font-size: var(--t-h1); font-weight: var(--display-weight); line-height: 1.2; letter-spacing: var(--display-track); }
 .signin .lead { margin: var(--s2) 0 var(--s6); color: var(--text-2); font-size: var(--t-body); }
 .signin-form { display: grid; }
 .signin-or { display: flex; align-items: center; gap: var(--s3); margin: var(--s6) 0 var(--s4); color: var(--muted); font-size: var(--t-sm); }
@@ -1158,6 +1173,9 @@ dialog.setup .lead { margin-top: var(--s2); color: var(--text-2); font-size: var
    slides away over the new one. While the tour plays the app does not
    scroll, so a wheel or swipe over the frame scrolls the homepage. */
 .showing main { overflow: hidden; overscroll-behavior: auto; }
+/* The week grid and the side pane scroll by themselves; while the tour plays
+   they hold still too, so a wheel over them still moves the homepage. */
+.showing .wg-body, .showing #side { overflow: hidden; }
 .view-leaving { position: absolute; left: 0; right: 0; box-sizing: border-box; pointer-events: none; }
 .tabbar { position: relative; }
 .tab-glide { position: absolute; z-index: 0; pointer-events: none; background: var(--accent-soft); }
@@ -1189,7 +1207,7 @@ dialog.setup .lead { margin-top: var(--s2); color: var(--text-2); font-size: var
 .ix-daily { display: block; width: 100%; height: auto; }
 .ix-col { fill: var(--accent); }
 .ix-axis { stroke: var(--line-strong); stroke-width: 1; }
-.ix-tick { fill: var(--muted); font-size: 11px; }
+.ix-tick { fill: var(--muted); font-size: var(--t-meta); }
 .ix-foot { margin-top: var(--s4); }
 @media (max-width: 640px) {
   .ix-row { grid-template-columns: minmax(0, 1fr) minmax(0, 7rem); row-gap: var(--s1); }
