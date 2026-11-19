@@ -278,28 +278,21 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 .btn.large { min-height: 48px; padding: 0 var(--s6); font-size: var(--t-body); }
 
 /* ---------------------------------------------------------------- hero */
-/* What it is, then the thing itself, running, all of it standing on the
-   stage: a field of evening blue with the app lit up on it as a white
-   screen, and the orange button as the brightest thing there. Each sentence
-   of the headline starts its own line.
-
-   The app runs at its phone size under the words on a phone, and beside
-   them from 768px. From 1080px the frame is wide enough for the app's
-   desktop layout (it switches at 768px inside the frame, and gets its side
-   pane only from 1180px, which the frame never reaches), so it runs the full
-   width of the page under the words, with its week and its tab row. */
+/* What it is on the left; the thing itself, running, on the right, half and
+   half. Both stand on the stage, so the first screen is one field of evening
+   blue with the app lit up on it as a tall white screen and the orange
+   button as the brightest thing there. On a phone the app comes under the
+   words, keeping their left edge. */
 .hero { padding: var(--s12) 0; background: var(--stage); color: var(--on-stage); }
-.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s8); }
-.hero-head { display: grid; gap: var(--s6); align-content: start; }
-.hero h1 { font-size: var(--t-hero); font-weight: 600; line-height: 1.04; letter-spacing: var(--hero-track); }
-.hero h1 span { display: block; }
-.hero .sub { max-width: 44ch; color: var(--on-stage-2); font-size: var(--t-lead); line-height: 1.55; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s12); align-items: center; }
+.hero h1 { max-width: 14ch; font-size: var(--t-hero); font-weight: 600; line-height: 1.06; letter-spacing: var(--hero-track); }
+.hero .sub { max-width: 42ch; margin-top: var(--s6); color: var(--on-stage-2); font-size: var(--t-lead); line-height: 1.55; }
 .hero .facts { margin-top: var(--s4); color: var(--on-stage-2); font-size: var(--t-sm); }
 .cta { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s6); }
-.hero-act { margin-top: var(--s6); }
-.hero .cta { margin-top: 0; }
+.hero .cta { margin-top: var(--s8); }
 /* On a narrow phone the two buttons share one row, each half of it. */
 @media (max-width: 479.98px) {
+  .hero .cta { margin-top: var(--s6); }
   .hero .cta .btn { flex: 1 1 0; padding: 0 var(--s3); }
 }
 /* On the stage, the second button is an outline in the stage's own light,
@@ -307,10 +300,9 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 .hero .btn.plain, .closing .btn.plain { border-color: var(--stage-line); background: transparent; color: var(--on-stage); }
 .hero .btn.plain:hover, .closing .btn.plain:hover { background: var(--stage-hover); }
 .hero :focus-visible, .closing :focus-visible { outline-color: var(--on-stage); }
-/* Under the words on a narrow screen, it keeps their left edge. */
 .live { --live-h: min(640px, calc(100dvh - 176px)); position: relative; width: 100%; max-width: 420px; margin: 0; }
 .live iframe { position: relative; display: block; width: 100%; height: var(--live-h); min-height: 480px; border: 1px solid var(--stage-edge); border-radius: var(--r-xl); background: var(--bg); }
-.live figcaption { max-width: 64ch; margin-top: var(--s3); color: var(--on-stage-2); font-size: var(--t-sm); }
+.live figcaption { margin-top: var(--s3); color: var(--on-stage-2); font-size: var(--t-sm); text-align: center; }
 /* Until the demo has loaded, its frame is already there, the same size and
    colour as the app, holding three quiet bars: a white screen waiting on the
    blue, not bars floating on it. */
@@ -336,20 +328,15 @@ code { padding: 0 var(--s1); border-radius: var(--r-sm); background: var(--surfa
 .live.ready .live-wait i { animation: none; }
 @keyframes live-late { to { opacity: 1; } }
 @keyframes wait { from { opacity: .45; } to { opacity: 1; } }
-/* A tablet: the words on the left, the app at its phone size on the right. */
-@media (min-width: 768px) and (max-width: 1079.98px) {
-  .hero .wrap { grid-template-columns: minmax(0, 1fr) 420px; gap: var(--s12); align-items: start; }
+/* From a tablet up: half and half, the words on the left and the app, at its
+   tall phone size, on the right. */
+@media (min-width: 768px) {
+  .hero .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s12); }
+  .live { justify-self: end; }
 }
-/* Wide: the words across the top, the headline on its own and the sentence
-   beside the buttons under it, then the app at its desktop size. */
-@media (min-width: 1080px) {
-  .hero { padding: var(--s12) 0 var(--s16); }
-  .hero .wrap { gap: var(--s12); }
-  .hero-head { gap: var(--s6); }
-  .hero-side { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: var(--s6) var(--s12); }
-  .hero-act { margin-top: 0; }
-  .hero-act .facts { max-width: 40ch; }
-  .live { --live-h: 720px; max-width: none; }
+@media (min-width: 960px) {
+  .hero { padding: var(--s16) 0; }
+  .hero .wrap { gap: var(--s16); }
 }
 
 /* ------------------------------------------------------------ sections */

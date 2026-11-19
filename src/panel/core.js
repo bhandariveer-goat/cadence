@@ -34,10 +34,12 @@ export const insideCanvas = !STANDALONE;
 export const DEMO = STANDALONE && (document.body.dataset.demo === '1' || params.get('demo') === '1');
 export const EMBEDDED = params.get('embed') === '1';
 useBucket(DEMO ? 'demo' : 'real');
+// The homepage's tour opens on Activities, which is what the page is about (autoplay.js).
+const TOUR_FIRST = EMBEDDED && DEMO && params.get('autoplay') === '1' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export const app = {
   S: null,
-  view: 'today',
+  view: TOUR_FIRST ? 'activities' : 'today',
   stack: [],            // sub-screens opened from a tab, for Back
   usageOn: null,        // whether anonymous usage counts are on for this browser (lib/metrics.js); null until read
   ctx: {},              // Canvas page context from the content script

@@ -299,10 +299,16 @@ function emptyToday() {
   return `<div class="empty">
     <div class="art">${ART}</div>
     <h2>Your week starts here</h2>
-    <p>${canvas ? 'Bring in your Canvas homework with one link, or tell Cadence what you have on in your own words.' : 'Tell Cadence what you have on, in your own words, and it builds the week around it.'}</p>
+    <p>Connect what you already use, or tell Cadence what you have on in your own words, and it builds the week around it.</p>
     <div class="mt4 stack">
-      ${canvas ? '<button class="btn primary" data-act="canvas-feed-sheet">Connect Canvas</button>' : ''}
-      <button class="btn ${canvas ? 'soft' : 'primary'}" data-act="agent-open">Tell Cadence about your week</button>
+      <div class="q">Bring it in from</div>
+      <div class="bring">
+        ${canvas ? '<button class="btn primary" data-act="canvas-feed-sheet">Connect Canvas</button>' : ''}
+        <button class="btn ${canvas ? 'soft' : 'primary'}" data-act="calendar-setup">Connect calendar</button>
+        <button class="btn soft" data-act="open-calendars">Connect email</button>
+      </div>
+      <div class="q">Or add it yourself</div>
+      <button class="btn soft" data-act="agent-open">Tell Cadence about your week</button>
       <button class="btn soft" data-act="add-commit">Add an activity</button>
       <button class="btn soft" data-act="go" data-tab="plan">Add an assignment</button>
     </div>

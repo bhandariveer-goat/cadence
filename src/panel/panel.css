@@ -367,6 +367,7 @@ kbd {
 .grow { flex: 1; min-width: 0; }
 .center { text-align: center; }
 .stack { display: grid; gap: var(--s2); }
+.bring { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s2); }
 .block { display: block; }
 .m0 { margin: 0; }
 .mt0 { margin-top: 0; }
@@ -1176,6 +1177,9 @@ dialog.setup .lead { margin-top: var(--s2); color: var(--text-2); font-size: var
 /* The week grid and the side pane scroll by themselves; while the tour plays
    they hold still too, so a wheel over them still moves the homepage. */
 .showing .wg-body, .showing #side { overflow: hidden; }
+/* What the tour says about the page on show: a label at the foot of the frame. */
+.tour-note { position: fixed; left: var(--s4); bottom: var(--s4); z-index: var(--z-pop); max-width: calc(100vw - var(--s8)); margin: 0; padding: var(--s2) var(--s3); border-radius: var(--r-lg); background: var(--text); color: var(--bg); box-shadow: var(--shadow-3); font-size: var(--t-sm); font-weight: 500; line-height: 1.4; pointer-events: none; }
+@media (max-width: 767.98px) { .tour-note { bottom: calc(var(--s4) + 72px); } }
 .view-leaving { position: absolute; left: 0; right: 0; box-sizing: border-box; pointer-events: none; }
 .tabbar { position: relative; }
 .tab-glide { position: absolute; z-index: 0; pointer-events: none; background: var(--accent-soft); }

@@ -1,11 +1,11 @@
 // The homepage's live app shows itself around, and this is the only place in
 // Cadence where things move on their own.
 //
-// As the homepage opens, Today comes in a piece at a time. Then the app moves
-// through its tabs by itself, Today, Calendar, School, Activities, Crew and
-// round again: the mark under the tab springs across to the next one, the old
-// page slides away, and the new one comes in from that side, its rows a beat
-// behind the blocks that hold them.
+// As the homepage opens, Activities comes in a piece at a time. Then the app
+// moves by itself through School, Calendar, the assistant, Crew and Today and
+// round again, saying in a line what each one is: the mark under the tab
+// springs across to the next one, the old page slides away, and the new one
+// comes in from that side, its rows a beat behind the blocks that hold them.
 //
 // It only ever looks: switching tabs changes nothing that is saved, so the
 // visitor's own demo week is left as it was. It runs only in the homepage's
@@ -18,7 +18,7 @@
 
 import { app, EMBEDDED, DEMO } from './core.js';
 
-const FIRST = 2200;  // milliseconds on Today after it arrives
+const FIRST = 2200;  // milliseconds on the first stop after it arrives
 const STAY = 2800;   // milliseconds on each tab after that
 const COME = 640;    // one piece coming in, at the arrival or a change (twice --m4)
 const EXIT = 200;    // the old page sliding away (--m3)
@@ -240,13 +240,72 @@ async function wait(ms) {
   }
 }
 
-/** The tour itself: Today for a moment, then the next tab every few seconds, round and round. */
+// What the tour shows, in order, and what it says about each stop. It opens
+// on Activities, because that is what the homepage is about, goes through
+// School to the Calendar where everything comes together, shows the
+// assistant, then Crew, and ends on Today.
+const STOPS = [
+  { tab: 'activities', note: 'Everything you do outside class' },
+  { tab: 'plan', note: 'Your homework, with time to do it' },
+  { tab: 'calendar', note: 'This is where everything comes together' },
+  { assistant: true, note: 'When plans change, just tell it' },
+  { tab: 'crew', note: 'Keep your friends accountable' },
+  { tab: 'today', note: 'Then each day, what to do next' }
+];
+const SAY = 'Practice is cancelled Wednesday';   // typed into the assistant, never sent
+
+let noteEl = null;
+
+/** Says what the stop on show is, in a small label at the foot of the frame. */
+function say(text) {
+  if (!noteEl) {
+    noteEl = Object.assign(document.createElement('p'), { className: 'tour-note' });
+    noteEl.setAttribute('aria-hidden', 'true');
+    document.body.append(noteEl);
+  }
+  noteEl.textContent = text;
+  noteEl.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: SPRING, fill: 'backwards' });
+}
+
+const agentOpen = () => !document.getElementById('agent')?.hidden;
+const toggleAgent = () => document.getElementById('btn-agent')?.click();
+
+/** Types into the assistant's box, a letter at a time. It is never sent: the demo week stays as it was. */
+async function type(text) {
+  for (let i = 1; i <= text.length; i++) {
+    const box = document.getElementById('ag-input');
+    if (!box) return;
+    box.value = text.slice(0, i);
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(i === 1 ? 500 : 45);
+  }
+}
+
+/** Goes to one stop. The assistant is opened beside the page and closed again on the way out. */
+async function visit(stop) {
+  if (agentOpen() && !stop.assistant) {
+    const box = document.getElementById('ag-input');
+    if (box) { box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true })); }
+    toggleAgent();
+  }
+  if (stop.assistant) {
+    if (!agentOpen()) toggleAgent();
+    const pane = document.getElementById('agent');
+    pane?.animate([{ opacity: 0, transform: 'translateX(24px)' }, { opacity: 1, transform: 'none' }], { duration: 2 * 160, easing: SPRING, fill: 'backwards' });
+    say(stop.note);
+    await type(SAY);
+    return;
+  }
+  document.querySelector(`#tabs [data-act="tab"][data-tab="${stop.tab}"]`)?.click();
+  say(stop.note);
+}
+
+/** The tour itself: the first stop for a moment, then each of the others in turn, round and round. */
 async function tour() {
+  say(STOPS[0].note);
   await wait(FIRST);
-  for (;;) {
-    const tabs = [...document.querySelectorAll('#tabs [data-act="tab"]')];
-    const at = tabs.findIndex((t) => t.hasAttribute('aria-current'));
-    if (tabs.length) tabs[(at + 1) % tabs.length].click();
+  for (let i = 1; ; i = (i + 1) % STOPS.length) {
+    await visit(STOPS[i]);
     await wait(STAY);
   }
 }
@@ -256,6 +315,7 @@ function takeOver(e) {
   if (!e.isTrusted) return;   // the tour's own clicks on the tabs
   stopped = true;
   document.body.classList.remove('showing');
+  noteEl?.remove();
 }
 
 /** Starts the tour in the homepage's frame. */

@@ -150,10 +150,13 @@ the three dots while the assistant is thinking.
 
 One thing moves by itself, and it is the only place anything moves for
 show: the live app on the homepage (`src/panel/autoplay.js`). As the page
-opens, Today comes in a piece at a time; then the app steps through its own
-tabs every few seconds, the mark under the tab springing across, the old
-page sliding away and the new one arriving from that side, rows a beat
-behind their blocks. Inside the app itself tabs change instantly. The tour
+opens, Activities (what the homepage is about) comes in a piece at a time;
+then every few seconds the app moves on by itself: School, Calendar ("This
+is where everything comes together"), the assistant, which has a sentence
+typed into it that is never sent, Crew ("Keep your friends accountable") and
+Today, then round again. A label at the foot of the frame says what each stop
+is. The mark under the tab springs across, the old page slides away and the
+new one arrives from that side, rows a beat behind their blocks. Inside the app itself tabs change instantly. The tour
 only looks, never changes the demo week, and does not play for anyone who
 asked for less motion. While it plays the frame does not scroll, so a wheel
 over it scrolls the homepage; the visitor's first click, tap or key press
@@ -184,7 +187,7 @@ None of the three is an animation: each is either there or not.
 - Below 768px: one column, tabs along the bottom. This is the extension panel (440px) and the website on a phone.
 - From 768px: header, a row of tabs, the page, and up to two panes on the right.
 - The header and tab row span the window. What is inside them is kept to 1280px by a gutter measured from the window, so the header's left edge and the page's left edge are the same line.
-- The homepage's live app stands on the stage at every width. It is the phone layout (420px) under the words on a phone and beside them from 768px. From 1080px it runs the full width of the page under the words (1032 to 1072px wide, so always the desktop layout and never the side pane, which starts at 1180px).
+- The homepage's live app stands on the stage at every width, as a tall phone-layout screen (420px at most): under the words on a phone, and from 768px on the right, half and half with the words.
 - The public header has three widths. On a phone: the name, the main button and a menu. From 768px: search, the theme and both buttons join it, and the links stay in the menu. From 1080px the links are written out and the menu goes. A header never wraps onto a second line; when something does not fit, it moves into the menu.
 - Every public page below the homepage starts with breadcrumbs (Home, then the page). The last one is where you are and is not a link.
 - A primary action is never on screen twice. On the homepage on a phone that is one of: the buttons at the top, the bar at the bottom, the buttons at the end.

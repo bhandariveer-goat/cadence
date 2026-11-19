@@ -12,8 +12,8 @@ import { step as note } from './insight.js';
 const STEPS = [
   { sel: '[data-act="tab"][data-tab="today"]', title: 'Today', text: 'What to do next, and what is left today. Press Start block when you sit down to work.' },
   { sel: '[data-act="tab"][data-tab="calendar"]', title: 'Calendar', text: 'Your week in one place: school, practice, plans, and the time set aside for homework.' },
-  { sel: '[data-act="tab"][data-tab="plan"]', title: 'School', text: 'Every assignment and how long it should take. Open one to see the steps to finish it.' },
   { sel: '[data-act="tab"][data-tab="activities"]', title: 'Activities', text: 'Practice, clubs, a job. Check in after each one to fill its ring for the week.' },
+  { sel: '[data-act="tab"][data-tab="plan"]', title: 'School', text: 'Every assignment and how long it should take. Open one to see the steps to finish it.' },
   { sel: '[data-act="tab"][data-tab="crew"]', title: 'Crew', text: 'Add a friend or join your club so you keep each other on track.' },
   { sel: '#btn-agent', title: 'Ask Cadence', text: 'Day changed? Say it in a sentence, like “I’m tired, an hour tonight”, and your plan moves to fit.' }
 ];

@@ -55,7 +55,7 @@ const VIEWS = {
 };
 
 const TABS = {
-  student: [['today', 'Today', I.sun], ['calendar', 'Calendar', I.cal], ['plan', 'School', I.list], ['activities', 'Activities', I.star], ['crew', 'Crew', I.users]],
+  student: [['today', 'Today', I.sun], ['calendar', 'Calendar', I.cal], ['activities', 'Activities', I.star], ['plan', 'School', I.list], ['crew', 'Crew', I.users]],
   teacher: [['create', 'Create', I.mic], ['calendar', 'Calendar', I.cal], ['crew', 'Clubs', I.users]]
 };
 
